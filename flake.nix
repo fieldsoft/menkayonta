@@ -32,9 +32,6 @@
           # Packages to include in the shell environment
           buildInputs = with pkgs; [
             nodejs_24
-            duckdb
-            cargo
-            cargo-tauri
             elmPackages.elm
             elmPackages.elm-format
             elmPackages.elm-optimize-level-2
@@ -47,9 +44,7 @@
           shellHook = ''
             echo "🚀 Development environment loaded!"
             echo "📦 Node.js $(node --version)"
-            echo "🦆 DuckDB $(duckdb --version)"
             echo "🌳 Elm $(elm --version)"
-            echo "⛏️ Tauri $(tauri --version)"
             echo ""
           '';
           
