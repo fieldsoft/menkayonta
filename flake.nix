@@ -32,11 +32,6 @@
           # Packages to include in the shell environment
           buildInputs = with pkgs; [
             nodejs_24
-            elmPackages.elm
-            elmPackages.elm-format
-            elmPackages.elm-optimize-level-2
-            elmPackages.elm-review
-            elmPackages.elm-test
           ];
           
           # Shell hook runs when entering the shell
@@ -44,13 +39,12 @@
           shellHook = ''
             echo "🚀 Development environment loaded!"
             echo "📦 Node.js $(node --version)"
-            echo "🌳 Elm $(elm --version)"
             echo ""
           '';
           
           # Environment variables
           # These are set when the shell is active
-          PROJECT_NAME = "my-awesome-project";
+          PROJECT_NAME = "menkayonta";
           NODE_ENV = "development";
         };
       });

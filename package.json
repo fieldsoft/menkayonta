@@ -1,0 +1,25 @@
+{
+  "name": "menkayonta",
+  "version": "1.0.0",
+  "description": "Language workbook",
+  "keywords": [
+    "linguistics"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://codeberg.org/fieldsoft/menkayonta.git"
+  },
+  "license": "GPL-3.0",
+  "author": "Noah Diewald",
+  "type": "commonjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@parcel/transformer-elm": "^2.16.0",
+    "parcel": "^2.16.0"
+  },
+  "dependencies": {
+    "elm": "^0.19.1-6"
+  }
+}
