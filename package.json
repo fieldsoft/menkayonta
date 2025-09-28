@@ -1,10 +1,11 @@
 {
   "name": "menkayonta",
-  "version": "1.0.0",
-  "description": "Language workbook",
+  "version": "0.0.1",
+  "description": "A linguistic research workbook",
   "keywords": [
     "linguistics"
   ],
+  "main": "html/app.js",
   "repository": {
     "type": "git",
     "url": "https://codeberg.org/fieldsoft/menkayonta.git"
@@ -13,13 +14,16 @@
   "author": "Noah Diewald",
   "type": "commonjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "APP_DEV=true npx electron .",
+    "build": "npx elm make src/Main.elm --output html/main.js --debug",
+    "pack": "npx electron-builder -lmw --dir",
+    "postinstall": "npm run build"
   },
   "devDependencies": {
-    "@parcel/transformer-elm": "^2.16.0",
-    "parcel": "^2.16.0"
-  },
-  "dependencies": {
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
+    "electron-reload": "^1.5.0",
     "elm": "^0.19.1-6"
   }
 }

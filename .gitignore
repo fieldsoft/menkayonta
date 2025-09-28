@@ -13,8 +13,9 @@ result-*
 node_modules/
 npm-debug.log*
 
-# Added by cargo
-/target
+# elm
+
+elm-stuff/
 
 # emacs
 .\#*

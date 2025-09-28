@@ -1,4 +1,4 @@
-module Main exposing ( main )
+module Main exposing (main)
 
 import Browser
 import Browser.Dom exposing (Viewport)
@@ -82,34 +82,39 @@ subscriptions _ =
     Sub.none
 
 
+
 -- view model = map (displayView model) model.vids -- which would be a list [ vid1, ..., vidn ]
--- vid : { 
+-- vid : {
+
+
 view : Model -> Html.Html Msg
 view model =
     Html.div []
         [ Html.header [ Attr.class "container-fluid" ]
-                      [ Html.nav [] [ Html.ul []
-                                          [ Html.li [] [ Html.a [ Attr.href "/" ] [ Html.text "Home" ] ] ]
-                                    , Html.ul []
-                                        [ Html.li [] [ Html.button [] [ Html.text "Save" ] ]
-                                        , Html.li [] [ Html.button [] [ Html.text "Open" ] ]
-                                        ]
-                                    ]
-                      ]
-        , Html.main_ [ Attr.class "container-fluid" ] [ Html.h1 [ Attr.class "title" ] [ Html.text "Welcome" ] ]
+            [ Html.nav []
+                [ Html.ul []
+                    [ Html.li [] [ Html.a [ Attr.href "/" ] [ Html.text "Home" ] ] ]
+                , Html.ul []
+                    [ Html.li [] [ Html.button [] [ Html.text "Save" ] ]
+                    , Html.li [] [ Html.button [] [ Html.text "Open" ] ]
+                    ]
+                ]
+            ]
+        , Html.main_ [ Attr.class "container-fluid" ] [ Html.h1 [ Attr.class "title" ] [ Html.text "Welcome Here" ] ]
         ]
+
 
 homeView model =
     Html.div []
         [ Html.header [ Attr.class "container-fluid" ]
-              [ Html.nav [] [ Html.ul []
-                                  [ Html.li [] [ Html.a [ Attr.href "/" ] [ Html.text "Home" ] ] ]
-                            , Html.ul []
-                                [ Html.li [] [ Html.button [] [ Html.text "Save" ] ]
-                                , Html.li [] [ Html.button [] [ Html.text "Open" ] ]
-                                ]
-                            ]
-              ]
+            [ Html.nav []
+                [ Html.ul []
+                    [ Html.li [] [ Html.a [ Attr.href "/" ] [ Html.text "Home" ] ] ]
+                , Html.ul []
+                    [ Html.li [] [ Html.button [] [ Html.text "Save" ] ]
+                    , Html.li [] [ Html.button [] [ Html.text "Open" ] ]
+                    ]
+                ]
+            ]
         , Html.main_ [ Attr.class "container-fluid" ] [ Html.h1 [ Attr.class "title" ] [ Html.text "Welcome" ] ]
         ]
-        
