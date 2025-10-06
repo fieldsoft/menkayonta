@@ -10563,28 +10563,87 @@ var $author$project$Main$init = function (flags) {
 	return _Utils_Tuple2(
 		{
 			config: {state: ''},
+			counter: 0,
 			error: $elm$core$Maybe$Nothing,
+			filePath: 'No Path',
+			title: '',
 			windowHeight: flags.windowHeight
 		},
 		$elm$core$Platform$Cmd$none);
 };
-var $elm$core$Platform$Sub$batch = _Platform_batch;
-var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
-var $author$project$Main$subscriptions = function (_v0) {
-	return $elm$core$Platform$Sub$none;
+var $author$project$Main$ReceivedCount = function (a) {
+	return {$: 'ReceivedCount', a: a};
 };
+var $author$project$Main$ReceivedPath = function (a) {
+	return {$: 'ReceivedPath', a: a};
+};
+var $elm$core$Platform$Sub$batch = _Platform_batch;
+var $author$project$Main$receiveCount = _Platform_incomingPort('receiveCount', $elm$json$Json$Decode$int);
+var $author$project$Main$receivePath = _Platform_incomingPort('receivePath', $elm$json$Json$Decode$string);
+var $author$project$Main$subscriptions = function (_v0) {
+	return $elm$core$Platform$Sub$batch(
+		_List_fromArray(
+			[
+				$author$project$Main$receivePath($author$project$Main$ReceivedPath),
+				$author$project$Main$receiveCount($author$project$Main$ReceivedCount)
+			]));
+};
+var $elm$json$Json$Encode$null = _Json_encodeNull;
+var $author$project$Main$openFile = _Platform_outgoingPort(
+	'openFile',
+	function ($) {
+		return $elm$json$Json$Encode$null;
+	});
+var $author$project$Main$setTitle = _Platform_outgoingPort('setTitle', $elm$json$Json$Encode$string);
 var $author$project$Main$update = F2(
 	function (msg, model) {
-		if (msg.$ === 'SubmittedForm') {
-			return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-		} else {
-			return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+		switch (msg.$) {
+			case 'SubmittedForm':
+				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'UpdatedInput':
+				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'UpdateTitle':
+				var s = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{title: s}),
+					$elm$core$Platform$Cmd$none);
+			case 'SetTitle':
+				return _Utils_Tuple2(
+					model,
+					$author$project$Main$setTitle(model.title));
+			case 'OpenFile':
+				return _Utils_Tuple2(
+					model,
+					$author$project$Main$openFile(_Utils_Tuple0));
+			case 'ReceivedPath':
+				var s = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{filePath: s}),
+					$elm$core$Platform$Cmd$none);
+			default:
+				var i = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{counter: model.counter + i}),
+					$elm$core$Platform$Cmd$none);
 		}
 	});
+var $author$project$Main$OpenFile = {$: 'OpenFile'};
+var $author$project$Main$SetTitle = {$: 'SetTitle'};
+var $author$project$Main$UpdateTitle = function (a) {
+	return {$: 'UpdateTitle', a: a};
+};
 var $elm$html$Html$h1 = _VirtualDom_node('h1');
 var $elm$html$Html$header = _VirtualDom_node('header');
+var $elm$html$Html$hr = _VirtualDom_node('hr');
 var $elm$html$Html$main_ = _VirtualDom_node('main');
 var $elm$html$Html$nav = _VirtualDom_node('nav');
+var $elm$html$Html$strong = _VirtualDom_node('strong');
 var $author$project$Main$view = function (model) {
 	return A2(
 		$elm$html$Html$div,
@@ -10676,7 +10735,59 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('Welcome Here')
+								$elm$html$Html$text('rrrrr')
+							])),
+						A2(
+						$elm$html$Html$input,
+						_List_fromArray(
+							[
+								$elm$html$Html$Events$onInput($author$project$Main$UpdateTitle),
+								$elm$html$Html$Attributes$value(model.title)
+							]),
+						_List_Nil),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Events$onClick($author$project$Main$SetTitle)
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('Set Title')
+							])),
+						A2($elm$html$Html$hr, _List_Nil, _List_Nil),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Events$onClick($author$project$Main$OpenFile)
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('Open File')
+							])),
+						A2(
+						$elm$html$Html$p,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$elm$html$Html$text('File Path'),
+								A2(
+								$elm$html$Html$strong,
+								_List_Nil,
+								_List_fromArray(
+									[
+										$elm$html$Html$text(model.filePath)
+									]))
+							])),
+						A2($elm$html$Html$hr, _List_Nil, _List_Nil),
+						A2(
+						$elm$html$Html$p,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								$elm$core$String$fromInt(model.counter))
 							]))
 					]))
 			]));
@@ -10690,4 +10801,4 @@ _Platform_export({'Main':{'init':$author$project$Main$main(
 			return $elm$json$Json$Decode$succeed(
 				{windowHeight: windowHeight});
 		},
-		A2($elm$json$Json$Decode$field, 'windowHeight', $elm$json$Json$Decode$int)))({"versions":{"elm":"0.19.1"},"types":{"message":"Main.Msg","aliases":{},"unions":{"Main.Msg":{"args":[],"tags":{"SubmittedForm":[],"UpdatedInput":["Main.Field","String.String"]}},"Main.Field":{"args":[],"tags":{"ProjectName":[],"Language":[]}},"String.String":{"args":[],"tags":{"String":[]}}}}})}});}(this));
+		A2($elm$json$Json$Decode$field, 'windowHeight', $elm$json$Json$Decode$int)))({"versions":{"elm":"0.19.1"},"types":{"message":"Main.Msg","aliases":{},"unions":{"Main.Msg":{"args":[],"tags":{"SubmittedForm":[],"UpdatedInput":["Main.Field","String.String"],"UpdateTitle":["String.String"],"SetTitle":[],"ReceivedPath":["String.String"],"OpenFile":[],"ReceivedCount":["Basics.Int"]}},"Main.Field":{"args":[],"tags":{"ProjectName":[],"Language":[]}},"Basics.Int":{"args":[],"tags":{"Int":[]}},"String.String":{"args":[],"tags":{"String":[]}}}}})}});}(this));

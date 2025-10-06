@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Browser.Dom exposing (Viewport)
@@ -10,9 +10,21 @@ import Json.Encode as E
 import Task
 
 
+port setTitle : String -> Cmd msg
+
+port openFile : () -> Cmd msg
+
+port receivePath : (String -> msg) -> Sub msg
+
+port receiveCount : (Int -> msg) -> Sub msg
+
+                
 type alias Model =
     { config : Config
     , error : Maybe Error
+    , title : String
+    , filePath : String
+    , counter : Int
     , windowHeight : Int
     }
 
@@ -20,6 +32,11 @@ type alias Model =
 type Msg
     = SubmittedForm
     | UpdatedInput Field String
+    | UpdateTitle String
+    | SetTitle
+    | ReceivedPath String
+    | OpenFile
+    | ReceivedCount Int
 
 
 type alias StorageItem =
@@ -61,6 +78,9 @@ init : Flags -> ( Model, Cmd Msg )
 init flags =
     ( { config = { state = "" }
       , error = Nothing
+      , title = ""
+      , filePath = "No Path"
+      , counter = 0
       , windowHeight = flags.windowHeight
       }
     , Cmd.none
@@ -76,10 +96,27 @@ update msg model =
         UpdatedInput _ _ ->
             ( model, Cmd.none )
 
+        UpdateTitle s ->
+            ( { model | title = s }, Cmd.none )
+
+        SetTitle ->
+            ( model, setTitle model.title )
+
+        OpenFile ->
+            ( model, openFile () )
+
+        ReceivedPath s ->
+            ( { model | filePath = s }, Cmd.none )
+
+        ReceivedCount i ->
+            ( { model | counter = model.counter + i }, Cmd.none )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    Sub.batch [ receivePath ReceivedPath
+              , receiveCount ReceivedCount
+              ]
 
 
 
@@ -100,7 +137,23 @@ view model =
                     ]
                 ]
             ]
-        , Html.main_ [ Attr.class "container-fluid" ] [ Html.h1 [ Attr.class "title" ] [ Html.text "Welcome Here" ] ]
+        , Html.main_
+              [ Attr.class "container-fluid" ]
+              [ Html.h1 [ Attr.class "title" ] [ Html.text "rrrrr" ]
+              , Html.input
+                    [ Event.onInput UpdateTitle
+                    , Attr.value model.title
+                    ] []
+              , Html.button [ Event.onClick SetTitle ] [ Html.text "Set Title" ]
+              , Html.hr [] []
+              , Html.button [ Event.onClick OpenFile ] [ Html.text "Open File" ]
+              , Html.p []
+                  [ Html.text "File Path"
+                  , Html.strong [] [ Html.text model.filePath ]
+                  ]
+              , Html.hr [] []
+              , Html.p [] [ Html.text (String.fromInt model.counter) ]
+              ]
         ]
 
 
