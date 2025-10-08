@@ -1,29 +1,42 @@
 {
   "name": "menkayonta",
+  "productName": "menkayonta",
   "version": "0.0.1",
   "description": "A linguistic research workbook",
+  "main": ".vite/build/main.js",
   "keywords": [
     "linguistics"
   ],
-  "main": "html/app.js",
   "repository": {
     "type": "git",
-    "url": "https://codeberg.org/fieldsoft/menkayonta.git"
+    "url": "https://github.com/fieldsoft/menkayonta.git"
   },
   "license": "GPL-3.0",
   "author": "Noah Diewald",
   "type": "commonjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "APP_DEV=true npx electron .",
-    "build": "npx elm make src/Main.elm --output html/main.js --debug",
-    "pack": "npx electron-builder -lmw --dir",
-    "postinstall": "npm run build"
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "publish": "electron-forge publish",
+    "lint": "echo \"No linting configured\""
   },
   "devDependencies": {
+    "@electron-forge/cli": "^7.9.0",
+    "@electron-forge/maker-deb": "^7.9.0",
+    "@electron-forge/maker-rpm": "^7.9.0",
+    "@electron-forge/maker-squirrel": "^7.9.0",
+    "@electron-forge/maker-zip": "^7.9.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
+    "@electron-forge/plugin-fuses": "^7.9.0",
+    "@electron-forge/plugin-vite": "^7.9.0",
+    "@electron/fuses": "^1.8.0",
     "electron": "^38.1.2",
-    "electron-builder": "^26.0.12",
-    "electron-reload": "^1.5.0",
-    "elm": "^0.19.1-6"
+    "elm": "^0.19.1-6",
+    "elm-watch": "^1.2.3",
+    "vite-plugin-elm": "^3.0.1"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1"
   }
 }
