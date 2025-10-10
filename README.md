@@ -1,3 +1,0 @@
-# menkayonta
-
-Linguistics tool

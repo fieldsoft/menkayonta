@@ -1,0 +1,50 @@
+* Menkayonta
+
+It means "workbook" in Wao Terero, a linguistic isolate spoken in the Ecuadorian Amazon.
+
+The name is significant for a number of reasons.
+
+1. The lead developer is a linguistic field researcher, and the name celebrates the significance of the Wao people in his research.
+   They will be proud to know that a word from their language is used in such a broad context.
+2. The project emphasizes notes and collaboration to a greater extent than past fieldwork software.
+   The notes and plans of a field researcher often become detached.
+   Data and notes are not linked.
+   Todos and agenda items are not integrated with the analysis tool.
+3. The project emphasizes community engagement by considering the needs of language learners, as well as scientific research.
+   Therefore, it is a language study workbook, in addition to a tool for analysis.
+
+** Audience
+
+The emphasis is on the needs of the following groups:
+
+- Linguistic field researchers
+- Students in field research courses
+- Instructors of field research courses
+- Relatively untrained heritage speakers of a low resource language
+- Language learners of any language
+
+There is also an emphasis on providing a tool with the flexibility to accommodate research on the following:
+
+- Innovative user interfaces for language documentation and learning
+- The incorporation of AI to aid in research workflows and analysis
+- Computational experiments with small linguistic datasets
+
+** Aims for the software
+
+1. Reproduce the important functionality of dative.
+   - Provide a data entry and search interface for glossed linguistic data from elicitation.
+   - Allow data that is entered in the database to be shared with other researchers.
+   - Provide suggested parses and glosses to speed the process of morphological analysis.
+   - Allow for data to be imported and exported in a variety of common formats.
+2. Provide a collaborative notes and agenda environment.
+   - A rich markup language.
+   - TODO items.
+   - Agenda view to plan work or study.
+   - The ability to export reports, portions of technical papers, lesson plans, etc.
+   - (Planned) Programming notebook-like functionality to allow advanced users to run sandboxed scripts in python or other languages via webassembly over database data to produce visualization, analyses, etc.
+3. Offline first functionality
+   - No central server is needed for a private database
+   - Users may synchronize local databases with a central database
+   - This will pause when there is no internet connectivity and resume when it is available
+   - (Planned) Peer-to-peer synchronization over WebRTC
+
