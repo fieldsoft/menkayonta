@@ -5,13 +5,8 @@ It means "workbook" in Wao Terero, a linguistic isolate spoken in the Ecuadorian
 The name is significant for a number of reasons.
 
 1. The lead developer is a linguistic field researcher, and the name celebrates the significance of the Wao people in his research.
-   They will be proud to know that a word from their language is used in such a broad context.
 2. The project emphasizes notes and collaboration to a greater extent than past fieldwork software.
-   The notes and plans of a field researcher often become detached.
-   Data and notes are not linked.
-   Todos and agenda items are not integrated with the analysis tool.
 3. The project emphasizes community engagement by considering the needs of language learners, as well as scientific research.
-   Therefore, it is a language study workbook, in addition to a tool for analysis.
 
 ** Audience
 
@@ -31,7 +26,7 @@ There is also an emphasis on providing a tool with the flexibility to accommodat
 
 ** Aims for the software
 
-1. Reproduce the important functionality of dative.
+1. Reproduce the important functionality of [[https://github.com/dativebase][dative]], a precursor system to menkayonta.
    - Provide a data entry and search interface for glossed linguistic data from elicitation.
    - Allow data that is entered in the database to be shared with other researchers.
    - Provide suggested parses and glosses to speed the process of morphological analysis.
