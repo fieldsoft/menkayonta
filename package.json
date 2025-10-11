@@ -33,7 +33,6 @@
     "@electron/fuses": "^1.8.0",
     "electron": "^38.1.2",
     "elm": "^0.19.1-6",
-    "elm-watch": "^1.2.3",
     "vite-plugin-elm": "^3.0.1"
   },
   "dependencies": {
