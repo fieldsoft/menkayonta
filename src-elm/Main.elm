@@ -56,6 +56,13 @@ type alias Error =
     }
 
 
+projects : List (String, String)
+projects = [ ("first", "xxxx")
+           , ("second", "yyyy")
+           , ("third", "zzzz")
+           ]
+
+
 main : Program Flags Model Msg
 main =
     Browser.element
