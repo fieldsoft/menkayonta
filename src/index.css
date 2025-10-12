@@ -111,3 +111,10 @@ details {
 .quiet {
     background-color: var(--pico-background-color);
 }
+
+aside {
+    padding: 1em;
+    float: left;
+    width: 20%;
+    max-width: 300px;
+}

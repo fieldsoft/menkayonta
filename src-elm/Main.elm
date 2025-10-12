@@ -8,6 +8,7 @@ import Html.Events as Event
 import Json.Decode as D
 import Json.Encode as E
 import Task
+import Dict exposing (Dict)
 
 
 port setTitle : String -> Cmd msg
@@ -18,9 +19,30 @@ port receivePath : (String -> msg) -> Sub msg
 
 port receiveCount : (Int -> msg) -> Sub msg
 
+
+type alias Window =
+    { title : String
+    , vista : String
+    }
+
+
+type alias Vista =
+    { project : String
+    , kind : String
+    , identifier : String
+    , content : String
+    }
+
                 
 type alias Model =
     { config : Config
+    , counter : Int
+    , columns : List Int
+    , rows : Dict Int (List Int)
+    , tabs : Dict (Int, Int) (List Int)
+    , windows : Dict (Int, Int, Int) Window
+    , focused : (Int, Int, Int)
+    , openWindows : Dict (Int, Int) Int
     , error : Maybe Error
     , windowHeight : Int
     }
@@ -29,6 +51,7 @@ type alias Model =
 type Msg
     = SubmittedForm
     | UpdatedInput Field String
+    | NewTab (String, String)
 
 
 type alias StorageItem =
@@ -76,6 +99,13 @@ main =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     ( { config = { state = "" }
+      , counter = 0
+      , columns = []
+      , rows = Dict.empty
+      , tabs = Dict.empty
+      , windows = Dict.empty
+      , focused = (-1,-1,-1)
+      , openWindows = Dict.empty
       , error = Nothing
       , windowHeight = flags.windowHeight
       }
@@ -92,6 +122,45 @@ update msg model =
         UpdatedInput _ _ ->
             ( model, Cmd.none )
 
+        NewTab p ->
+            let
+                newwindow = { title = Tuple.first p
+                            , vista = Tuple.second p
+                            }
+            in
+            case model.columns of
+                [] ->
+                    let
+                        c = model.counter
+                        newmodel =
+                            { model | counter = c + 1
+                            , columns = [c]
+                            , rows = Dict.singleton c [c]
+                            , tabs = Dict.singleton (c,c) [c]
+                            , windows = Dict.singleton (c,c,c) newwindow
+                            , openWindows = Dict.singleton (c,c) c
+                            , focused = (c,c,c)
+                            }
+                    in
+                    ( newmodel, Cmd.none )
+
+                _ ->
+                    let
+                        c = model.counter
+                        (col, row, _) = model.focused
+                        tabs = Maybe.withDefault [] (Dict.get (col, row) model.tabs) 
+                        newmodel =
+                            { model | counter = c + 1
+                            , tabs = Dict.insert (col, row) (c :: tabs) model.tabs
+                            , windows = Dict.insert (col, row, c) newwindow
+                                        model.windows
+                            , openWindows = Dict.insert (col, row) c model.openWindows
+                            , focused = (col, row, c)
+                            }
+                    in
+                    ( newmodel, Cmd.none )
+                
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -106,33 +175,78 @@ subscriptions _ =
 view : Model -> Html.Html Msg
 view model =
     Html.div []
-        [ Html.header [ Attr.class "container-fluid" ]
-            [ Html.nav []
-                [ Html.ul []
-                    [ Html.li [] [ Html.a [ Attr.href "/" ] [ Html.text "Home" ] ] ]
-                , Html.ul []
-                    [ Html.li [] [ Html.button [] [ Html.text "Save" ] ]
-                    , Html.li [] [ Html.button [] [ Html.text "Open" ] ]
+        [ Html.aside []
+              [ Html.nav []
+                    [ Html.h2 [] [ Html.text "Projects" ]
+                    , Html.ul [] (viewProjects model projects)
                     ]
-                ]
-            ]
-        , Html.main_
-              [ Attr.class "container-fluid" ]
-              [ Html.h1 [ Attr.class "title" ] [ Html.text "rrrrroar" ] ]
+              ] 
+        , case model.columns of
+              [] ->
+                  Html.main_
+                      [ Attr.class "container-fluid grid" ]
+                      [ Html.h1 [ Attr.class "title" ] [ Html.text "rrrrroar" ] ]
+
+              cols ->
+                  Html.main_
+                      [ Attr.class "container-fluid" ]
+                      (List.map (viewColumn model) cols)
         ]
 
 
-homeView model =
-    Html.div []
-        [ Html.header [ Attr.class "container-fluid" ]
-            [ Html.nav []
-                [ Html.ul []
-                    [ Html.li [] [ Html.a [ Attr.href "/" ] [ Html.text "Home" ] ] ]
-                , Html.ul []
-                    [ Html.li [] [ Html.button [] [ Html.text "Save" ] ]
-                    , Html.li [] [ Html.button [] [ Html.text "Open" ] ]
-                    ]
-                ]
-            ]
-        , Html.main_ [ Attr.class "container-fluid" ] [ Html.h1 [ Attr.class "title" ] [ Html.text "Welcome" ] ]
+viewColumn : Model -> Int -> Html.Html Msg
+viewColumn model col =
+    Html.div [] (List.map (viewRow model col)
+                     (Maybe.withDefault [] <| Dict.get col model.rows))
+
+
+viewRow : Model -> Int -> Int -> Html.Html Msg
+viewRow model col row =
+    Html.div [ Dict.get col model.rows
+                   |> Maybe.withDefault [0]
+                   |> List.length
+                   |> (//) model.windowHeight
+                   |> Attr.height
+             ] [ Html.nav []
+                     (List.map (viewTabHeader model col row)
+                          (Maybe.withDefault [] <| Dict.get (col, row) model.tabs))
+               , Html.section []
+                     (List.map (viewTab model col row)
+                          (Maybe.withDefault [] <| Dict.get (col, row) model.tabs))
+               ]
+
+
+viewTabHeader : Model -> Int -> Int -> Int -> Html.Html Msg
+viewTabHeader model col row tab =
+    Html.button [ Attr.classList [ ( "focused", (col, row, tab) == model.focused) ] ]
+        [ Dict.get (col, row, tab) model.windows
+              |> Maybe.withDefault { title = "Error"
+                                   , vista = "Vista not found"
+                                   }
+              |> .title
+              |> Html.text
         ]
+
+
+viewTab : Model -> Int -> Int -> Int -> Html.Html Msg
+viewTab model col row tab =
+    Html.div [ Attr.classList [ ( "focused", (col, row, tab) == model.focused) ] ]
+        [ Dict.get (col, row, tab) model.windows
+              |> Maybe.withDefault { title = "Error"
+                                   , vista = "Vista not found"
+                                   }
+              |> .vista
+              |> Html.text
+        ]
+       
+
+
+viewProjects : Model -> List (String, String) -> List (Html.Html Msg)
+viewProjects model ps =
+    List.map (\p -> Html.li []
+                  [ Html.a
+                        [ Attr.href ("#" ++ (Tuple.second p))
+                        , Event.onClick (NewTab p)
+                        ]
+                        [ Html.text (Tuple.first p) ] ]
+             ) ps
