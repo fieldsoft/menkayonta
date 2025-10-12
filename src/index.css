@@ -1,7 +1,5 @@
 @import "pico.orange.min.css";
 
-/* @import "bulma.min.css"; */
-
 :root {
     --pico-border-radius: 0;
     --pico-spacing: 0.5rem;
@@ -10,11 +8,6 @@
     --pico-form-element-spacing-vertical: 0.3rem;
     --pico-form-element-spacing-horizontal: 0.5em;
 }
-
-/* nav { */
-/*     padding-left: 0.5em; */
-/*     padding-right: 0.5em; */
-/* } */
 
 body {
     counter-reset: tokenblock;
@@ -83,8 +76,8 @@ h2 button {
 .grid-with-side {
     counter-reset: tokenline;
     display: grid;
-    grid-template-columns: 1fr 2fr 3fr;
-    grid-column-gap: 1rem;
+    grid-template-columns: 1fr 5fr;
+    grid-column-gap: 0.5rem;
 }
 
 .token-edit-bar {
@@ -114,7 +107,13 @@ details {
 
 aside {
     padding: 1em;
-    float: left;
-    width: 20%;
-    max-width: 300px;
+}
+
+.focused {
+    border: solid;
+    border-width: 1px;
+}
+
+.hidden {
+    display: none;
 }

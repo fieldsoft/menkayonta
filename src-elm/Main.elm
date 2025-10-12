@@ -171,11 +171,15 @@ subscriptions _ =
 -- view model = map (displayView model) model.vids -- which would be a list [ vid1, ..., vidn ]
 -- vid : {
 
+roleAttr : String -> Html.Attribute msg
+roleAttr role =
+    Attr.attribute "role" role
+
 
 view : Model -> Html.Html Msg
 view model =
-    Html.div []
-        [ Html.aside []
+    Html.main_ [ Attr.class "grid-with-side" ]
+        [ Html.aside [ Attr.class "side" ]
               [ Html.nav []
                     [ Html.h2 [] [ Html.text "Projects" ]
                     , Html.ul [] (viewProjects model projects)
@@ -183,13 +187,13 @@ view model =
               ] 
         , case model.columns of
               [] ->
-                  Html.main_
-                      [ Attr.class "container-fluid grid" ]
+                  Html.div
+                      [ Attr.class "container-fluid" ]
                       [ Html.h1 [ Attr.class "title" ] [ Html.text "rrrrroar" ] ]
 
               cols ->
-                  Html.main_
-                      [ Attr.class "container-fluid" ]
+                  Html.div
+                      [ Attr.class "container-fluid grid" ]
                       (List.map (viewColumn model) cols)
         ]
 
@@ -207,10 +211,10 @@ viewRow model col row =
                    |> List.length
                    |> (//) model.windowHeight
                    |> Attr.height
-             ] [ Html.nav []
+             ] [ Html.div [ roleAttr "group" ]
                      (List.map (viewTabHeader model col row)
                           (Maybe.withDefault [] <| Dict.get (col, row) model.tabs))
-               , Html.section []
+               , Html.div []
                      (List.map (viewTab model col row)
                           (Maybe.withDefault [] <| Dict.get (col, row) model.tabs))
                ]
@@ -218,7 +222,9 @@ viewRow model col row =
 
 viewTabHeader : Model -> Int -> Int -> Int -> Html.Html Msg
 viewTabHeader model col row tab =
-    Html.button [ Attr.classList [ ( "focused", (col, row, tab) == model.focused) ] ]
+    Html.button [ Attr.classList
+                      [ ( "outline secondary", (col, row, tab) /= model.focused) ]
+                ]
         [ Dict.get (col, row, tab) model.windows
               |> Maybe.withDefault { title = "Error"
                                    , vista = "Vista not found"
@@ -230,7 +236,13 @@ viewTabHeader model col row tab =
 
 viewTab : Model -> Int -> Int -> Int -> Html.Html Msg
 viewTab model col row tab =
-    Html.div [ Attr.classList [ ( "focused", (col, row, tab) == model.focused) ] ]
+    Html.div [ Attr.classList
+                   [ ( "focused", (col, row, tab) == model.focused)
+                   , ( "hidden", Dict.get (col, row) model.openWindows
+                     |> Maybe.withDefault -1
+                     |> (/=) tab )
+                   ]
+             ]
         [ Dict.get (col, row, tab) model.windows
               |> Maybe.withDefault { title = "Error"
                                    , vista = "Vista not found"
@@ -238,7 +250,6 @@ viewTab model col row tab =
               |> .vista
               |> Html.text
         ]
-       
 
 
 viewProjects : Model -> List (String, String) -> List (Html.Html Msg)
