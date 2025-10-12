@@ -52,6 +52,7 @@ type Msg
     = SubmittedForm
     | UpdatedInput Field String
     | NewTab (String, String)
+    | FocusTab (Int, Int, Int)
 
 
 type alias StorageItem =
@@ -159,7 +160,15 @@ update msg model =
                             }
                     in
                     ( newmodel, Cmd.none )
-                
+
+        FocusTab (col, row, tab) ->
+            let
+                newmodel =
+                    { model | focused = (col, row, tab)
+                    , openWindows = Dict.insert (col, row) tab model.openWindows
+                    }
+            in
+            ( newmodel, Cmd.none ) 
 
 
 subscriptions : Model -> Sub Msg
@@ -224,6 +233,7 @@ viewTabHeader : Model -> Int -> Int -> Int -> Html.Html Msg
 viewTabHeader model col row tab =
     Html.button [ Attr.classList
                       [ ( "outline secondary", (col, row, tab) /= model.focused) ]
+                , Event.onClick (FocusTab (col, row, tab))
                 ]
         [ Dict.get (col, row, tab) model.windows
               |> Maybe.withDefault { title = "Error"
