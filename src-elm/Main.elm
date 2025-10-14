@@ -1,4 +1,4 @@
-port module Main exposing (main)
+module Main exposing (main)
 
 import Browser
 import Browser.Dom exposing (Viewport)
@@ -7,25 +7,25 @@ import Html.Attributes as Attr
 import Html.Events as Event
 import Json.Decode as D
 import Json.Encode as E
+import List.Extra as LE
+import Maybe.Extra as ME
+import Math.Vector3 as V3
 import Task
 import Dict exposing (Dict)
+import Set exposing (Set)
 
 
-port setTitle : String -> Cmd msg
-
-port openFile : () -> Cmd msg
-
-port receivePath : (String -> msg) -> Sub msg
-
-port receiveCount : (Int -> msg) -> Sub msg
-
-
-type alias Window =
+-- A Ventana supplies the title and a referrence to a Vista, which is
+-- an identifier for some viewable content. I use Spanish when there
+-- are already commonly referred to object or concepts such as
+-- "window" or "view".
+type alias Ventana =
     { title : String
     , vista : String
     }
 
 
+-- Viewable content.
 type alias Vista =
     { project : String
     , kind : String
@@ -33,57 +33,42 @@ type alias Vista =
     , content : String
     }
 
-                
+
+-- The path to a tab, used for operations on tabs. 
+type alias TabPath = (Int, (Int, Int))
+
+
+-- All of the viewable content associated with a tab.
+type alias Ventanas = Dict TabPath Ventana
+
+
+-- Currently visible Ventanas.
+type alias OpenVentanas = Set TabPath
+
+
 type alias Model =
-    { config : Config
-    , counter : Int
-    , columns : List Int
-    , rows : Dict Int (List Int)
-    , tabs : Dict (Int, Int) (List Int)
-    , windows : Dict (Int, Int, Int) Window
-    , focused : (Int, Int, Int)
-    , openWindows : Dict (Int, Int) Int
-    , error : Maybe Error
+    { counter : Int
+    , ventanas : Ventanas
+    , focused : Maybe TabPath
+    , openVentanas : OpenVentanas
     , windowHeight : Int
     }
 
 
 type Msg
-    = SubmittedForm
-    | UpdatedInput Field String
-    | NewTab (String, String)
-    | FocusTab (Int, Int, Int)
-
-
-type alias StorageItem =
-    { key : String
-    , value : E.Value
-    }
+    = NewTab Ventana
+    | FocusTab TabPath
+    | CloseTab TabPath
 
 
 type alias Flags =
     { windowHeight : Int }
 
 
-type alias Config =
-    { state : String }
-
-
-type Field
-    = ProjectName
-    | Language
-
-
-type alias Error =
-    { message : String
-    , invalid : Bool
-    }
-
-
-projects : List (String, String)
-projects = [ ("first", "xxxx")
-           , ("second", "yyyy")
-           , ("third", "zzzz")
+projects : List Ventana
+projects = [ Ventana "first" "xxxx"
+           , Ventana "second" "yyyy"
+           , Ventana "third" "zzzz"
            ]
 
 
@@ -99,15 +84,10 @@ main =
 
 init : Flags -> ( Model, Cmd Msg )
 init flags =
-    ( { config = { state = "" }
-      , counter = 0
-      , columns = []
-      , rows = Dict.empty
-      , tabs = Dict.empty
-      , windows = Dict.empty
-      , focused = (-1,-1,-1)
-      , openWindows = Dict.empty
-      , error = Nothing
+    ( { counter = 0
+      , ventanas = Dict.empty
+      , focused = Nothing
+      , openVentanas = Set.empty
       , windowHeight = flags.windowHeight
       }
     , Cmd.none
@@ -117,69 +97,89 @@ init flags =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        SubmittedForm ->
-            ( model, Cmd.none )
+        NewTab ventana ->
+            if Dict.isEmpty model.ventanas then
+                let
+                    c = model.counter
+                    tp = tabpath c c c
+                    newmodel =
+                        { model | counter = c + 1
+                        , ventanas = Dict.singleton tp ventana
+                        , openVentanas = Set.singleton tp
+                        , focused = Just tp
+                        }
+                in
+                ( newmodel, Cmd.none )
 
-        UpdatedInput _ _ ->
-            ( model, Cmd.none )
+            else
+                let
+                    c = model.counter
+                    -- The focused property is used to get the current column and
+                    -- row. This is wrapped in a Maybe. It should not be Nothing.
+                    -- In the unlikely case that it is, return the original model.
+                    newmodel =
+                        case model.focused of
+                            Nothing ->
+                                model
 
-        NewTab p ->
+                            Just tp1 ->
+                                let
+                                    (column, (row, _)) = tp1
+                                    tp2 = tabpath column row c
+                                in
+                                 { model | counter = c + 1
+                                 , ventanas = Dict.insert tp2 ventana model.ventanas
+                                 , openVentanas = Set.remove tp1 model.openVentanas
+                                                  |> Set.insert tp2
+                                 , focused = Just tp2
+                                 }
+                in
+                ( newmodel, Cmd.none )
+
+        FocusTab tp ->
+            -- When a new tab is focused in the same row as the
+            -- previously focused tab, the previously focused tab must
+            -- become unopened.
             let
-                newwindow = { title = Tuple.first p
-                            , vista = Tuple.second p
-                            }
-            in
-            case model.columns of
-                [] ->
-                    let
-                        c = model.counter
-                        newmodel =
-                            { model | counter = c + 1
-                            , columns = [c]
-                            , rows = Dict.singleton c [c]
-                            , tabs = Dict.singleton (c,c) [c]
-                            , windows = Dict.singleton (c,c,c) newwindow
-                            , openWindows = Dict.singleton (c,c) c
-                            , focused = (c,c,c)
-                            }
-                    in
-                    ( newmodel, Cmd.none )
+                unopen =
+                    case model.focused of
+                        Nothing ->
+                            Nothing
 
-                _ ->
-                    let
-                        c = model.counter
-                        (col, row, _) = model.focused
-                        tabs = Maybe.withDefault [] (Dict.get (col, row) model.tabs) 
-                        newmodel =
-                            { model | counter = c + 1
-                            , tabs = Dict.insert (col, row) (c :: tabs) model.tabs
-                            , windows = Dict.insert (col, row, c) newwindow
-                                        model.windows
-                            , openWindows = Dict.insert (col, row) c model.openWindows
-                            , focused = (col, row, c)
-                            }
-                    in
-                    ( newmodel, Cmd.none )
+                        Just fp ->
+                            if tcolumn tp == tcolumn fp && trow tp == trow fp then
+                                Just fp
 
-        FocusTab (col, row, tab) ->
-            let
+                            else
+                                Nothing
                 newmodel =
-                    { model | focused = (col, row, tab)
-                    , openWindows = Dict.insert (col, row) tab model.openWindows
+                    { model | focused = Just tp
+                    , openVentanas = Set.insert tp model.openVentanas
+                    |> (\ovs -> ME.unwrap ovs (\t -> Set.remove t ovs) unopen)
                     }
             in
-            ( newmodel, Cmd.none ) 
+            ( newmodel, Cmd.none )
+
+        CloseTab tp ->
+            let
+                notClosed = Set.remove tp model.openVentanas
+                focused = recalcFocus tp model
+                openVentanas = ME.unwrap notClosed
+                               (\f -> Set.insert f notClosed) focused
+                newmodel =
+                    { model | ventanas = Dict.remove tp model.ventanas
+                    , focused = focused
+                    , openVentanas = openVentanas
+                    }
+            in
+            ( newmodel, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.none
 
-
-
--- view model = map (displayView model) model.vids -- which would be a list [ vid1, ..., vidn ]
--- vid : {
-
+        
 roleAttr : String -> Html.Attribute msg
 roleAttr role =
     Attr.attribute "role" role
@@ -187,6 +187,9 @@ roleAttr role =
 
 view : Model -> Html.Html Msg
 view model =
+    let
+        tabtree = treeifyTabs <| Dict.keys model.ventanas
+    in
     Html.main_ [ Attr.class "grid-with-side" ]
         [ Html.aside [ Attr.class "side" ]
               [ Html.nav []
@@ -194,80 +197,176 @@ view model =
                     , Html.ul [] (viewProjects model projects)
                     ]
               ] 
-        , case model.columns of
-              [] ->
-                  Html.div
-                      [ Attr.class "container-fluid" ]
-                      [ Html.h1 [ Attr.class "title" ] [ Html.text "rrrrroar" ] ]
+        , if Dict.isEmpty tabtree then
+              Html.div
+                  [ Attr.class "container-fluid" ]
+                  [ Html.h1 [ Attr.class "title" ] [ Html.text "rrrrroar" ] ]
 
-              cols ->
-                  Html.div
-                      [ Attr.class "container-fluid grid" ]
-                      (List.map (viewColumn model) cols)
+          else
+              Html.div
+                  [ Attr.class "container-fluid grid" ]
+                  (Dict.map (viewColumn model) tabtree
+                  |> Dict.toList
+                  |> List.map Tuple.second)
         ]
 
 
-viewColumn : Model -> Int -> Html.Html Msg
-viewColumn model col =
-    Html.div [] (List.map (viewRow model col)
-                     (Maybe.withDefault [] <| Dict.get col model.rows))
+viewColumn : Model -> Int -> Dict Int (Set Int) -> Html.Html Msg
+viewColumn model col rows =
+    Html.div [] (Dict.map (viewRow model col (Dict.size rows)) rows
+                |> Dict.toList
+                |> List.map Tuple.second)
 
 
-viewRow : Model -> Int -> Int -> Html.Html Msg
-viewRow model col row =
-    Html.div [ Dict.get col model.rows
-                   |> Maybe.withDefault [0]
-                   |> List.length
-                   |> (//) model.windowHeight
-                   |> Attr.height
-             ] [ Html.div [ roleAttr "group" ]
-                     (List.map (viewTabHeader model col row)
-                          (Maybe.withDefault [] <| Dict.get (col, row) model.tabs))
-               , Html.div []
-                     (List.map (viewTab model col row)
-                          (Maybe.withDefault [] <| Dict.get (col, row) model.tabs))
-               ]
-
-
-viewTabHeader : Model -> Int -> Int -> Int -> Html.Html Msg
-viewTabHeader model col row tab =
-    Html.button [ Attr.classList
-                      [ ( "outline secondary", (col, row, tab) /= model.focused) ]
-                , Event.onClick (FocusTab (col, row, tab))
-                ]
-        [ Dict.get (col, row, tab) model.windows
-              |> Maybe.withDefault { title = "Error"
-                                   , vista = "Vista not found"
-                                   }
-              |> .title
-              |> Html.text
+viewRow : Model -> Int -> Int -> Int -> Set Int -> Html.Html Msg
+viewRow model col rowcount row tabs =
+    Html.div [ Attr.height (model.windowHeight // rowcount) ]
+        [ Html.nav [ roleAttr "group"
+                   , Attr.class "tabs-header"
+                   ]
+              (Set.toList tabs
+              |> List.map (\t -> viewTabHeader model (tabpath col row t)))
+        , Html.div []
+            (Set.toList tabs
+            |> List.map (\t -> viewTab model (tabpath col row t)))
         ]
 
 
-viewTab : Model -> Int -> Int -> Int -> Html.Html Msg
-viewTab model col row tab =
+viewTabHeader : Model -> TabPath -> Html.Html Msg
+viewTabHeader model tp =
+    Html.button
+        [ Event.onClick (FocusTab tp)
+        , Attr.classList [ ( "focused", Just tp == model.focused )
+                         , ( "secondary outline"
+                           , not (Set.member tp model.openVentanas)
+                           )
+                         ]
+        ] [ Dict.get tp model.ventanas
+          |> Maybe.withDefault { title = "Error"
+                               , vista = "Vista not found"
+                               }
+          |> .title
+          |> Html.text
+          ]
+
+
+viewTab : Model -> TabPath -> Html.Html Msg
+viewTab model tp =
     Html.div [ Attr.classList
-                   [ ( "focused", (col, row, tab) == model.focused)
-                   , ( "hidden", Dict.get (col, row) model.openWindows
-                     |> Maybe.withDefault -1
-                     |> (/=) tab )
+                   [ ( "focused", Just tp == model.focused)
+                   , ( "hidden", not (Set.member tp model.openVentanas) )
                    ]
              ]
-        [ Dict.get (col, row, tab) model.windows
-              |> Maybe.withDefault { title = "Error"
-                                   , vista = "Vista not found"
-                                   }
-              |> .vista
-              |> Html.text
+        [ Html.div [ Attr.class "tab-inner-header" ]
+              [ Html.a [ Attr.href "#"
+                       ,Event.onClick (CloseTab tp)
+                       ]
+                    [ Html.text "Close" ]
+              ]
+        , Html.div [] [ Dict.get tp model.ventanas
+                      |> Maybe.withDefault { title = "Error"
+                                           , vista = "Vista not found"
+                                           }
+                      |> .vista
+                      |> Html.text
+                      ]
         ]
 
 
-viewProjects : Model -> List (String, String) -> List (Html.Html Msg)
+viewProjects : Model -> List Ventana -> List (Html.Html Msg)
 viewProjects model ps =
-    List.map (\p -> Html.li []
+    List.map (\w -> Html.li []
                   [ Html.a
-                        [ Attr.href ("#" ++ (Tuple.second p))
-                        , Event.onClick (NewTab p)
+                        [ Attr.href ("#" ++ w.vista)
+                        , Event.onClick (NewTab w)
                         ]
-                        [ Html.text (Tuple.first p) ] ]
+                        [ Html.text w.title ] ]
              ) ps
+    
+
+-- Return the TabPaths for the tabs in the same row.
+sharesRow : TabPath -> Model -> List TabPath
+sharesRow tp model =
+    let
+        matchrow tp2 = trow tp == trow tp2 && tp /= tp2
+    in
+    List.filter matchrow (Dict.keys model.ventanas)
+
+
+-- This uses vector distance to find a new focused item. It is called
+-- in instances such as the closing of a tab. The notion of distance
+-- isn't really very relevant. The idea is that some tab should become
+-- open and focused if there is another tab in the same row. If there
+-- is not, then some tab that is open in some other row should be
+-- focused. Using distance may result in an intuitive behavior or not.
+recalcFocus : TabPath -> Model -> Maybe TabPath
+recalcFocus tp model =
+    let
+        toV3 (column, (row, tab)) =
+            V3.vec3 (toFloat column) (toFloat row) (toFloat tab)
+        vp = toV3 tp
+        nearest tps =
+            List.map (\t -> (V3.distance (toV3 t) vp, t)) tps
+                |> List.minimum
+                |> Maybe.map Tuple.second
+                |> (\t -> if t == (Just tp) then Nothing else t)
+    in
+    case sharesRow tp model of
+        [] ->
+            nearest (Set.remove tp model.openVentanas |> Set.toList)
+
+        tps ->
+            nearest tps
+                
+
+treeifyTabs : List TabPath -> Dict Int (Dict Int (Set Int))
+treeifyTabs tps =
+    List.foldl
+        (\tp tr ->
+             case Dict.get (tcolumn tp) tr of
+                 Nothing ->
+                     let
+                         newtabs = Set.singleton (ttab tp)
+                         newrows = Dict.singleton (trow tp) newtabs
+                     in
+                     Dict.insert (tcolumn tp) newrows tr
+
+                 Just rows ->
+                     case Dict.get (trow tp) rows of
+                         Nothing ->
+                             let
+                                 newtabs = Set.singleton (ttab tp)
+                                 newrows = Dict.insert (trow tp) newtabs rows
+                             in
+                             Dict.insert (tcolumn tp) newrows tr
+
+                         Just tabs ->
+                             if not (Set.member (ttab tp) tabs) then
+                                 let
+                                     newtabs = Set.insert (ttab tp) tabs
+                                     newrows = Dict.insert (trow tp) newtabs rows
+                                 in
+                                 Dict.insert (tcolumn tp) newrows tr
+
+                             else
+                                 -- Unexpected
+                                 tr
+        ) Dict.empty tps
+
+
+-- TabPath helper functions are mostly used to help document the
+-- intention of working with the integer tuple.
+tabpath : Int -> Int -> Int -> TabPath
+tabpath c r t = (c, (r, t))
+                
+
+tcolumn : TabPath -> Int
+tcolumn tp = Tuple.first tp
+
+
+trow : TabPath -> Int
+trow tp = tp |> Tuple.second |> Tuple.first
+
+
+ttab : TabPath -> Int
+ttab tp = tp |> Tuple.second |> Tuple.second

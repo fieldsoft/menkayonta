@@ -109,11 +109,25 @@ aside {
     padding: 1em;
 }
 
-.focused {
+div.focused {
     border: solid;
     border-width: 1px;
 }
 
-.hidden {
+button.focused {
+    font-weight: bold;
+    text-decoration-line: underline;
+}
+
+div.hidden {
     display: none;
+}
+
+.tabs-header button {
+    padding-left: 3px;
+    padding-right: 3px;
+}
+
+.tab-inner-header {
+    text-align: right;
 }
