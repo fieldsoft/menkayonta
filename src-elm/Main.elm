@@ -185,12 +185,60 @@ update msg model =
 
                                 else
                                     let
-                                        col = getLeft (tcolumn fp) cols
+                                        col = getNext (tcolumn fp) cols
                                         newrows = trows col keys
                                         new = List.head newrows
                                             |> Maybe.map
                                                (\r -> tabpath col r (ttab fp))
                                             |> Maybe.withDefault fp
+                                        moved = reassign fp new model
+                                    in
+                                    reassign fp new model
+
+                            Nothing ->
+                                model
+
+            in
+            ( newmodel, Cmd.none )
+
+        Move Down ->
+            -- If there is more than one tab, and one is focused, see
+            -- if there is more than one in the row of the focused
+            -- tab. If there is not, the row will close when the
+            -- focused tab is removed. If there is, ensure that the
+            -- nearest tab is made visible. If there is no row below,
+            -- add a new row and create a tab that references the same
+            -- ventana as the focused item. If there is not, create a
+            -- new tab in the row below, again referencing the
+            -- original ventana. Delete the original focused item and
+            -- focus the new tab.
+            let
+                vs = model.ventanas
+                c = model.counter
+                keys = Dict.keys vs
+                cols = tcolumns keys
+                newmodel =
+                    if Dict.isEmpty vs || Dict.size vs == 1 then
+                        model
+
+                    else
+                        case model.focused of
+                            Just fp ->
+                                let
+                                    rows = trows (tcolumn fp) keys
+                                in
+                                -- Is the focused tab in the left-most column?
+                                if Just (trow fp) == LE.last rows then
+                                    let
+                                        newtp = (tcolumn fp, (c, ttab fp))
+                                        moved = reassign fp newtp model
+                                    in
+                                    { moved | counter = c + 1 }
+
+                                else
+                                    let
+                                        row = getNext (trow fp) rows
+                                        new = tabpath (tcolumn fp) row (ttab fp)
                                         moved = reassign fp new model
                                     in
                                     reassign fp new model
@@ -225,7 +273,16 @@ view model =
               [ Html.nav []
                     [ Html.a [ Attr.href "#"
                              , Event.onClick <| Move Left
-                             ] [ Html.text "Left" ]
+                             ] [ Html.text " Left " ]
+                    , Html.a [ Attr.href "#"
+                             , Event.onClick <| Move Down
+                             ] [ Html.text " Down " ]
+                    , Html.a [ Attr.href "#"
+                             , Event.onClick <| Move Right
+                             ] [ Html.text " Right " ]
+                    , Html.a [ Attr.href "#"
+                             , Event.onClick <| Move Up
+                             ] [ Html.text " Up " ]
                     , Html.h2 [] [ Html.text "Projects" ]
                     , Html.ul [] (viewProjects model projects)
                     ]
@@ -389,10 +446,10 @@ reassign old new model =
     }
 
 
--- Attempts to find the integer left of the current one in a list and
+-- Attempts to find the integer after the current one in a list and
 -- returns the current integer on failure.
-getLeft : Int -> List Int -> Int
-getLeft curr others =
+getNext : Int -> List Int -> Int
+getNext curr others =
     List.partition (\x -> x <= curr) others
         |> Tuple.second
         |> List.head
