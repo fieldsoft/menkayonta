@@ -43,7 +43,7 @@ type alias Ventanas = Dict TabPath Ventana
 
 
 -- Currently visible Ventanas.
-type alias VisVentanas = Set TabPath
+type alias VisVentanas = Dict (Int, Int) Int
 
 
 type alias Model =
@@ -55,10 +55,14 @@ type alias Model =
     }
 
 
+type Direction = Left | Right | Up | Down
+    
+
 type Msg
     = NewTab Ventana
     | FocusTab TabPath
     | CloseTab TabPath
+    | Move Direction
 
 
 type alias Flags =
@@ -87,7 +91,7 @@ init flags =
     ( { counter = 0
       , ventanas = Dict.empty
       , focused = Nothing
-      , visVentanas = Set.empty
+      , visVentanas = Dict.empty
       , windowHeight = flags.windowHeight
       }
     , Cmd.none
@@ -105,7 +109,7 @@ update msg model =
                     newmodel =
                         { model | counter = c + 1
                         , ventanas = Dict.singleton tp ventana
-                        , visVentanas = Set.singleton tp
+                        , visVentanas = visInsert tp Dict.empty
                         , focused = Just tp
                         }
                 in
@@ -129,50 +133,76 @@ update msg model =
                                 in
                                  { model | counter = c + 1
                                  , ventanas = Dict.insert tp2 ventana model.ventanas
-                                 , visVentanas = Set.remove tp1 model.visVentanas
-                                                  |> Set.insert tp2
+                                 , visVentanas = visInsert tp2 model.visVentanas
                                  , focused = Just tp2
                                  }
                 in
                 ( newmodel, Cmd.none )
 
         FocusTab tp ->
-            -- When a new tab is focused in the same row as the
-            -- previously focused tab, the previously focused tab must
-            -- become unopened.
-            let
-                unopen =
-                    case model.focused of
-                        Nothing ->
-                            Nothing
-
-                        Just fp ->
-                            if tcolumn tp == tcolumn fp && trow tp == trow fp then
-                                Just fp
-
-                            else
-                                Nothing
-                newmodel =
-                    { model | focused = Just tp
-                    , visVentanas = Set.insert tp model.visVentanas
-                    |> (\ovs -> ME.unwrap ovs (\t -> Set.remove t ovs) unopen)
-                    }
-            in
-            ( newmodel, Cmd.none )
+            ( { model | focused = Just tp
+              , visVentanas = visInsert tp model.visVentanas
+              }
+            , Cmd.none
+            )
 
         CloseTab tp ->
+            ( closeTab tp model, Cmd.none )
+
+        Move Left ->
+            -- If there is more than one tab, and one is focused, see
+            -- if there is more than one in the row of the focused
+            -- tab. If there is not, the row will close when the
+            -- focused tab is removed. If there is, ensure that the
+            -- nearest tab is made visible. If there is no left
+            -- column, add a new column and row and create a tab that
+            -- references the same ventana as the focused item. If
+            -- there is not, create a new tab in the first row of the
+            -- column, again referencing the original ventana. Delete
+            -- the original focused item and focus the new tab.
             let
-                notClosed = Set.remove tp model.visVentanas
-                focused = recalcFocus tp model
-                visVentanas = ME.unwrap notClosed
-                              (\f -> Set.insert f notClosed) focused
+                vs = model.ventanas
+                c = model.counter
+                keys = Dict.keys vs
+                cols = tcolumns keys
                 newmodel =
-                    { model | ventanas = Dict.remove tp model.ventanas
-                    , focused = focused
-                    , visVentanas = visVentanas
-                    }
+                    if Dict.isEmpty vs || Dict.size vs == 1 then
+                        model
+
+                    else
+                        case model.focused of
+                            Just fp ->
+                                let
+                                    rows = trows (tcolumn fp) keys
+                                in
+                                -- Is the focused tab in the left-most column?
+                                if Just (tcolumn fp) == LE.last cols then
+                                    let
+                                        newtp = (c, (c, ttab fp))
+                                        moved = reassign fp newtp model
+                                    in
+                                    { moved | counter = c + 1 }
+
+                                else
+                                    let
+                                        col = getLeft (tcolumn fp) cols
+                                        newrows = trows col keys
+                                        new = List.head newrows
+                                            |> Maybe.map
+                                               (\r -> tabpath col r (ttab fp))
+                                            |> Maybe.withDefault fp
+                                        moved = reassign fp new model
+                                    in
+                                    reassign fp new model
+
+                            Nothing ->
+                                model
+
             in
             ( newmodel, Cmd.none )
+            
+        Move _ ->
+            ( model, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -193,7 +223,10 @@ view model =
     Html.main_ [ Attr.class "grid-with-side" ]
         [ Html.aside [ Attr.class "side" ]
               [ Html.nav []
-                    [ Html.h2 [] [ Html.text "Projects" ]
+                    [ Html.a [ Attr.href "#"
+                             , Event.onClick <| Move Left
+                             ] [ Html.text "Left" ]
+                    , Html.h2 [] [ Html.text "Projects" ]
                     , Html.ul [] (viewProjects model projects)
                     ]
               ] 
@@ -236,11 +269,16 @@ viewTabHeader : Model -> TabPath -> Html.Html Msg
 viewTabHeader model tp =
     Html.button
         [ Event.onClick (FocusTab tp)
-        , Attr.classList [ ( "focused", Just tp == model.focused )
-                         , ( "secondary outline"
-                           , not (Set.member tp model.visVentanas)
-                           )
-                         ]
+        , Attr.class (if Just tp == model.focused then
+                          "focused"
+                          
+                      else
+                          if visMember tp model.visVentanas then
+                              "secondary"
+
+                          else
+                              "secondary outline"
+                     )
         ] [ Dict.get tp model.ventanas
           |> Maybe.withDefault { title = "Error"
                                , vista = "Vista not found"
@@ -254,7 +292,7 @@ viewTab : Model -> TabPath -> Html.Html Msg
 viewTab model tp =
     Html.div [ Attr.classList
                    [ ( "focused", Just tp == model.focused)
-                   , ( "hidden", not (Set.member tp model.visVentanas) )
+                   , ( "hidden", not (visMember tp model.visVentanas) )
                    ]
              ]
         [ Html.div [ Attr.class "tab-inner-header" ]
@@ -299,13 +337,13 @@ sharesRow tp model =
 -- open and focused if there is another tab in the same row. If there
 -- is not, then some tab that is open in some other row should be
 -- focused. Using distance may result in an intuitive behavior or not.
-recalcFocus : TabPath -> Model -> Maybe TabPath
-recalcFocus tp model =
+nearest : TabPath -> Model -> Maybe TabPath
+nearest tp model =
     let
         toV3 (column, (row, tab)) =
             V3.vec3 (toFloat column) (toFloat row) (toFloat tab)
         vp = toV3 tp
-        nearest tps =
+        nearest_ tps =
             List.map (\t -> (V3.distance (toV3 t) vp, t)) tps
                 |> List.minimum
                 |> Maybe.map Tuple.second
@@ -313,12 +351,56 @@ recalcFocus tp model =
     in
     case sharesRow tp model of
         [] ->
-            nearest (Set.remove tp model.visVentanas |> Set.toList)
+            nearest_ (visRemove tp model.visVentanas |> visToList)
 
         tps ->
-            nearest tps
-                
+            nearest_ tps
 
+
+-- This will close a tab and set the nearest tab to focused.
+closeTab : TabPath -> Model -> Model
+closeTab tp model =
+    let
+        notClosed = visRemove tp model.visVentanas
+        focused = nearest tp model
+        visVentanas = ME.unwrap notClosed
+                      (\f -> visInsert f notClosed) focused
+    in
+    { model | ventanas = Dict.remove tp model.ventanas
+    , focused = focused
+    , visVentanas = visVentanas
+    }
+
+
+-- Assign a ventana to a new tab.
+reassign : TabPath -> TabPath -> Model -> Model
+reassign old new model =
+    let
+        closed = closeTab old model
+        ventanas =
+            Dict.get old model.ventanas
+                |> Maybe.map (\v -> Dict.insert new v closed.ventanas)
+                |> Maybe.withDefault closed.ventanas
+        visVentanas = visInsert new closed.visVentanas
+    in
+    { closed | ventanas = ventanas
+    , visVentanas = visVentanas
+    , focused = Just new
+    }
+
+
+-- Attempts to find the integer left of the current one in a list and
+-- returns the current integer on failure.
+getLeft : Int -> List Int -> Int
+getLeft curr others =
+    List.partition (\x -> x <= curr) others
+        |> Tuple.second
+        |> List.head
+        |> Maybe.withDefault curr
+        
+
+-- Create a tree structure from the flat path listing of TabPaths to
+-- be used by the view function.
 treeifyTabs : List TabPath -> Dict Int (Dict Int (Set Int))
 treeifyTabs tps =
     List.foldl
@@ -353,7 +435,7 @@ treeifyTabs tps =
                                  tr
         ) Dict.empty tps
 
-
+        
 -- TabPath helper functions are mostly used to help document the
 -- intention of working with the integer tuple.
 tabpath : Int -> Int -> Int -> TabPath
@@ -370,3 +452,59 @@ trow tp = tp |> Tuple.second |> Tuple.first
 
 ttab : TabPath -> Int
 ttab tp = tp |> Tuple.second |> Tuple.second
+
+
+-- All columns in order
+tcolumns : List TabPath -> List Int
+tcolumns tps =
+    List.map tcolumn tps
+        |> LE.unique
+        |> List.sort
+
+
+-- Rows for a column in order
+trows : Int -> List TabPath -> List Int
+trows column tps =
+    List.filter (\tp -> tcolumn tp == column) tps
+        |> List.map trow
+        |> LE.unique
+        |> List.sort
+
+
+-- Insert a tab into VisVentanas
+visInsert : TabPath -> VisVentanas -> VisVentanas
+visInsert tp vv =
+    Dict.insert (tcolumn tp, trow tp) (ttab tp) vv
+
+
+-- Insert a tab into VisVentanas
+visRemove : TabPath -> VisVentanas -> VisVentanas
+visRemove tp vv =
+    Dict.remove (tcolumn tp, trow tp) vv
+        
+
+-- Assert whether a tab is visible
+isVisible : TabPath -> VisVentanas -> Bool
+isVisible (col, (row, tab)) vv =
+    case Dict.get (col, row) vv of
+        Just t ->
+            t == tab
+
+        Nothing ->
+            False
+
+
+visToList : VisVentanas -> List TabPath
+visToList vv =
+    Dict.toList vv
+        |> List.map (\((c, r), t) -> (c, (r, t)))
+
+
+visMember : TabPath -> VisVentanas -> Bool
+visMember (col, (row, tab)) vv =
+    case Dict.get (col, row) vv of
+        Nothing ->
+            False
+
+        Just t ->
+            (col, (row, tab)) == (col, (row, t))
