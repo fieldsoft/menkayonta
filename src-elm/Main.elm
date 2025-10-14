@@ -43,14 +43,14 @@ type alias Ventanas = Dict TabPath Ventana
 
 
 -- Currently visible Ventanas.
-type alias OpenVentanas = Set TabPath
+type alias VisVentanas = Set TabPath
 
 
 type alias Model =
     { counter : Int
     , ventanas : Ventanas
     , focused : Maybe TabPath
-    , openVentanas : OpenVentanas
+    , visVentanas : VisVentanas
     , windowHeight : Int
     }
 
@@ -87,7 +87,7 @@ init flags =
     ( { counter = 0
       , ventanas = Dict.empty
       , focused = Nothing
-      , openVentanas = Set.empty
+      , visVentanas = Set.empty
       , windowHeight = flags.windowHeight
       }
     , Cmd.none
@@ -105,7 +105,7 @@ update msg model =
                     newmodel =
                         { model | counter = c + 1
                         , ventanas = Dict.singleton tp ventana
-                        , openVentanas = Set.singleton tp
+                        , visVentanas = Set.singleton tp
                         , focused = Just tp
                         }
                 in
@@ -129,7 +129,7 @@ update msg model =
                                 in
                                  { model | counter = c + 1
                                  , ventanas = Dict.insert tp2 ventana model.ventanas
-                                 , openVentanas = Set.remove tp1 model.openVentanas
+                                 , visVentanas = Set.remove tp1 model.visVentanas
                                                   |> Set.insert tp2
                                  , focused = Just tp2
                                  }
@@ -154,7 +154,7 @@ update msg model =
                                 Nothing
                 newmodel =
                     { model | focused = Just tp
-                    , openVentanas = Set.insert tp model.openVentanas
+                    , visVentanas = Set.insert tp model.visVentanas
                     |> (\ovs -> ME.unwrap ovs (\t -> Set.remove t ovs) unopen)
                     }
             in
@@ -162,14 +162,14 @@ update msg model =
 
         CloseTab tp ->
             let
-                notClosed = Set.remove tp model.openVentanas
+                notClosed = Set.remove tp model.visVentanas
                 focused = recalcFocus tp model
-                openVentanas = ME.unwrap notClosed
-                               (\f -> Set.insert f notClosed) focused
+                visVentanas = ME.unwrap notClosed
+                              (\f -> Set.insert f notClosed) focused
                 newmodel =
                     { model | ventanas = Dict.remove tp model.ventanas
                     , focused = focused
-                    , openVentanas = openVentanas
+                    , visVentanas = visVentanas
                     }
             in
             ( newmodel, Cmd.none )
@@ -238,7 +238,7 @@ viewTabHeader model tp =
         [ Event.onClick (FocusTab tp)
         , Attr.classList [ ( "focused", Just tp == model.focused )
                          , ( "secondary outline"
-                           , not (Set.member tp model.openVentanas)
+                           , not (Set.member tp model.visVentanas)
                            )
                          ]
         ] [ Dict.get tp model.ventanas
@@ -254,7 +254,7 @@ viewTab : Model -> TabPath -> Html.Html Msg
 viewTab model tp =
     Html.div [ Attr.classList
                    [ ( "focused", Just tp == model.focused)
-                   , ( "hidden", not (Set.member tp model.openVentanas) )
+                   , ( "hidden", not (Set.member tp model.visVentanas) )
                    ]
              ]
         [ Html.div [ Attr.class "tab-inner-header" ]
@@ -313,7 +313,7 @@ recalcFocus tp model =
     in
     case sharesRow tp model of
         [] ->
-            nearest (Set.remove tp model.openVentanas |> Set.toList)
+            nearest (Set.remove tp model.visVentanas |> Set.toList)
 
         tps ->
             nearest tps
