@@ -36,7 +36,7 @@ type alias Vista =
     { project : String
     , kind : String
     , identifier : String
-    , content : String
+    , content : List DemoContent
     }
 
 
@@ -69,6 +69,7 @@ type alias Model =
     , ventanas : Ventanas
     , focused : Maybe TabPath
     , visVentanas : VisVentanas
+    , vistas : Dict String Vista
     , windowHeight : Int
     }
 
@@ -99,6 +100,37 @@ projects =
     ]
 
 
+type alias DemoContent =
+    { source : String
+    , translation : String
+    , parse : String
+    , gloss : String
+    }
+    
+
+vistas : Dict String Vista
+vistas =
+    [ ( "xxxx"
+      , { project = "first"
+        , kind = "demo"
+        , identifier = "xxxx"
+        , content =
+              [ { source = "Abadeka adoke epene oñompa."
+                , translation = "There is only a duck in the river."
+                , parse = "abade-ka adoke epẽ-de õyõ-pa"
+                , gloss = "duck-LIM one water-LOC is.on-DECL"
+                }
+              , { source = "A bete impa mochila"
+                , translation = "The backpack is wet"
+                , parse = "{a be}-te ĩ-pa mochila"
+                , gloss = "wet-GER COP-DECL backpack(esp)"
+                }
+              ]
+        }
+      )
+    ] |> Dict.fromList
+
+
 main : Program Flags Model Msg
 main =
     Browser.element
@@ -115,6 +147,7 @@ init flags =
       , ventanas = Dict.empty
       , focused = Nothing
       , visVentanas = Dict.empty
+      , vistas = vistas
       , windowHeight = flags.windowHeight
       }
     , Cmd.none
@@ -462,12 +495,9 @@ viewTab model tp =
             ]
         , Html.div []
             [ Dict.get tp model.ventanas
-                |> Maybe.withDefault
-                    { title = "Error"
-                    , vista = "Vista not found"
-                    }
-                |> .vista
-                |> Html.text
+                |> Maybe.andThen (\v -> Dict.get v.vista model.vistas)
+                |> Maybe.map (viewVista model)
+                |> Maybe.withDefault (Html.text "Failed!")
             ]
         ]
 
@@ -486,6 +516,24 @@ viewProjects model ps =
         )
         ps
 
+
+viewVista : Model -> Vista -> Html.Html Msg
+viewVista model vista =
+    if vista.kind == "demo" then
+        Html.table [] (List.map (viewDemoContent model) vista.content)
+
+    else
+        Html.text "NO!!!"
+            
+
+viewDemoContent : Model -> DemoContent -> Html.Html Msg
+viewDemoContent model dc =
+    Html.tr []
+        [ Html.td [] [ Html.text dc.source ]
+        , Html.td [] [ Html.text dc.parse ]
+        , Html.td [] [ Html.text dc.gloss ]
+        , Html.td [] [ Html.text dc.translation ]
+        ]
 
 
 -- Return the TabPaths for the tabs in the same row.
