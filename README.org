@@ -116,5 +116,3 @@ A system is needed that is easy to maintain, bug free, and safe to refactor, if 
 - Stable, effectively frozen
   - Libraries written 10 years ago run without alteration
 
-*** Orgmode syntax
-
