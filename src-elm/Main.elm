@@ -314,7 +314,9 @@ view model =
 
           else
               Html.div
-                  [ Attr.class "container-fluid grid" ]
+                  [ Attr.class "cotainer-fluid grid"
+                  , Attr.style "height"  ((String.fromInt model.windowHeight) ++ "px")
+                  ]
                   (Dict.map (viewColumn model) tabtree
                   |> Dict.toList
                   |> List.map Tuple.second)
@@ -323,14 +325,15 @@ view model =
 
 viewColumn : Model -> Int -> Dict Int (Set Int) -> Html.Html Msg
 viewColumn model col rows =
-    Html.div [] (Dict.map (viewRow model col (Dict.size rows)) rows
+    Html.div [ Attr.class "wrapper" ]
+        (Dict.map (viewRow model col (Dict.size rows)) rows
                 |> Dict.toList
                 |> List.map Tuple.second)
 
 
 viewRow : Model -> Int -> Int -> Int -> Set Int -> Html.Html Msg
 viewRow model col rowcount row tabs =
-    Html.div [ Attr.height (model.windowHeight // rowcount) ]
+    Html.div [ ]
         [ Html.nav [ roleAttr "group"
                    , Attr.class "tabs-header"
                    ]

@@ -131,3 +131,7 @@ div.hidden {
 .tab-inner-header {
     text-align: right;
 }
+
+.wrapper {
+    display: grid;
+}
