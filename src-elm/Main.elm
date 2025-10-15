@@ -149,17 +149,19 @@ update msg model =
         CloseTab tp ->
             ( closeTab tp model, Cmd.none )
 
-        Move Left ->
-            -- If there is more than one tab, and one is focused, see
-            -- if there is more than one in the row of the focused
-            -- tab. If there is not, the row will close when the
-            -- focused tab is removed. If there is, ensure that the
-            -- nearest tab is made visible. If there is no left
-            -- column, add a new column and row and create a tab that
-            -- references the same ventana as the focused item. If
-            -- there is not, create a new tab in the first row of the
-            -- column, again referencing the original ventana. Delete
-            -- the original focused item and focus the new tab.
+        Move dir ->
+            -- If there is more than one tab, and one is focused,
+            -- which always should be the case, see if there is more
+            -- than one tab in the row of the focused tab. If there is
+            -- not, the row will close when the focused tab is
+            -- removed. If there is, ensure that the nearest tab is
+            -- made visible. If there is no column or row in the
+            -- target direction, add a new column and/or row and
+            -- create a tab that references the same ventana as the
+            -- previous item. If there is a row at the target site,
+            -- create a new tab there, again referencing the original
+            -- ventana. Delete the original focused item and focus the
+            -- new tab.
             let
                 vs = model.ventanas
                 c = model.counter
@@ -173,25 +175,23 @@ update msg model =
                         case model.focused of
                             Just fp ->
                                 let
+                                    -- rows of the current column
                                     rows = trows (tcolumn fp) keys
                                 in
-                                -- Is the focused tab in the left-most column?
-                                if Just (tcolumn fp) == LE.last cols then
+                                -- Does the position of the tab's
+                                -- column or row require that a new
+                                -- tab or column be added to supply a
+                                -- target?
+                                if createNecessary dir fp (cols, rows) then
                                     let
-                                        newtp = (c, (c, ttab fp))
+                                        newtp = newTabPath dir fp c
                                         moved = reassign fp newtp model
                                     in
                                     { moved | counter = c + 1 }
 
                                 else
                                     let
-                                        col = getNext (tcolumn fp) cols
-                                        newrows = trows col keys
-                                        new = List.head newrows
-                                            |> Maybe.map
-                                               (\r -> tabpath col r (ttab fp))
-                                            |> Maybe.withDefault fp
-                                        moved = reassign fp new model
+                                        new = insertTabPath dir fp (cols, rows) keys
                                     in
                                     reassign fp new model
 
@@ -201,58 +201,78 @@ update msg model =
             in
             ( newmodel, Cmd.none )
 
-        Move Down ->
-            -- If there is more than one tab, and one is focused, see
-            -- if there is more than one in the row of the focused
-            -- tab. If there is not, the row will close when the
-            -- focused tab is removed. If there is, ensure that the
-            -- nearest tab is made visible. If there is no row below,
-            -- add a new row and create a tab that references the same
-            -- ventana as the focused item. If there is not, create a
-            -- new tab in the row below, again referencing the
-            -- original ventana. Delete the original focused item and
-            -- focus the new tab.
+
+insertTabPath : Direction -> TabPath -> (List Int, List Int) -> List TabPath -> TabPath
+insertTabPath dir tp (cols, rows) keys =
+    case dir of
+        Left ->
             let
-                vs = model.ventanas
-                c = model.counter
-                keys = Dict.keys vs
-                cols = tcolumns keys
-                newmodel =
-                    if Dict.isEmpty vs || Dict.size vs == 1 then
-                        model
-
-                    else
-                        case model.focused of
-                            Just fp ->
-                                let
-                                    rows = trows (tcolumn fp) keys
-                                in
-                                -- Is the focused tab in the left-most column?
-                                if Just (trow fp) == LE.last rows then
-                                    let
-                                        newtp = (tcolumn fp, (c, ttab fp))
-                                        moved = reassign fp newtp model
-                                    in
-                                    { moved | counter = c + 1 }
-
-                                else
-                                    let
-                                        row = getNext (trow fp) rows
-                                        new = tabpath (tcolumn fp) row (ttab fp)
-                                        moved = reassign fp new model
-                                    in
-                                    reassign fp new model
-
-                            Nothing ->
-                                model
-
+                col = getNext (tcolumn tp) cols
+                newrows = trows col keys
             in
-            ( newmodel, Cmd.none )
+            List.head newrows
+                |> Maybe.map (\r -> tabpath col r (ttab tp))
+                |> Maybe.withDefault tp
+                   
+        Right ->
+            let
+                col = getNext (tcolumn tp) (List.reverse cols)
+                newrows = trows col keys
+            in
+            List.head newrows
+                |> Maybe.map (\r -> tabpath col r (ttab tp))
+                |> Maybe.withDefault tp
+                   
+        Down ->
+            let
+                row = getNext (trow tp) rows
+            in
+            tabpath (tcolumn tp) row (ttab tp)
+
+        Up ->
+            let
+                row = getNext (trow tp) (List.reverse rows)
+            in
+            tabpath (tcolumn tp) row (ttab tp)
+
+
+-- Use the counter (c) to provide new TabPaths that will be rendered
+-- below, above, to the left or right of the focused tab.
+newTabPath : Direction -> TabPath -> Int -> TabPath
+newTabPath dir tp c =
+    case dir of
+        Left ->
+            tabpath c c (ttab tp)
+
+        Right ->
+            tabpath (negate c) c (ttab tp)
+
+        Down ->
+            tabpath (tcolumn tp) c (ttab tp)
+
+        Up ->
+            tabpath (tcolumn tp) (negate c) (ttab tp)
+
+
+-- Essentially check the heads and tails of the relevant lists of
+-- columns or rows to determine if the current item is on the border
+-- of a column or row structure.
+createNecessary : Direction -> TabPath -> (List Int, List Int) -> Bool
+createNecessary dir tp (cols, rows) =
+    case dir of
+        Left ->
+            Just (tcolumn tp) == LE.last cols
+
+        Right ->
+            Just (tcolumn tp) == List.head cols
+
+        Down ->
+            Just (trow tp) == LE.last rows
             
-        Move _ ->
-            ( model, Cmd.none )
+        Up ->
+            Just (trow tp) == List.head rows
 
-
+                  
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.none
@@ -450,9 +470,10 @@ reassign old new model =
 -- returns the current integer on failure.
 getNext : Int -> List Int -> Int
 getNext curr others =
-    List.partition (\x -> x <= curr) others
-        |> Tuple.second
-        |> List.head
+    LE.splitWhen (\x -> x == curr) others
+        |> Maybe.map Tuple.second
+        |> Maybe.andThen List.tail
+        |> Maybe.andThen List.head
         |> Maybe.withDefault curr
         
 
