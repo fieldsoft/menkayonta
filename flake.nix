@@ -30,8 +30,11 @@
         # Documentation: https://nixos.wiki/wiki/Development_environment_with_nix-shell
         devShells.default = pkgs.mkShell {
           # Packages to include in the shell environment
+          # npm is doing the heavy lifting.
+          # Be aware that the electron internal nodejs version will not be the same
+          # as the nodejs version below.
           buildInputs = with pkgs; [
-            nodejs_24
+            nodejs_22
           ];
           
           # Shell hook runs when entering the shell
