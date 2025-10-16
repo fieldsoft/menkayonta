@@ -2,6 +2,36 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
+const PouchDB = require('pouchdb-core')
+const HttpPouch = require('pouchdb-adapter-http')
+const mapreduce = require('pouchdb-mapreduce')
+const replication = require('pouchdb-replication')
+
+PouchDB.plugin(HttpPouch).plugin(mapreduce).plugin(replication)
+
+const sqliteAdapter = require('pouchdb-adapter-node-websql')
+
+// Register the adapter
+PouchDB.plugin(sqliteAdapter)
+
+// Create a database using the SQLite3 adapter
+const db = new PouchDB('mydb', { adapter: 'websql' })
+
+
+const doc = {
+  "_id": "mittens",
+  "name": "Mittens",
+  "occupation": "kitten",
+  "age": 3,
+  "hobbies": [
+    "playing with balls of yarn",
+    "chasing laser pointers",
+    "lookin' hella cute"
+  ]
+}
+
+db.put(doc)
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
