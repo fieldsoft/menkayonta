@@ -4,18 +4,16 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import started from 'electron-squirrel-startup';
 
-// The pouchdb packages need commonjs imports
+// Load the pouchdb packages. The pouchdb packages need commonjs
+// imports.
 const PouchDB = require('pouchdb-core')
 const HttpPouch = require('pouchdb-adapter-http')
 const mapreduce = require('pouchdb-mapreduce')
 const replication = require('pouchdb-replication')
-
-PouchDB.plugin(HttpPouch).plugin(mapreduce).plugin(replication)
-
 const sqliteAdapter = require('pouchdb-adapter-node-websql')
 
-// Register the adapter
-PouchDB.plugin(sqliteAdapter)
+// Set the pouchdb plugins.
+PouchDB.plugin(HttpPouch).plugin(mapreduce).plugin(replication).plugin(sqliteAdapter)
 
 
 // Create a database using the SQLite3 adapter
@@ -36,9 +34,12 @@ PouchDB.plugin(sqliteAdapter)
 
 // db.put(doc)
 
-// Set some path variables
+// These are values relavent to the global configuration of the
+// application.
 const projectsPath = path.join(os.homedir(), 'Menkayonta')
 const globalConfPath = path.join(projectsPath, 'config')
+const initialConf = { projects: [] }
+
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -75,8 +76,6 @@ const createWindow = () => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
   }
 }
-  
-const initialConf = { projects: [] }
 
 // The openConf() function will create the projects directory and
 // global config file in the user's home directory if they do not
@@ -94,7 +93,7 @@ const openGlobalConf = async () => {
     return JSON.stringify({ config: JSON.parse(configData) })
   } catch (err) {
     fh = await fs.open(globalConfPath, 'w+')
-    await fh.writeFile(JSON.stringify(initialConf))
+    await fh.writeFile(JSON.stringify(initialConf, null, 4))
 
     return JSON.stringify({ config: initialConf })
   } finally {
