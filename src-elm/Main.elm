@@ -3,7 +3,7 @@ port module Main exposing (main)
 import Browser
 import Browser.Dom exposing (Viewport)
 import Dict exposing (Dict)
-import Html
+import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
 import Json.Decode as D
@@ -30,6 +30,9 @@ port receivedGlobalConfig : (String -> msg) -> Sub msg
 port projectIndexReceived : (String -> msg) -> Sub msg
 
 
+port newProject : (() -> msg) -> Sub msg
+
+
 
 -- A Ventana supplies the title and a referrence to a Vista, which is
 -- an identifier for some viewable content. I use Spanish when there
@@ -51,7 +54,7 @@ type alias Vista =
     { project : String
     , kind : String
     , identifier : String
-    , content : List DemoContent
+    , content : Content
     }
 
 
@@ -80,12 +83,11 @@ type alias VisVentanas =
 
 
 type alias GlobalConfig =
-    { projects : List ProjectConfig }
+    { projects : List ProjectInfo }
 
 
-type alias ProjectConfig =
-    { titleAlias : String
-    , title : String
+type alias ProjectInfo =
+    { title : String
     , identifier : String
     }
 
@@ -121,6 +123,7 @@ type Msg
     | SetWindowTitle String
     | ReceivedGlobalConfig String
     | RequestProjectIndex String
+    | NewProject ()
 
 
 
@@ -132,7 +135,15 @@ type alias Flags =
     { windowHeight : Int }
 
 
-type alias DemoContent =
+
+type Content
+    = DemoContent Demo
+    | DemoListContent (List Demo)
+    | ProjectInfoContent ProjectInfo
+    | ErrorContent Error
+
+      
+type alias Demo =
     { source : String
     , translation : String
     , parse : String
@@ -142,11 +153,18 @@ type alias DemoContent =
 
 vistas : Dict String Vista
 vistas =
-    [ ( "xxxx"
+    [ ( "new-project"
+      , { project = "global"
+        , kind = "new-project"
+        , identifier = "new-project"
+        , content = ProjectInfoContent (ProjectInfo "" "")
+        }
+      )
+    , ( "xxxx"
       , { project = "first"
         , kind = "demo"
         , identifier = "xxxx"
-        , content =
+        , content = DemoListContent
             [ { source = "Abadeka adoke epene oñompa."
               , translation = "There is only a duck in the river."
               , parse = "abade-ka adoke epẽ-de õyõ-pa"
@@ -338,6 +356,14 @@ update msg model =
         RequestProjectIndex id ->
             ( model, requestProjectIndex id )
 
+        NewProject _ ->
+            case getByVista "new-project" model.ventanas of
+                Nothing ->
+                    update (NewTab <| Ventana "New Project" "new-project") model
+
+                Just tp ->
+                    update (FocusTab tp) model
+
 
 
 -- insertTabPath, newTabPath, and createNecessary are all helpers for Move Direction.
@@ -433,7 +459,9 @@ createNecessary dir tp ( cols, rows ) =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    receivedGlobalConfig ReceivedGlobalConfig
+    Sub.batch [ receivedGlobalConfig ReceivedGlobalConfig
+              , newProject NewProject
+              ]
 
 
 roleAttr : String -> Html.Attribute msg
@@ -581,24 +609,49 @@ viewProjects model =
                                 [ Attr.href ("#" ++ p.identifier)
                                 , Event.onClick (RequestProjectIndex p.identifier)
                                 ]
-                                [ Html.text p.titleAlias ]
+                                [ Html.text p.title ]
                             ]
                     )
                     gconfig.projects
                 )
 
 
-viewVista : Model -> Vista -> Html.Html Msg
+viewVista : Model -> Vista -> Html Msg
 viewVista model vista =
-    if vista.kind == "demo" then
-        Html.table [] (List.map (viewDemoContent model) vista.content)
+    case vista.content of
+        DemoContent dc ->
+            viewDemo model dc
 
-    else
-        Html.text "NO!!!"
+        DemoListContent dcs ->
+            Html.table [] (List.map (viewDemo model) dcs)
+
+        ProjectInfoContent pi ->
+            viewProjectInfo model pi
+
+        ErrorContent err ->
+            viewError model err
 
 
-viewDemoContent : Model -> DemoContent -> Html.Html Msg
-viewDemoContent model dc =
+viewProjectInfo : Model -> ProjectInfo -> Html Msg
+viewProjectInfo model pi =
+    Html.form [] [ Html.label [ ]
+                       [ Html.text "Identifier"
+                       , Html.input [ Attr.type_ "text" ] []
+                       ]
+                 , Html.label [ ]
+                     [ Html.text "Title"
+                     , Html.input [ Attr.type_ "text" ] []
+                     ]
+                 ]
+
+
+viewError : Model -> Error -> Html Msg
+viewError _ err =
+    Html.text err.message
+
+
+viewDemo : Model -> Demo -> Html.Html Msg
+viewDemo model dc =
     Html.tr []
         [ Html.td [] [ Html.text dc.source ]
         , Html.td [] [ Html.text dc.parse ]
@@ -872,11 +925,23 @@ visMember ( col, ( row, tab ) ) vv =
 globalConfigDecoder : D.Decoder GlobalConfig
 globalConfigDecoder =
     D.map GlobalConfig
-        (D.field "projects" (D.list projectConfigDecoder))
+        (D.field "projects" (D.list projectInfoDecoder))
 
 
-projectConfigDecoder =
-    D.map3 ProjectConfig
-        (D.field "titleAlias" D.string)
+projectInfoDecoder =
+    D.map2 ProjectInfo
         (D.field "title" D.string)
         (D.field "identifier" D.string)
+
+
+getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
+getByVista vista ventanas =
+    let
+        keys = List.filter (\(k, v) -> v.vista == vista) (Dict.toList ventanas)
+    in
+    case keys of
+        [] ->
+            Nothing
+
+        (key, _) :: _ ->
+            Just key

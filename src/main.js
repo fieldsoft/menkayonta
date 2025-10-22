@@ -89,7 +89,11 @@ const createWindow = () => {
     {
       label: 'File',
       submenu: [
-        isMac ? { role: 'close' } : { role: 'quit' }
+        {
+          click: () => mainWindow.webContents.send('new-project'),
+          label: 'New Menu',
+        },
+        ...(isMac ? [{ role: 'close' }] : [{ role: 'quit' }])
       ]
     },
     // { role: 'editMenu' }

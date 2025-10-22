@@ -26,3 +26,7 @@ app.ports.requestProjectIndex.subscribe((identifier) => {
   
   app.ports.receivedProjectIndex.send(JSON.stringify(demo))
 })
+
+window.electronAPI.onNewProject(() => {
+  app.ports.newProject.send(null)
+})
