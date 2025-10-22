@@ -18,6 +18,18 @@ import Task
 
 port setWindowTitle : String -> Cmd msg
 
+
+port requestProjectIndex : String -> Cmd msg
+
+                           
+port requestGlobalConfig : () -> Cmd msg
+
+
+port receivedGlobalConfig : (String -> msg) -> Sub msg
+
+
+port projectIndexReceived : (String -> msg) -> Sub msg
+
                       
 -- A Ventana supplies the title and a referrence to a Vista, which is
 -- an identifier for some viewable content. I use Spanish when there
@@ -67,13 +79,30 @@ type alias VisVentanas =
     Dict ( Int, Int ) Int
 
 
+type alias GlobalConfig =
+    { projects : List ProjectConfig }
+
+
+type alias ProjectConfig =
+    { titleAlias : String
+    , title : String
+    , identifier : String
+    }
+
+
+type alias Error =
+    { message : String }
+    
+
 type alias Model =
-    { counter : Int
+    { gconfig : Maybe GlobalConfig
+    , counter : Int
     , ventanas : Ventanas
     , focused : Maybe TabPath
     , visVentanas : VisVentanas
     , vistas : Dict String Vista
     , windowHeight : Int
+    , error : Maybe Error
     }
 
 
@@ -90,20 +119,14 @@ type Msg
     | CloseTab TabPath
     | Move Direction
     | SetWindowTitle String
+    | ReceivedGlobalConfig String
+    | RequestProjectIndex String
 
 
 -- windowHeight isn't being used much, yet. The idea is to eventually
 -- update the value via a port when window resizing occurs.
 type alias Flags =
     { windowHeight : Int }
-
-
-projects : List Ventana
-projects =
-    [ Ventana "first" "xxxx"
-    , Ventana "second" "yyyy"
-    , Ventana "third" "zzzz"
-    ]
 
 
 type alias DemoContent =
@@ -149,14 +172,16 @@ main =
 
 init : Flags -> ( Model, Cmd Msg )
 init flags =
-    ( { counter = 0
+    ( { gconfig = Nothing
+      , counter = 0
       , ventanas = Dict.empty
       , focused = Nothing
       , visVentanas = Dict.empty
       , vistas = vistas
       , windowHeight = flags.windowHeight
+      , error = Nothing
       }
-    , Cmd.none
+    , requestGlobalConfig ()
     )
 
 
@@ -270,6 +295,20 @@ update msg model =
         SetWindowTitle title ->
             ( model, setWindowTitle title )
 
+        ReceivedGlobalConfig gcstr ->
+            case (D.decodeString globalConfigDecoder gcstr) of
+                Err err ->
+                    ( { model | error = Just (Error (D.errorToString err)) }
+                    , Cmd.none
+                    )
+
+                Ok gconfig ->
+                    ( { model | gconfig = Just gconfig }, Cmd.none )
+
+        RequestProjectIndex id ->
+            ( model, requestProjectIndex id )
+
+
 
 -- insertTabPath, newTabPath, and createNecessary are all helpers for Move Direction.
 -- Each provides Direction specific code for some aspect of the Move operation.
@@ -364,7 +403,7 @@ createNecessary dir tp ( cols, rows ) =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.none
+    receivedGlobalConfig ReceivedGlobalConfig
 
 
 roleAttr : String -> Html.Attribute msg
@@ -402,7 +441,7 @@ view model =
                     ]
                     [ Html.text " Up " ]
                 , Html.h2 [] [ Html.text "Projects" ]
-                , Html.ul [] (viewProjects model projects)
+                , viewProjects model
                 ]
             ]
         , if Dict.isEmpty tabtree then
@@ -497,19 +536,25 @@ viewTab model tp =
         ]
 
 
-viewProjects : Model -> List Ventana -> List (Html.Html Msg)
-viewProjects model ps =
-    List.map
-        (\w ->
-            Html.li []
-                [ Html.a
-                    [ Attr.href ("#" ++ w.vista)
-                    , Event.onClick (NewTab w)
-                    ]
-                    [ Html.text w.title ]
-                ]
-        )
-        ps
+viewProjects : Model -> Html.Html Msg
+viewProjects model =
+    case model.gconfig of
+        Nothing ->
+            Html.text "Waiting for configuration to load"
+
+        Just gconfig ->
+            Html.ul []
+                (List.map
+                     (\p ->
+                          Html.li []
+                          [ Html.a
+                                [ Attr.href ("#" ++ p.identifier)
+                                , Event.onClick (RequestProjectIndex p.identifier)
+                                ]
+                                [ Html.text p.titleAlias ]
+                          ]
+                     )
+                     gconfig.projects)
 
 
 viewVista : Model -> Vista -> Html.Html Msg
@@ -790,3 +835,16 @@ visMember ( col, ( row, tab ) ) vv =
 
         Just t ->
             ( col, ( row, tab ) ) == ( col, ( row, t ) )
+
+
+globalConfigDecoder : D.Decoder GlobalConfig
+globalConfigDecoder =
+    D.map GlobalConfig
+        (D.field "projects" (D.list projectConfigDecoder))
+
+
+projectConfigDecoder =
+    D.map3 ProjectConfig
+        (D.field "titleAlias" D.string)
+        (D.field "title" D.string)
+        (D.field "identifier" D.string)

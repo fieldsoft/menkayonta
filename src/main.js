@@ -48,10 +48,6 @@ if (started) {
 
 let isDev = process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
 
-// if (isDev) require('electron-reload')(__dirname, {
-//   electron: path.join(process.cwd(), 'node_modules', '.bin', 'electron')
-// })
-
 // Set the window title according to renderer events
 const handleSetTitle = (event, title) => {
   const webContents = event.sender
@@ -90,12 +86,12 @@ const openGlobalConf = async () => {
     fh = await fs.open(globalConfPath, 'r')
     const configData = await fh.readFile({ encoding: 'utf8' })
         
-    return JSON.stringify({ config: JSON.parse(configData) })
+    return JSON.stringify(JSON.parse(configData))
   } catch (err) {
     fh = await fs.open(globalConfPath, 'w+')
     await fh.writeFile(JSON.stringify(initialConf, null, 4))
 
-    return JSON.stringify({ config: initialConf })
+    return JSON.stringify(initialConf)
   } finally {
     if (fh) {
       await fh.close()
@@ -107,8 +103,7 @@ const init = async () => {
   try {
     await app.whenReady()
 
-    const globalConf = await openGlobalConf()
-  
+    ipcMain.handle('request-gconfig', openGlobalConf)
     ipcMain.on('set-title', handleSetTitle)
     createWindow()
 
@@ -122,18 +117,6 @@ const init = async () => {
     console.log(err)
   }
 }
-
-// app.whenReady().then(() => {
-//   ipcMain.on('set-title', handleSetTitle)
-//   createWindow()
-
-//   // Open a window on MacOS when none are otherwise open.
-//   app.on('activate', () => {
-//     if (BrowserWindow.getAllWindows().length === 0) {
-//       createWindow()
-//     }
-//   })
-// })
 
 // On MacOS, don't close the application when all windows are closed
 app.on('window-all-closed', () => {
