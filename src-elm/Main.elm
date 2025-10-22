@@ -15,13 +15,12 @@ import Set exposing (Set)
 import Task
 
 
-
 port setWindowTitle : String -> Cmd msg
 
 
 port requestProjectIndex : String -> Cmd msg
 
-                           
+
 port requestGlobalConfig : () -> Cmd msg
 
 
@@ -30,7 +29,8 @@ port receivedGlobalConfig : (String -> msg) -> Sub msg
 
 port projectIndexReceived : (String -> msg) -> Sub msg
 
-                      
+
+
 -- A Ventana supplies the title and a referrence to a Vista, which is
 -- an identifier for some viewable content. I use Spanish when there
 -- are already commonly referred to object or concepts such as
@@ -92,7 +92,7 @@ type alias ProjectConfig =
 
 type alias Error =
     { message : String }
-    
+
 
 type alias Model =
     { gconfig : Maybe GlobalConfig
@@ -123,8 +123,11 @@ type Msg
     | RequestProjectIndex String
 
 
+
 -- windowHeight isn't being used much, yet. The idea is to eventually
 -- update the value via a port when window resizing occurs.
+
+
 type alias Flags =
     { windowHeight : Int }
 
@@ -135,7 +138,7 @@ type alias DemoContent =
     , parse : String
     , gloss : String
     }
-    
+
 
 vistas : Dict String Vista
 vistas =
@@ -144,20 +147,21 @@ vistas =
         , kind = "demo"
         , identifier = "xxxx"
         , content =
-              [ { source = "Abadeka adoke epene oñompa."
-                , translation = "There is only a duck in the river."
-                , parse = "abade-ka adoke epẽ-de õyõ-pa"
-                , gloss = "duck-LIM one water-LOC is.on-DECL"
-                }
-              , { source = "A bete impa mochila"
-                , translation = "The backpack is wet"
-                , parse = "{a be}-te ĩ-pa mochila"
-                , gloss = "wet-GER COP-DECL backpack(esp)"
-                }
-              ]
+            [ { source = "Abadeka adoke epene oñompa."
+              , translation = "There is only a duck in the river."
+              , parse = "abade-ka adoke epẽ-de õyõ-pa"
+              , gloss = "duck-LIM one water-LOC is.on-DECL"
+              }
+            , { source = "A bete impa mochila"
+              , translation = "The backpack is wet"
+              , parse = "{a be}-te ĩ-pa mochila"
+              , gloss = "wet-GER COP-DECL backpack(esp)"
+              }
+            ]
         }
       )
-    ] |> Dict.fromList
+    ]
+        |> Dict.fromList
 
 
 main : Program Flags Model Msg
@@ -191,20 +195,27 @@ update msg model =
         NewTab ventana ->
             if Dict.isEmpty model.ventanas then
                 let
-                    c = model.counter
-                    tp = tabpath c c c
-                    newmodel = { model | counter = c + 1
-                               , ventanas = Dict.singleton tp ventana
-                               , visVentanas = visInsert tp Dict.empty
-                               , focused = Just tp
-                               }
+                    c =
+                        model.counter
+
+                    tp =
+                        tabpath c c c
+
+                    newmodel =
+                        { model
+                            | counter = c + 1
+                            , ventanas = Dict.singleton tp ventana
+                            , visVentanas = visInsert tp Dict.empty
+                            , focused = Just tp
+                        }
                 in
                 ( newmodel, Cmd.none )
-                        
+
             else
                 let
-                    c = model.counter
-                            
+                    c =
+                        model.counter
+
                     -- The focused property is used to get the current column and
                     -- row. This is wrapped in a Maybe. It should not be Nothing.
                     -- In the unlikely case that it is, return the original model.
@@ -212,35 +223,41 @@ update msg model =
                         case model.focused of
                             Nothing ->
                                 model
-                                            
+
                             Just tp1 ->
                                 let
-                                    ( column, ( row, _ ) ) = tp1
-                                    tp2 = tabpath column row c
+                                    ( column, ( row, _ ) ) =
+                                        tp1
+
+                                    tp2 =
+                                        tabpath column row c
                                 in
-                                { model | counter = c + 1
-                                , ventanas = Dict.insert tp2 ventana model.ventanas
-                                , visVentanas = visInsert tp2 model.visVentanas
-                                , focused = Just tp2
+                                { model
+                                    | counter = c + 1
+                                    , ventanas = Dict.insert tp2 ventana model.ventanas
+                                    , visVentanas = visInsert tp2 model.visVentanas
+                                    , focused = Just tp2
                                 }
                 in
                 ( newmodel, Cmd.none )
-                        
+
         FocusTab tp ->
             let
-                title = Dict.get tp model.ventanas
+                title =
+                    Dict.get tp model.ventanas
                         |> Maybe.map .title
                         |> Maybe.withDefault ""
             in
-            ( { model | focused = Just tp
-              , visVentanas = visInsert tp model.visVentanas
+            ( { model
+                | focused = Just tp
+                , visVentanas = visInsert tp model.visVentanas
               }
-            , setWindowTitle ("Menkayonta: " ++ title) 
+            , setWindowTitle ("Menkayonta: " ++ title)
             )
-                            
+
         CloseTab tp ->
             ( closeTab tp model, Cmd.none )
-                                    
+
         Move dir ->
             -- If there is more than one tab, and one is focused,
             -- which always should be the case, see if there is more
@@ -255,20 +272,29 @@ update msg model =
             -- ventana. Delete the original focused item and focus the
             -- new tab.
             let
-                vs = model.ventanas
-                c = model.counter
-                keys = Dict.keys vs
-                cols = tcolumns keys
+                vs =
+                    model.ventanas
+
+                c =
+                    model.counter
+
+                keys =
+                    Dict.keys vs
+
+                cols =
+                    tcolumns keys
+
                 newmodel =
                     if Dict.isEmpty vs || Dict.size vs == 1 then
                         model
-                                                                        
+
                     else
                         case model.focused of
                             Just fp ->
                                 let
                                     -- rows of the current column
-                                    rows = trows (tcolumn fp) keys
+                                    rows =
+                                        trows (tcolumn fp) keys
                                 in
                                 -- Does the position of the tab's
                                 -- column or row require that a new
@@ -276,14 +302,18 @@ update msg model =
                                 -- target?
                                 if createNecessary dir fp ( cols, rows ) then
                                     let
-                                        newtp = newTabPath dir fp c
-                                        moved = reassign fp newtp model
+                                        newtp =
+                                            newTabPath dir fp c
+
+                                        moved =
+                                            reassign fp newtp model
                                     in
                                     { moved | counter = c + 1 }
 
                                 else
                                     let
-                                        new = insertTabPath dir fp ( cols, rows ) keys
+                                        new =
+                                            insertTabPath dir fp ( cols, rows ) keys
                                     in
                                     reassign fp new model
 
@@ -296,7 +326,7 @@ update msg model =
             ( model, setWindowTitle title )
 
         ReceivedGlobalConfig gcstr ->
-            case (D.decodeString globalConfigDecoder gcstr) of
+            case D.decodeString globalConfigDecoder gcstr of
                 Err err ->
                     ( { model | error = Just (Error (D.errorToString err)) }
                     , Cmd.none
@@ -312,9 +342,9 @@ update msg model =
 
 -- insertTabPath, newTabPath, and createNecessary are all helpers for Move Direction.
 -- Each provides Direction specific code for some aspect of the Move operation.
-
 -- This is for the case when movement places the focused tab in a
 -- preexisting row with tabs.
+
 
 insertTabPath : Direction -> TabPath -> ( List Int, List Int ) -> List TabPath -> TabPath
 insertTabPath dir tp ( cols, rows ) keys =
@@ -545,16 +575,17 @@ viewProjects model =
         Just gconfig ->
             Html.ul []
                 (List.map
-                     (\p ->
-                          Html.li []
-                          [ Html.a
+                    (\p ->
+                        Html.li []
+                            [ Html.a
                                 [ Attr.href ("#" ++ p.identifier)
                                 , Event.onClick (RequestProjectIndex p.identifier)
                                 ]
                                 [ Html.text p.titleAlias ]
-                          ]
-                     )
-                     gconfig.projects)
+                            ]
+                    )
+                    gconfig.projects
+                )
 
 
 viewVista : Model -> Vista -> Html.Html Msg
@@ -564,7 +595,7 @@ viewVista model vista =
 
     else
         Html.text "NO!!!"
-            
+
 
 viewDemoContent : Model -> DemoContent -> Html.Html Msg
 viewDemoContent model dc =
@@ -574,6 +605,7 @@ viewDemoContent model dc =
         , Html.td [] [ Html.text dc.gloss ]
         , Html.td [] [ Html.text dc.translation ]
         ]
+
 
 
 -- Return the TabPaths for the tabs in the same row.
