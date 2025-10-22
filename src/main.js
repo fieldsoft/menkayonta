@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -38,14 +38,16 @@ PouchDB.plugin(HttpPouch).plugin(mapreduce).plugin(replication).plugin(sqliteAda
 // application.
 const projectsPath = path.join(os.homedir(), 'Menkayonta')
 const globalConfPath = path.join(projectsPath, 'config')
-const initialConf = { projects: [] }
 
+// Test if the platform is macos.
+const isMac = process.platform === 'darwin'
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
 
+// Determine whether the app is running in a development environment.
 let isDev = process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
 
 // Set the window title according to renderer events
@@ -64,6 +66,102 @@ const createWindow = () => {
     }
   })
 
+  // The application menu template
+  const template = [
+    // { role: 'appMenu' }
+    ...(isMac
+        ? [{
+          label: app.name,
+          submenu: [
+            { role: 'about' },
+            { type: 'separator' },
+            { role: 'services' },
+            { type: 'separator' },
+            { role: 'hide' },
+            { role: 'hideOthers' },
+            { role: 'unhide' },
+            { type: 'separator' },
+            { role: 'quit' }
+          ]
+        }]
+        : []),
+    // { role: 'fileMenu' }
+    {
+      label: 'File',
+      submenu: [
+        isMac ? { role: 'close' } : { role: 'quit' }
+      ]
+    },
+    // { role: 'editMenu' }
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(isMac
+            ? [
+              { role: 'pasteAndMatchStyle' },
+              { role: 'delete' },
+              { role: 'selectAll' },
+              { type: 'separator' },
+              {
+                label: 'Speech',
+                submenu: [
+                  { role: 'startSpeaking' },
+                  { role: 'stopSpeaking' }
+                ]
+              }
+            ]
+            : [
+              { role: 'delete' },
+              { type: 'separator' },
+              { role: 'selectAll' }
+            ])
+      ]
+    },
+    // { role: 'viewMenu' }
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    // { role: 'windowMenu' }
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac
+            ? [
+              { type: 'separator' },
+              { role: 'front' },
+              { type: 'separator' },
+              { role: 'window' }
+            ]
+            : [
+              { role: 'close' }
+            ])
+      ]
+    },
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+  mainWindow.setMenu(menu)
+  
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
@@ -75,9 +173,11 @@ const createWindow = () => {
 
 // The openConf() function will create the projects directory and
 // global config file in the user's home directory if they do not
-// exist.
+// exist. It returns a JSON object of the apps global configuration,
+// such as the projects that exist in the projects directory.
 const openGlobalConf = async () => {
   let fh
+  const initialConf = { projects: [] }
 
   try {
     await fs.mkdir(projectsPath, { recursive: true })
@@ -120,7 +220,7 @@ const init = async () => {
 
 // On MacOS, don't close the application when all windows are closed
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (!isMac) {
     app.quit()
   }
 })
