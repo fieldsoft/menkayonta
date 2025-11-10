@@ -91,7 +91,7 @@ const createWindow = () => {
       submenu: [
         {
           click: () => mainWindow.webContents.send('new-project'),
-          label: 'New Menu',
+          label: 'New Project',
         },
         ...(isMac ? [{ role: 'close' }] : [{ role: 'quit' }])
       ]
