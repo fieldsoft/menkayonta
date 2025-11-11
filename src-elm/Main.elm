@@ -13,6 +13,9 @@ import Math.Vector3 as V3
 import Maybe.Extra as ME
 import Set exposing (Set)
 import Task
+import FormToolkit.Parse as FParse
+import FormToolkit.Field as Field exposing (Field)
+import Result
 
 
 port setWindowTitle : String -> Cmd msg
@@ -105,6 +108,9 @@ type alias Model =
     , vistas : Dict String Vista
     , windowHeight : Int
     , error : Maybe Error
+    , projectFields : Field ProjectField
+    , projectEditObj : Maybe ProjectInfo
+    , projectSubmitted : Bool
     }
 
 
@@ -113,6 +119,15 @@ type Direction
     | Right
     | Up
     | Down
+
+
+type ProjectField
+    = ProjectIdentifier
+    | ProjectTitle
+
+
+
+type alias FieldKind = ProjectField
 
 
 type Msg
@@ -124,6 +139,8 @@ type Msg
     | ReceivedGlobalConfig String
     | RequestProjectIndex String
     | NewProject ()
+    | FormChange (Field.Msg FieldKind)
+    | FormSubmit
 
 
 
@@ -182,6 +199,23 @@ vistas =
         |> Dict.fromList
 
 
+projectFields : Field ProjectField
+projectFields =
+    Field.group []
+        [ Field.text
+              [ Field.label "Identifier"
+              , Field.required True
+              , Field.identifier ProjectIdentifier
+              , Field.name "project-identifier"
+              ]
+        , Field.text
+            [ Field.label "Title"
+            , Field.required True
+            , Field.identifier ProjectTitle
+            , Field.name "project-title"
+            ]
+        ]
+
 main : Program Flags Model Msg
 main =
     Browser.element
@@ -202,6 +236,9 @@ init flags =
       , vistas = vistas
       , windowHeight = flags.windowHeight
       , error = Nothing
+      , projectFields = projectFields
+      , projectEditObj = Nothing
+      , projectSubmitted = False
       }
     , requestGlobalConfig ()
     )
@@ -234,9 +271,12 @@ update msg model =
                     c =
                         model.counter
 
-                    -- The focused property is used to get the current column and
-                    -- row. This is wrapped in a Maybe. It should not be Nothing.
-                    -- In the unlikely case that it is, return the original model.
+                    -- The focused property is used to get the current
+                    -- column and row. This is wrapped in a Maybe. It
+                    -- should not be Nothing, unless there are no
+                    -- ventanas, which should not be the case in this
+                    -- 'else' block. In the unlikely case of a bad
+                    -- state, return the original model.
                     newmodel =
                         case model.focused of
                             Nothing ->
@@ -356,6 +396,7 @@ update msg model =
         RequestProjectIndex id ->
             ( model, requestProjectIndex id )
 
+        -- Open or focus the New Project form.
         NewProject _ ->
             case getByVista "new-project" model.ventanas of
                 Nothing ->
@@ -364,6 +405,26 @@ update msg model =
                 Just tp ->
                     update (FocusTab tp) model
 
+        FormChange inputMsg ->
+            let
+                ( formFields, result ) =
+                    FParse.parseUpdate projectParser inputMsg model.projectFields
+            in
+            ( { model
+                  | projectFields = formFields
+                  , projectEditObj = Result.toMaybe result
+                  , projectSubmitted = False
+              }
+            , Cmd.none
+            )
+
+        FormSubmit ->
+            ( { model
+                  | projectFields = Field.touch model.projectFields
+                  , projectSubmitted = True
+              }
+            , Cmd.none
+            )
 
 
 -- insertTabPath, newTabPath, and createNecessary are all helpers for Move Direction.
@@ -626,23 +687,14 @@ viewVista model vista =
             Html.table [] (List.map (viewDemo model) dcs)
 
         ProjectInfoContent pi ->
-            viewProjectInfo model pi
+            Html.form [ Event.onSubmit FormSubmit ]
+                [ Field.toHtml FormChange model.projectFields
+                , Html.button [ Event.onClick FormSubmit ]
+                    [ Html.text "Save" ]
+                ]
 
         ErrorContent err ->
             viewError model err
-
-
-viewProjectInfo : Model -> ProjectInfo -> Html Msg
-viewProjectInfo model pi =
-    Html.form [] [ Html.label [ ]
-                       [ Html.text "Identifier"
-                       , Html.input [ Attr.type_ "text" ] []
-                       ]
-                 , Html.label [ ]
-                     [ Html.text "Title"
-                     , Html.input [ Attr.type_ "text" ] []
-                     ]
-                 ]
 
 
 viewError : Model -> Error -> Html Msg
@@ -932,6 +984,12 @@ projectInfoDecoder =
     D.map2 ProjectInfo
         (D.field "title" D.string)
         (D.field "identifier" D.string)
+
+
+projectParser =
+    FParse.map2 ProjectInfo
+        (FParse.field ProjectIdentifier FParse.string)
+        (FParse.field ProjectTitle FParse.string)
 
 
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
