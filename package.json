@@ -46,6 +46,7 @@
     "pouchdb-adapter-node-websql": "^7.0.0",
     "pouchdb-core": "^9.0.0",
     "pouchdb-mapreduce": "^9.0.0",
-    "pouchdb-replication": "^9.0.0"
+    "pouchdb-replication": "^9.0.0",
+    "uuid": "^13.0.0"
   }
 }

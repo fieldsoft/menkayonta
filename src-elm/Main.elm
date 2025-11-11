@@ -15,6 +15,7 @@ import Set exposing (Set)
 import Task
 import FormToolkit.Parse as FParse
 import FormToolkit.Field as Field exposing (Field)
+import FormToolkit.Value as Value
 import Result
 
 
@@ -33,7 +34,7 @@ port receivedGlobalConfig : (String -> msg) -> Sub msg
 port projectIndexReceived : (String -> msg) -> Sub msg
 
 
-port newProject : (() -> msg) -> Sub msg
+port newProject : (String -> msg) -> Sub msg
 
 
 
@@ -138,7 +139,7 @@ type Msg
     | SetWindowTitle String
     | ReceivedGlobalConfig String
     | RequestProjectIndex String
-    | NewProject ()
+    | NewProject String
     | FormChange (Field.Msg FieldKind)
     | FormSubmit
 
@@ -199,14 +200,16 @@ vistas =
         |> Dict.fromList
 
 
-projectFields : Field ProjectField
-projectFields =
+projectFields : String -> Field ProjectField
+projectFields ident =
     Field.group []
         [ Field.text
               [ Field.label "Identifier"
               , Field.required True
+              , Field.disabled True
               , Field.identifier ProjectIdentifier
               , Field.name "project-identifier"
+              , Field.value (Value.string ident)
               ]
         , Field.text
             [ Field.label "Title"
@@ -236,7 +239,7 @@ init flags =
       , vistas = vistas
       , windowHeight = flags.windowHeight
       , error = Nothing
-      , projectFields = projectFields
+      , projectFields = projectFields ""
       , projectEditObj = Nothing
       , projectSubmitted = False
       }
@@ -397,13 +400,20 @@ update msg model =
             ( model, requestProjectIndex id )
 
         -- Open or focus the New Project form.
-        NewProject _ ->
+        NewProject ident ->
+            let
+                newmodel = { model
+                               | projectEditObj = Nothing
+                               , projectFields = projectFields ident
+                               , projectSubmitted = False
+                           }
+            in
             case getByVista "new-project" model.ventanas of
                 Nothing ->
-                    update (NewTab <| Ventana "New Project" "new-project") model
+                    update (NewTab <| Ventana "New Project" "new-project") newmodel
 
                 Just tp ->
-                    update (FocusTab tp) model
+                    update (FocusTab tp) newmodel
 
         FormChange inputMsg ->
             let

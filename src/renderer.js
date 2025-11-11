@@ -1,5 +1,6 @@
 import './index.css'
 import { Elm } from '../src-elm/Main.elm'
+import { v4 as uuidv4 } from 'uuid'
 
 const app = Elm.Main.init({ node: document.getElementById("root"),
                             flags: { windowHeight: window.innerHeight }
@@ -28,5 +29,6 @@ app.ports.requestProjectIndex.subscribe((identifier) => {
 })
 
 window.electronAPI.onNewProject(() => {
-  app.ports.newProject.send(null)
+  const ident = uuidv4()
+  app.ports.newProject.send(ident)
 })
