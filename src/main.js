@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
-import path from 'node:path';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import started from 'electron-squirrel-startup';
+import { app, BrowserWindow, ipcMain, Menu } from 'electron'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import started from 'electron-squirrel-startup'
+import { v4, validate as uuidValidate } from 'uuid'
 
 // Load the pouchdb packages. The pouchdb packages need commonjs
 // imports.
@@ -37,7 +38,7 @@ PouchDB.plugin(HttpPouch).plugin(mapreduce).plugin(replication).plugin(sqliteAda
 // These are values relavent to the global configuration of the
 // application.
 const projectsPath = path.join(os.homedir(), 'Menkayonta')
-const globalConfPath = path.join(projectsPath, 'config')
+const globalConfPath = path.join(projectsPath, 'config.json')
 
 // Test if the platform is macos.
 const isMac = process.platform === 'darwin'
@@ -90,7 +91,7 @@ const createWindow = () => {
       label: 'File',
       submenu: [
         {
-          click: () => mainWindow.webContents.send('new-project'),
+          click: () => mainWindow.webContents.send('new-project', v4()),
           label: 'New Project',
         },
         ...(isMac ? [{ role: 'close' }] : [{ role: 'quit' }])
@@ -175,27 +176,14 @@ const createWindow = () => {
   }
 }
 
-// The openConf() function will create the projects directory and
-// global config file in the user's home directory if they do not
-// exist. It returns a JSON object of the apps global configuration,
-// such as the projects that exist in the projects directory.
-const openGlobalConf = async () => {
+const readGlobalConf = async () => {
   let fh
-  const initialConf = { projects: [] }
 
   try {
-    await fs.mkdir(projectsPath, { recursive: true })
-    const confstats = await fs.state(globalConfPath)
-
     fh = await fs.open(globalConfPath, 'r')
-    const configData = await fh.readFile({ encoding: 'utf8' })
-        
-    return JSON.stringify(JSON.parse(configData))
-  } catch (err) {
-    fh = await fs.open(globalConfPath, 'w+')
-    await fh.writeFile(JSON.stringify(initialConf, null, 4))
+    const confData = await fh.readFile({ encoding: 'utf8' })
 
-    return JSON.stringify(initialConf)
+    return JSON.parse(confData)
   } finally {
     if (fh) {
       await fh.close()
@@ -203,11 +191,104 @@ const openGlobalConf = async () => {
   }
 }
 
+const writeGlobalConf = async (configData) => {
+  let fh
+
+  try {
+    fh = await fs.open(globalConfPath, 'w+')
+    await fh.writeFile(JSON.stringify(configData, null, 4))
+
+    return configData
+  } finally {
+    if (fh) {
+      await fh.close()
+    }
+  }
+}
+
+const writeProjConf = async (identifier, configData) => {
+  const projPath = path.join(projectsPath, identifier)
+  const projConfPath = path.join(projPath, 'config.json')
+  let fh
+
+  try {
+    fh = await fs.open(projConfPath, 'w+')
+    await fh.writeFile(JSON.stringify(configData, null, 4))
+
+    return configData
+  } finally {
+    if (fh) {
+      await fh.close()
+    }
+  }
+}
+
+// The openConf() function will create the projects directory and
+// global config file in the user's home directory if they do not
+// exist. It returns a JSON object of the apps global configuration,
+// such as the projects that exist in the projects directory.
+const openGlobalConf = async () => {
+  const initialConf = { projects: [] }
+
+  try {
+    await fs.mkdir(projectsPath, { recursive: true })
+
+    const configData = await readGlobalConf()
+        
+    return JSON.stringify(configData)
+  } catch (err) {
+    if (err.code == 'ENOENT') {
+      console.log('Initializing global configuration')
+      await writeGlobalConf(initialConf)
+
+      return JSON.stringify(initialConf)
+    } else {
+      throw err
+    }
+  }
+}
+
+// Create a new project and return updated configuration.
+// This requires the following:
+// 1. Retrieve the current global config
+// 2. Check that the new project id is not already present
+// 3. Create the new project directory structure
+// 4. Create the new project config file
+// 5. Initialize a database
+// 6. Send the globabl config to the renderer
+const createProject = async (_event, projectInfo) => {
+  const projPath = path.join(projectsPath, projectInfo.identifier)
+  const projSharePath = path.join(projPath, 'share')
+  const projConfPath = path.join(projPath, 'config.json')
+  const projDBPath = path.join(projPath, `${projectInfo.identifier}.sql`)
+  const initialConf = {}
+  
+  let gconfig = await readGlobalConf()
+
+  if (gconfig.projects.some((p) => p.identifier === projectInfo.identifier)) {
+    throw new Error('Attempt to create new project with existing project ID')
+  }
+  
+  await fs.mkdir(projSharePath, { recursive: true })
+  await writeProjConf(projectInfo.identifier, initialConf)
+
+  // Simply create the database at this point.
+  // The user will need to load it to begin.
+  const db = new PouchDB(projDBPath, { adapter: 'websql' })
+  await db.close()
+
+  gconfig.projects.push(projectInfo)
+  await writeGlobalConf(gconfig)
+
+  return JSON.stringify(gconfig)
+}
+
 const init = async () => {
   try {
     await app.whenReady()
 
     ipcMain.handle('request-gconfig', openGlobalConf)
+    ipcMain.handle('create-project', createProject)
     ipcMain.on('set-title', handleSetTitle)
     createWindow()
 

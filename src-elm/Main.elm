@@ -37,6 +37,9 @@ port projectIndexReceived : (String -> msg) -> Sub msg
 port newProject : (String -> msg) -> Sub msg
 
 
+port createProject : E.Value -> Cmd msg
+
+
 
 -- A Ventana supplies the title and a referrence to a Vista, which is
 -- an identifier for some viewable content. I use Spanish when there
@@ -110,7 +113,6 @@ type alias Model =
     , windowHeight : Int
     , error : Maybe Error
     , projectFields : Field ProjectField
-    , projectEditObj : Maybe ProjectInfo
     , projectSubmitted : Bool
     }
 
@@ -141,7 +143,7 @@ type Msg
     | RequestProjectIndex String
     | NewProject String
     | FormChange (Field.Msg FieldKind)
-    | FormSubmit
+    | FormSubmit TabPath
 
 
 
@@ -208,14 +210,14 @@ projectFields ident =
               , Field.required True
               , Field.disabled True
               , Field.identifier ProjectIdentifier
-              , Field.name "project-identifier"
+              , Field.name "identifier"
               , Field.value (Value.string ident)
               ]
         , Field.text
             [ Field.label "Title"
             , Field.required True
             , Field.identifier ProjectTitle
-            , Field.name "project-title"
+            , Field.name "title"
             ]
         ]
 
@@ -240,7 +242,6 @@ init flags =
       , windowHeight = flags.windowHeight
       , error = Nothing
       , projectFields = projectFields ""
-      , projectEditObj = Nothing
       , projectSubmitted = False
       }
     , requestGlobalConfig ()
@@ -403,8 +404,7 @@ update msg model =
         NewProject ident ->
             let
                 newmodel = { model
-                               | projectEditObj = Nothing
-                               , projectFields = projectFields ident
+                               | projectFields = projectFields ident
                                , projectSubmitted = False
                            }
             in
@@ -417,24 +417,37 @@ update msg model =
 
         FormChange inputMsg ->
             let
-                ( formFields, result ) =
+                ( formFields, _ ) =
                     FParse.parseUpdate projectParser inputMsg model.projectFields
             in
             ( { model
                   | projectFields = formFields
-                  , projectEditObj = Result.toMaybe result
                   , projectSubmitted = False
               }
             , Cmd.none
             )
 
-        FormSubmit ->
-            ( { model
-                  | projectFields = Field.touch model.projectFields
-                  , projectSubmitted = True
-              }
-            , Cmd.none
-            )
+        FormSubmit tp ->
+            if model.projectSubmitted /= True then
+                case FParse.parseValidate FParse.json model.projectFields of
+                    ( formFields, Ok jsonValue ) ->
+                        ( { model
+                              | projectFields = projectFields ""
+                              , projectSubmitted = True
+                          }
+                        , createProject jsonValue
+                        )
+
+                    ( formFields, Err _ ) ->
+                        ( { model
+                              | projectFields = formFields
+                              , projectSubmitted = False
+                          }
+                        , Cmd.none
+                        )
+            else
+                update (CloseTab tp) model
+
 
 
 -- insertTabPath, newTabPath, and createNecessary are all helpers for Move Direction.
@@ -659,7 +672,7 @@ viewTab model tp =
         , Html.div []
             [ Dict.get tp model.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.vistas)
-                |> Maybe.map (viewVista model)
+                |> Maybe.map (viewVista model tp)
                 |> Maybe.withDefault (Html.text "Failed!")
             ]
         ]
@@ -687,8 +700,8 @@ viewProjects model =
                 )
 
 
-viewVista : Model -> Vista -> Html Msg
-viewVista model vista =
+viewVista : Model -> TabPath -> Vista -> Html Msg
+viewVista model tp vista =
     case vista.content of
         DemoContent dc ->
             viewDemo model dc
@@ -697,9 +710,9 @@ viewVista model vista =
             Html.table [] (List.map (viewDemo model) dcs)
 
         ProjectInfoContent pi ->
-            Html.form [ Event.onSubmit FormSubmit ]
+            Html.form [ Event.onSubmit (FormSubmit tp) ]
                 [ Field.toHtml FormChange model.projectFields
-                , Html.button [ Event.onClick FormSubmit ]
+                , Html.button [ Event.onClick (FormSubmit tp) ]
                     [ Html.text "Save" ]
                 ]
 
