@@ -750,11 +750,10 @@ sharesRow tp model =
 
 
 -- This uses vector distance to find a new focused item. It is called
--- in instances such as the closing of a tab. The notion of distance
--- isn't really very relevant. The idea is that some tab should become
--- open and focused if there is another tab in the same row. If there
--- is not, then some tab that is open in some other row should be
--- focused. Using distance may result in an intuitive behavior or not.
+-- in instances such as the closing of a tab. The idea is that some
+-- tab should become open and focused when the focused one
+-- closes. Intuitively, this should be the one that is nearest the
+-- closed tab.
 
 
 nearest : TabPath -> Model -> Maybe TabPath
