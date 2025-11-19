@@ -23,3 +23,5 @@ elm-stuff/
 # vite
 .vite
 
+# A directory used locally
+scratch-data/
