@@ -3,6 +3,9 @@ port module Main exposing (main)
 import Browser
 import Browser.Dom exposing (Viewport)
 import Dict exposing (Dict)
+import FormToolkit.Field as Field exposing (Field)
+import FormToolkit.Parse as FParse
+import FormToolkit.Value as Value
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
@@ -11,12 +14,9 @@ import Json.Encode as E
 import List.Extra as LE
 import Math.Vector3 as V3
 import Maybe.Extra as ME
+import Result
 import Set exposing (Set)
 import Task
-import FormToolkit.Parse as FParse
-import FormToolkit.Field as Field exposing (Field)
-import FormToolkit.Value as Value
-import Result
 
 
 port setWindowTitle : String -> Cmd msg
@@ -129,8 +129,8 @@ type ProjectField
     | ProjectTitle
 
 
-
-type alias FieldKind = ProjectField
+type alias FieldKind =
+    ProjectField
 
 
 type Msg
@@ -155,14 +155,13 @@ type alias Flags =
     { windowHeight : Int }
 
 
-
 type Content
     = DemoContent Demo
     | DemoListContent (List Demo)
     | ProjectInfoContent ProjectInfo
     | ErrorContent Error
 
-      
+
 type alias Demo =
     { source : String
     , translation : String
@@ -184,18 +183,19 @@ vistas =
       , { project = "first"
         , kind = "demo"
         , identifier = "xxxx"
-        , content = DemoListContent
-            [ { source = "Abadeka adoke epene oñompa."
-              , translation = "There is only a duck in the river."
-              , parse = "abade-ka adoke epẽ-de õyõ-pa"
-              , gloss = "duck-LIM one water-LOC is.on-DECL"
-              }
-            , { source = "A bete impa mochila"
-              , translation = "The backpack is wet"
-              , parse = "{a be}-te ĩ-pa mochila"
-              , gloss = "wet-GER COP-DECL backpack(esp)"
-              }
-            ]
+        , content =
+            DemoListContent
+                [ { source = "Abadeka adoke epene oñompa."
+                  , translation = "There is only a duck in the river."
+                  , parse = "abade-ka adoke epẽ-de õyõ-pa"
+                  , gloss = "duck-LIM one water-LOC is.on-DECL"
+                  }
+                , { source = "A bete impa mochila"
+                  , translation = "The backpack is wet"
+                  , parse = "{a be}-te ĩ-pa mochila"
+                  , gloss = "wet-GER COP-DECL backpack(esp)"
+                  }
+                ]
         }
       )
     ]
@@ -206,13 +206,13 @@ projectFields : String -> Field ProjectField
 projectFields ident =
     Field.group []
         [ Field.text
-              [ Field.label "Identifier"
-              , Field.required True
-              , Field.disabled True
-              , Field.identifier ProjectIdentifier
-              , Field.name "identifier"
-              , Field.value (Value.string ident)
-              ]
+            [ Field.label "Identifier"
+            , Field.required True
+            , Field.disabled True
+            , Field.identifier ProjectIdentifier
+            , Field.name "identifier"
+            , Field.value (Value.string ident)
+            ]
         , Field.text
             [ Field.label "Title"
             , Field.required True
@@ -220,6 +220,7 @@ projectFields ident =
             , Field.name "title"
             ]
         ]
+
 
 main : Program Flags Model Msg
 main =
@@ -403,10 +404,11 @@ update msg model =
         -- Open or focus the New Project form.
         NewProject ident ->
             let
-                newmodel = { model
-                               | projectFields = projectFields ident
-                               , projectSubmitted = False
-                           }
+                newmodel =
+                    { model
+                        | projectFields = projectFields ident
+                        , projectSubmitted = False
+                    }
             in
             case getByVista "new-project" model.ventanas of
                 Nothing ->
@@ -421,8 +423,8 @@ update msg model =
                     FParse.parseUpdate projectParser inputMsg model.projectFields
             in
             ( { model
-                  | projectFields = formFields
-                  , projectSubmitted = False
+                | projectFields = formFields
+                , projectSubmitted = False
               }
             , Cmd.none
             )
@@ -432,19 +434,20 @@ update msg model =
                 case FParse.parseValidate FParse.json model.projectFields of
                     ( formFields, Ok jsonValue ) ->
                         ( { model
-                              | projectFields = projectFields ""
-                              , projectSubmitted = True
+                            | projectFields = projectFields ""
+                            , projectSubmitted = True
                           }
                         , createProject jsonValue
                         )
 
                     ( formFields, Err _ ) ->
                         ( { model
-                              | projectFields = formFields
-                              , projectSubmitted = False
+                            | projectFields = formFields
+                            , projectSubmitted = False
                           }
                         , Cmd.none
                         )
+
             else
                 update (CloseTab tp) model
 
@@ -543,9 +546,10 @@ createNecessary dir tp ( cols, rows ) =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.batch [ receivedGlobalConfig ReceivedGlobalConfig
-              , newProject NewProject
-              ]
+    Sub.batch
+        [ receivedGlobalConfig ReceivedGlobalConfig
+        , newProject NewProject
+        ]
 
 
 roleAttr : String -> Html.Attribute msg
@@ -1017,11 +1021,12 @@ projectParser =
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
 getByVista vista ventanas =
     let
-        keys = List.filter (\(k, v) -> v.vista == vista) (Dict.toList ventanas)
+        keys =
+            List.filter (\( k, v ) -> v.vista == vista) (Dict.toList ventanas)
     in
     case keys of
         [] ->
             Nothing
 
-        (key, _) :: _ ->
+        ( key, _ ) :: _ ->
             Just key
