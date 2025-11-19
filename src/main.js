@@ -235,13 +235,13 @@ const openGlobalConf = async () => {
 
     const configData = await readGlobalConf()
         
-    return JSON.stringify(configData)
+    return configData
   } catch (err) {
     if (err.code == 'ENOENT') {
       console.log('Initializing global configuration')
       await writeGlobalConf(initialConf)
 
-      return JSON.stringify(initialConf)
+      return initialConf
     } else {
       throw err
     }
@@ -280,7 +280,7 @@ const createProject = async (_event, projectInfo) => {
   gconfig.projects.push(projectInfo)
   await writeGlobalConf(gconfig)
 
-  return JSON.stringify(gconfig)
+  return gconfig
 }
 
 const init = async () => {

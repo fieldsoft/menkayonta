@@ -23,7 +23,7 @@ app.ports.requestProjectIndex.subscribe((identifier) => {
                            ]
                }
   
-  app.ports.receivedProjectIndex.send(JSON.stringify(demo))
+  app.ports.receivedProjectIndex.send(demo)
 })
 
 window.electronAPI.onNewProject((ident) => {

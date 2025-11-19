@@ -28,10 +28,10 @@ port requestProjectIndex : String -> Cmd msg
 port requestGlobalConfig : () -> Cmd msg
 
 
-port receivedGlobalConfig : (String -> msg) -> Sub msg
+port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
 
 
-port receivedProjectIndex : (String -> msg) -> Sub msg
+port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
 
 port newProject : (String -> msg) -> Sub msg
@@ -139,8 +139,8 @@ type Msg
     | CloseTab TabPath
     | Move Direction
     | SetWindowTitle String
-    | ReceivedGlobalConfig String
-    | ReceivedProjectIndex String
+    | ReceivedGlobalConfig E.Value
+    | ReceivedProjectIndex E.Value
     | RequestProjectIndex String
     | NewProject String
     | FormChange (Field.Msg FieldKind)
@@ -389,8 +389,8 @@ update msg model =
         SetWindowTitle title ->
             ( model, setWindowTitle title )
 
-        ReceivedGlobalConfig gcstr ->
-            case D.decodeString globalConfigDecoder gcstr of
+        ReceivedGlobalConfig gc ->
+            case D.decodeValue globalConfigDecoder gc of
                 Err err ->
                     ( { model | error = Just (Error (D.errorToString err)) }
                     , Cmd.none
