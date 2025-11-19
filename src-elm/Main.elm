@@ -40,23 +40,19 @@ port newProject : (String -> msg) -> Sub msg
 port createProject : E.Value -> Cmd msg
 
 
-
--- A Ventana supplies the title and a referrence to a Vista, which is
--- an identifier for some viewable content. I use Spanish when there
--- are already commonly referred to object or concepts such as
--- "window" or "view".
-
-
+{-| A Ventana supplies the title and a referrence to a Vista, which is
+an identifier for some viewable content. I use Spanish when there are
+already commonly referred to object or concepts such as "window" or
+"view".
+-}
 type alias Ventana =
     { title : String
     , vista : String
     }
 
 
-
--- Viewable content.
-
-
+{-| Viewable content.
+-}
 type alias Vista =
     { project : String
     , kind : String
@@ -65,26 +61,20 @@ type alias Vista =
     }
 
 
-
--- The path to a tab, used for operations on tabs.
-
-
+{-| The path to a tab, used for operations on tabs.
+-}
 type alias TabPath =
     ( Int, ( Int, Int ) )
 
 
-
--- All of the viewable content associated with a tab.
-
-
+{-| All of the viewable content associated with a tab.
+-}
 type alias Ventanas =
     Dict TabPath Ventana
 
 
-
--- Currently visible Ventanas.
-
-
+{-| Currently visible Ventanas.
+-}
 type alias VisVentanas =
     Dict ( Int, Int ) Int
 
@@ -145,11 +135,6 @@ type Msg
     | NewProject String
     | FormChange (Field.Msg FieldKind)
     | FormSubmit TabPath
-
-
-
--- windowHeight isn't being used much, yet. The idea is to eventually
--- update the value via a port when window resizing occurs.
 
 
 type alias Flags =
@@ -277,12 +262,14 @@ update msg model =
                     c =
                         model.counter
 
-                    -- The focused property is used to get the current
-                    -- column and row. This is wrapped in a Maybe. It
-                    -- should not be Nothing, unless there are no
-                    -- ventanas, which should not be the case in this
-                    -- 'else' block. In the unlikely case of a bad
-                    -- state, return the original model.
+                    {- The focused property is used to get the column
+                       and row that the user has been interacting
+                       with. It is wrapped in a Maybe. It should not be
+                       Nothing unless there are no ventanas, which
+                       should not be the case in this 'else' block. In
+                       the unlikely case of a bad state, the input model
+                       is returned. Perhaps an error would be better.
+                    -}
                     newmodel =
                         case model.focused of
                             Nothing ->
@@ -323,18 +310,19 @@ update msg model =
             ( closeTab tp model, Cmd.none )
 
         Move dir ->
-            -- If there is more than one tab, and one is focused,
-            -- which always should be the case, see if there is more
-            -- than one tab in the row of the focused tab. If there is
-            -- not, the row will close when the focused tab is
-            -- removed. If there is, ensure that the nearest tab is
-            -- made visible. If there is no column or row in the
-            -- target direction, add a new column and/or row and
-            -- create a tab that references the same ventana as the
-            -- previous item. If there is a row at the target site,
-            -- create a new tab there, again referencing the original
-            -- ventana. Delete the original focused item and focus the
-            -- new tab.
+            {- If there is more than one tab, and one is focused,
+               which always should be the case, see if there is more
+               than one tab in the row of the focused tab. If there is
+               not, the row will close when the focused tab is
+               removed. If there is, ensure that the nearest tab is
+               made visible. If there is no column or row in the
+               target direction, add a new column and/or row and
+               create a tab that references the same ventana as the
+               previous item. If there is a row at the target site,
+               create a new tab there, again referencing the original
+               ventana. Delete the original focused item and focus the
+               new tab.
+            -}
             let
                 vs =
                     model.ventanas
@@ -360,10 +348,11 @@ update msg model =
                                     rows =
                                         trows (tcolumn fp) keys
                                 in
-                                -- Does the position of the tab's
-                                -- column or row require that a new
-                                -- tab or column be added to supply a
-                                -- target?
+                                {- Does the position of the tab's
+                                   column or row require that a new
+                                   tab or column be added to supply a
+                                   target?
+                                -}
                                 if createNecessary dir fp ( cols, rows ) then
                                     let
                                         newtp =
@@ -456,13 +445,11 @@ update msg model =
                 update (CloseTab tp) model
 
 
-
--- insertTabPath, newTabPath, and createNecessary are all helpers for Move Direction.
--- Each provides Direction specific code for some aspect of the Move operation.
--- This is for the case when movement places the focused tab in a
--- preexisting row with tabs.
-
-
+{-| insertTabPath, newTabPath, and createNecessary are all helpers for
+Move Direction. Each provides Direction specific code for some
+aspect of the Move operation. This is for the case when movement
+places the focused tab in a preexisting row with tabs.
+-}
 insertTabPath : Direction -> TabPath -> ( List Int, List Int ) -> List TabPath -> TabPath
 insertTabPath dir tp ( cols, rows ) keys =
     case dir of
@@ -505,11 +492,9 @@ insertTabPath dir tp ( cols, rows ) keys =
             tabpath (tcolumn tp) row (ttab tp)
 
 
-
--- Use the counter (c) to provide new TabPaths that will be rendered
--- below, above, to the left or right of the focused tab.
-
-
+{-| Use the counter (c) to provide new TabPaths that will be rendered
+below, above, to the left or right of the focused tab.
+-}
 newTabPath : Direction -> TabPath -> Int -> TabPath
 newTabPath dir tp c =
     case dir of
@@ -526,12 +511,10 @@ newTabPath dir tp c =
             tabpath (tcolumn tp) (negate c) (ttab tp)
 
 
-
--- Essentially check the heads and tails of the relevant lists of
--- columns or rows to determine if the current item is on the border
--- of a column or row structure.
-
-
+{-| Essentially check the heads and tails of the relevant lists of
+columns or rows to determine if the current item is on the border
+of a column or row structure.
+-}
 createNecessary : Direction -> TabPath -> ( List Int, List Int ) -> Bool
 createNecessary dir tp ( cols, rows ) =
     case dir of
@@ -744,10 +727,8 @@ viewDemo model dc =
         ]
 
 
-
--- Return the TabPaths for the tabs in the same row.
-
-
+{-| Return the TabPaths for the tabs in the same row.
+-}
 sharesRow : TabPath -> Model -> List TabPath
 sharesRow tp model =
     let
@@ -757,14 +738,12 @@ sharesRow tp model =
     List.filter matchrow (Dict.keys model.ventanas)
 
 
-
--- This uses vector distance to find a new focused item. It is called
--- in instances such as the closing of a tab. The idea is that some
--- tab should become open and focused when the focused one
--- closes. Intuitively, this should be the one that is nearest the
--- closed tab.
-
-
+{-| This uses vector distance to find a new focused item. It is called
+in instances such as the closing of a tab. The idea is that some
+tab should become open and focused when the focused one
+closes. Intuitively, this should be the one that is nearest the
+closed tab.
+-}
 nearest : TabPath -> Model -> Maybe TabPath
 nearest tp model =
     let
@@ -794,10 +773,8 @@ nearest tp model =
             nearest_ tps
 
 
-
--- This will close a tab and set the nearest tab to focused.
-
-
+{-| This will close a tab and set the nearest tab to focused.
+-}
 closeTab : TabPath -> Model -> Model
 closeTab tp model =
     let
@@ -819,10 +796,8 @@ closeTab tp model =
     }
 
 
-
--- Assign a ventana to a new tab.
-
-
+{-| Assign a ventana to a new tab.
+-}
 reassign : TabPath -> TabPath -> Model -> Model
 reassign old new model =
     let
@@ -844,11 +819,9 @@ reassign old new model =
     }
 
 
-
--- Attempts to find the integer after the current one in a list and
--- returns the current integer on failure.
-
-
+{-| Attempts to find the integer after the current one in a list and
+returns the current integer on failure.
+-}
 getNext : Int -> List Int -> Int
 getNext curr others =
     LE.splitWhen (\x -> x == curr) others
@@ -858,11 +831,9 @@ getNext curr others =
         |> Maybe.withDefault curr
 
 
-
--- Create a tree structure from the flat path listing of TabPaths to
--- be used by the view function.
-
-
+{-| Create a tree structure from the flat path listing of TabPaths to
+be used by the view function.
+-}
 treeifyTabs : List TabPath -> Dict Int (Dict Int (Set Int))
 treeifyTabs tps =
     List.foldl
@@ -910,8 +881,9 @@ treeifyTabs tps =
 
 
 
--- TabPath helper functions are mostly used to help document the
--- intention of working with the integer tuple.
+{- TabPath helper functions are mostly used to help document the
+   intention of working with the integer tuple.
+-}
 
 
 tabpath : Int -> Int -> Int -> TabPath
@@ -934,10 +906,8 @@ ttab tp =
     tp |> Tuple.second |> Tuple.second
 
 
-
--- All columns in order
-
-
+{-| All columns in order
+-}
 tcolumns : List TabPath -> List Int
 tcolumns tps =
     List.map tcolumn tps
@@ -945,10 +915,8 @@ tcolumns tps =
         |> List.sort
 
 
-
--- Rows for a column in order
-
-
+{-| Rows for a column in order
+-}
 trows : Int -> List TabPath -> List Int
 trows column tps =
     List.filter (\tp -> tcolumn tp == column) tps
@@ -957,28 +925,22 @@ trows column tps =
         |> List.sort
 
 
-
--- Insert a tab into VisVentanas
-
-
+{-| Insert a tab into VisVentanas
+-}
 visInsert : TabPath -> VisVentanas -> VisVentanas
 visInsert tp vv =
     Dict.insert ( tcolumn tp, trow tp ) (ttab tp) vv
 
 
-
--- Insert a tab into VisVentanas
-
-
+{-| Insert a tab into VisVentanas
+-}
 visRemove : TabPath -> VisVentanas -> VisVentanas
 visRemove tp vv =
     Dict.remove ( tcolumn tp, trow tp ) vv
 
 
-
--- Assert whether a tab is visible
-
-
+{-| True when a tab is visible
+-}
 isVisible : TabPath -> VisVentanas -> Bool
 isVisible ( col, ( row, tab ) ) vv =
     case Dict.get ( col, row ) vv of
