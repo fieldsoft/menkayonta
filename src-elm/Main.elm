@@ -31,7 +31,7 @@ port requestGlobalConfig : () -> Cmd msg
 port receivedGlobalConfig : (String -> msg) -> Sub msg
 
 
-port projectIndexReceived : (String -> msg) -> Sub msg
+port receivedProjectIndex : (String -> msg) -> Sub msg
 
 
 port newProject : (String -> msg) -> Sub msg
@@ -140,6 +140,7 @@ type Msg
     | Move Direction
     | SetWindowTitle String
     | ReceivedGlobalConfig String
+    | ReceivedProjectIndex String
     | RequestProjectIndex String
     | NewProject String
     | FormChange (Field.Msg FieldKind)
@@ -401,6 +402,9 @@ update msg model =
         RequestProjectIndex id ->
             ( model, requestProjectIndex id )
 
+        ReceivedProjectIndex pi ->
+            ( model, Cmd.none )
+
         -- Open or focus the New Project form.
         NewProject ident ->
             let
@@ -548,6 +552,7 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
+        , receivedProjectIndex ReceivedProjectIndex
         , newProject NewProject
         ]
 
