@@ -14,7 +14,11 @@ const replication = require('pouchdb-replication')
 const sqliteAdapter = require('pouchdb-adapter-node-websql')
 
 // Set the pouchdb plugins.
-PouchDB.plugin(HttpPouch).plugin(mapreduce).plugin(replication).plugin(sqliteAdapter)
+PouchDB
+  .plugin(HttpPouch)
+  .plugin(mapreduce)
+  .plugin(replication)
+  .plugin(sqliteAdapter)
 
 
 // Create a database using the SQLite3 adapter
