@@ -43,7 +43,8 @@ const globalConfPath = path.join(projectsPath, 'config.json')
 // Test if the platform is macos.
 const isMac = process.platform === 'darwin'
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+// Handle creating/removing shortcuts on Windows when
+// installing/uninstalling.
 if (started) {
   app.quit();
 }
