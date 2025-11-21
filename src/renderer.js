@@ -14,7 +14,7 @@ app.ports.requestGlobalConfig.subscribe(async () => {
 })
 
 app.ports.requestProjectIndex.subscribe((identifier) => {
-  const demo = { identifier : 'xxxx',
+  const demo = { identifier : identifier,
                  content : [ { source : 'Abadeka adoke epene oñompa.',
                                translation : 'There is only a duck in the river.',
                                parse : 'abade-ka adoke epẽ-de õyõ-pa',
