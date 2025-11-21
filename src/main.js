@@ -20,25 +20,6 @@ PouchDB
   .plugin(replication)
   .plugin(sqliteAdapter)
 
-
-// Create a database using the SQLite3 adapter
-//const db = new PouchDB('mydb', { adapter: 'websql' })
-
-
-// const doc = {
-//   "_id": "mittens",
-//   "name": "Mittens",
-//   "occupation": "kitten",
-//   "age": 3,
-//   "hobbies": [
-//     "playing with balls of yarn",
-//     "chasing laser pointers",
-//     "lookin' hella cute"
-//   ]
-// }
-
-// db.put(doc)
-
 // These are values relavent to the global configuration of the
 // application.
 const projectsPath = path.join(os.homedir(), 'Menkayonta')
@@ -54,7 +35,8 @@ if (started) {
 }
 
 // Determine whether the app is running in a development environment.
-let isDev = process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
+let isDev =
+    process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
 
 // Set the window title according to renderer events
 const handleSetTitle = (event, title) => {
@@ -177,7 +159,8 @@ const createWindow = () => {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
   } else {
     mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
+      path.join(__dirname,
+                `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
   }
 }
 
@@ -268,10 +251,10 @@ const createProject = async (_event, projectInfo) => {
   const projDBPath = path.join(projPath, `${projectInfo.identifier}.sql`)
   const initialConf = {}
   
-  let gconfig = await readGlobalConf()
+  let gc = await readGlobalConf()
 
-  if (gconfig.projects.some((p) => p.identifier === projectInfo.identifier)) {
-    throw new Error('Attempt to create new project with existing project ID')
+  if (gc.projects.some((p) => p.identifier === projectInfo.identifier)) {
+    throw new Error('Project ID exists')
   }
   
   await fs.mkdir(projSharePath, { recursive: true })
@@ -282,8 +265,8 @@ const createProject = async (_event, projectInfo) => {
   const db = new PouchDB(projDBPath, { adapter: 'websql' })
   await db.close()
 
-  gconfig.projects.push(projectInfo)
-  await writeGlobalConf(gconfig)
+  gc.projects.push(projectInfo)
+  await writeGlobalConf(gc)
 
   return gconfig
 }
