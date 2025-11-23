@@ -566,6 +566,8 @@ subscriptions _ =
         ]
 
 
+{-| An HTML attibute that isn't included in the standard Elm library.
+-}
 roleAttr : String -> Html.Attribute msg
 roleAttr role =
     Attr.attribute "role" role
