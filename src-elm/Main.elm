@@ -51,6 +51,12 @@ type alias Ventana =
     }
 
 
+{-| All of the viewable content associated with a tab.
+-}
+type alias Ventanas =
+    Dict TabPath Ventana
+
+
 {-| Viewable content.
 -}
 type alias Vista =
@@ -61,16 +67,14 @@ type alias Vista =
     }
 
 
+type alias Vistas =
+    Dict String Vista
+
+
 {-| The path to a tab, used for operations on tabs.
 -}
 type alias TabPath =
     ( Int, ( Int, Int ) )
-
-
-{-| All of the viewable content associated with a tab.
--}
-type alias Ventanas =
-    Dict TabPath Ventana
 
 
 {-| Currently visible Ventanas.
@@ -99,7 +103,7 @@ type alias Model =
     , ventanas : Ventanas
     , focused : Maybe TabPath
     , visVentanas : VisVentanas
-    , vistas : Dict String Vista
+    , vistas : Vistas
     , windowHeight : Int
     , error : Maybe Error
     , projectFields : Field ProjectField
@@ -144,8 +148,16 @@ type alias Flags =
 type Content
     = DemoContent Demo
     | DemoListContent (List Demo)
+    | TranslationContent Translation
+    | TranslationsContent (List Translation)
     | ProjectInfoContent ProjectInfo
     | ErrorContent Error
+
+
+type alias Translation =
+    { source : String
+    , translation : String
+    }
 
 
 type alias Demo =
@@ -163,25 +175,6 @@ vistas =
         , kind = "new-project"
         , identifier = "new-project"
         , content = ProjectInfoContent (ProjectInfo "" "")
-        }
-      )
-    , ( "xxxx"
-      , { project = "first"
-        , kind = "demo"
-        , identifier = "xxxx"
-        , content =
-            DemoListContent
-                [ { source = "Abadeka adoke epene oñompa."
-                  , translation = "There is only a duck in the river."
-                  , parse = "abade-ka adoke epẽ-de õyõ-pa"
-                  , gloss = "duck-LIM one water-LOC is.on-DECL"
-                  }
-                , { source = "A bete impa mochila"
-                  , translation = "The backpack is wet"
-                  , parse = "{a be}-te ĩ-pa mochila"
-                  , gloss = "wet-GER COP-DECL backpack(esp)"
-                  }
-                ]
         }
       )
     ]
@@ -392,7 +385,40 @@ update msg model =
             ( model, requestProjectIndex id )
 
         ReceivedProjectIndex pi ->
-            ( model, Cmd.none )
+            case D.decodeValue vistaDecoder pi of
+                Err err ->
+                    ( { model | error = Just (Error (D.errorToString err)) }
+                    , Cmd.none
+                    )
+
+                Ok v ->
+                    case getProjectTitle v.project model of
+                        Nothing ->
+                            ( { model
+                                | error = Just (Error "No such project")
+                              }
+                            , Cmd.none
+                            )
+
+                        Just title ->
+                            let
+                                newmodel =
+                                    { model
+                                        | vistas =
+                                            Dict.insert
+                                                v.identifier
+                                                v
+                                                model.vistas
+                                    }
+                            in
+                            case getByVista v.identifier model.ventanas of
+                                Nothing ->
+                                    update
+                                        (NewTab <| Ventana title v.identifier)
+                                        newmodel
+
+                                Just tp ->
+                                    update (FocusTab tp) newmodel
 
         -- Open or focus the New Project form.
         NewProject ident ->
@@ -708,6 +734,12 @@ viewVista model tp vista =
                     [ Html.text "Save" ]
                 ]
 
+        TranslationContent trn ->
+            viewTranslation model trn
+
+        TranslationsContent trns ->
+            Html.table [] (List.map (viewTranslation model) trns)
+
         ErrorContent err ->
             viewError model err
 
@@ -723,6 +755,14 @@ viewDemo model dc =
         [ Html.td [] [ Html.text dc.source ]
         , Html.td [] [ Html.text dc.parse ]
         , Html.td [] [ Html.text dc.gloss ]
+        , Html.td [] [ Html.text dc.translation ]
+        ]
+
+
+viewTranslation : Model -> Translation -> Html.Html Msg
+viewTranslation model dc =
+    Html.tr []
+        [ Html.td [] [ Html.text dc.source ]
         , Html.td [] [ Html.text dc.translation ]
         ]
 
@@ -967,6 +1007,30 @@ visMember ( col, ( row, tab ) ) vv =
             ( col, ( row, tab ) ) == ( col, ( row, t ) )
 
 
+vistaDecoder : D.Decoder Vista
+vistaDecoder =
+    D.map4 Vista
+        (D.field "project" D.string)
+        (D.field "kind" D.string)
+        (D.field "identifier" D.string)
+        (D.field "kind" D.string |> D.andThen contentDecoder)
+
+
+contentDecoder : String -> D.Decoder Content
+contentDecoder kind =
+    case kind of
+        "all-translations" ->
+            D.map TranslationsContent
+                (D.field "content" translationsDecoder)
+
+        "new-project" ->
+            D.map ProjectInfoContent
+                (D.field "content" projectInfoDecoder)
+
+        _ ->
+            D.fail ("Unsupported content kind " ++ kind)
+
+
 globalConfigDecoder : D.Decoder GlobalConfig
 globalConfigDecoder =
     D.map GlobalConfig
@@ -977,6 +1041,18 @@ projectInfoDecoder =
     D.map2 ProjectInfo
         (D.field "title" D.string)
         (D.field "identifier" D.string)
+
+
+translationsDecoder : D.Decoder (List Translation)
+translationsDecoder =
+    D.list translationDecoder
+
+
+translationDecoder : D.Decoder Translation
+translationDecoder =
+    D.map2 Translation
+        (D.field "source" D.string)
+        (D.field "translation" D.string)
 
 
 projectParser =
@@ -997,3 +1073,11 @@ getByVista vista ventanas =
 
         ( key, _ ) :: _ ->
             Just key
+
+
+getProjectTitle : String -> Model -> Maybe String
+getProjectTitle projid model =
+    model.gconfig
+        |> Maybe.map .projects
+        |> Maybe.andThen (LE.find (\x -> x.identifier == projid))
+        |> Maybe.map .title

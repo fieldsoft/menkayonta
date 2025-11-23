@@ -14,12 +14,16 @@ app.ports.requestGlobalConfig.subscribe(async () => {
 })
 
 app.ports.requestProjectIndex.subscribe((identifier) => {
-  const demo = { identifier : identifier,
+  const demo = { project : identifier,
+                 kind : 'all-translations',
+                 identifier : `all-translations::${identifier}`,
                  content : [ { source : 'Abadeka adoke epene oñompa.',
                                translation : 'There is only a duck in the river.',
-                               parse : 'abade-ka adoke epẽ-de õyõ-pa',
-                               gloss : 'duck-LIM one water-LOC is.on-DECL'
-                             }
+                             },
+                             {
+                               source : 'Abopa adoke okiye.',
+                               translation : 'I see one woman.',
+                             },
                            ]
                }
   
