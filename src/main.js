@@ -268,7 +268,7 @@ const createProject = async (_event, projectInfo) => {
   gc.projects.push(projectInfo)
   await writeGlobalConf(gc)
 
-  return gconfig
+  return gc
 }
 
 const init = async () => {
