@@ -19,24 +19,47 @@ import Set exposing (Set)
 import Task
 
 
+{-| The window title changes depending on the focused tab. This sends
+the signal to the backend to do so.
+-}
 port setWindowTitle : String -> Cmd msg
 
 
+{-| The project index is a listing of all translated items with their
+translations, which serves as an entry point to a project. This port
+requests the index.
+-}
 port requestProjectIndex : String -> Cmd msg
 
 
+{-| The global configuration lists projects and whether they are
+enabled. It may also include other configuration information. This
+port is used to request the global configuration.
+-}
 port requestGlobalConfig : () -> Cmd msg
 
 
+{-| The global configuration lists projects and whether they are
+enabled. It may also include other configuration information. This
+port indicates that the global configuration was received.
+-}
 port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
 
 
+{-| The project index is a listing of all translated items with their
+translations, which serves as an entry point to a project. This port
+indicates that the index was received.
+-}
 port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
 
+{-| The "New Project" menu item was clicked.
+-}
 port newProject : (String -> msg) -> Sub msg
 
 
+{-| Send ProjectInfo to the backend for creation.
+-}
 port createProject : E.Value -> Cmd msg
 
 
