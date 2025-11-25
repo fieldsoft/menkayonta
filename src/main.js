@@ -26,10 +26,13 @@ PouchDB
   .plugin(replication)
   .plugin(sqliteAdapter)
 
-// These are values relavent to the global configuration of the
-// application.
-const projectsPath = path.join(os.homedir(), 'Menkayonta')
-const globalConfPath = path.join(projectsPath, 'config.json')
+// Global variables.
+let gvs =
+    { projectsPath: path.join(os.homedir(), 'Menkayonta'),
+      globalConfPath: path.join(os.homedir(), 'Menkayonta', 'config.json'),
+      globalConf: null,
+      active: [],
+    }
 
 // Test if the platform is macos.
 const isMac = process.platform === 'darwin'
@@ -41,7 +44,7 @@ if (started) {
 }
 
 // Determine whether the app is running in a development environment.
-let isDev =
+const isDev =
     process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
 
 // Set the window title according to renderer events
@@ -174,10 +177,12 @@ const readGlobalConf = async () => {
   let fh
 
   try {
-    fh = await fs.open(globalConfPath, 'r')
+    fh = await fs.open(gvs.globalConfPath, 'r')
     const confData = await fh.readFile({ encoding: 'utf8' })
 
-    return JSON.parse(confData)
+    gvs.globalConf = JSON.parse(confData)
+
+    return gvs.globalConf
   } finally {
     if (fh) {
       await fh.close()
@@ -189,8 +194,10 @@ const writeGlobalConf = async (configData) => {
   let fh
 
   try {
-    fh = await fs.open(globalConfPath, 'w+')
+    fh = await fs.open(gvs.globalConfPath, 'w+')
     await fh.writeFile(JSON.stringify(configData, null, 4))
+
+    gvs.globalConf = configData
 
     return configData
   } finally {
@@ -201,7 +208,7 @@ const writeGlobalConf = async (configData) => {
 }
 
 const writeProjConf = async (identifier, configData) => {
-  const projPath = path.join(projectsPath, identifier)
+  const projPath = path.join(gvs.projectsPath, identifier)
   const projConfPath = path.join(projPath, 'config.json')
   let fh
 
@@ -225,7 +232,7 @@ const openGlobalConf = async () => {
   const initialConf = { projects: [] }
 
   try {
-    await fs.mkdir(projectsPath, { recursive: true })
+    await fs.mkdir(gvs.projectsPath, { recursive: true })
 
     const configData = await readGlobalConf()
         
@@ -251,7 +258,7 @@ const openGlobalConf = async () => {
 // 5. Initialize a database
 // 6. Send the globabl config to the renderer
 const createProject = async (_event, projectInfo) => {
-  const projPath = path.join(projectsPath, projectInfo.identifier)
+  const projPath = path.join(gvs.projectsPath, projectInfo.identifier)
   const projSharePath = path.join(projPath, 'share')
   const projConfPath = path.join(projPath, 'config.json')
   const projDBPath = path.join(projPath, `${projectInfo.identifier}.sql`)
@@ -296,6 +303,7 @@ const init = async () => {
     // Testing utility processes
     const { port1, port2 } = new MessageChannelMain()
     const child = utilityProcess.fork(path.join(__dirname, './forker.js'))
+    
     child.postMessage({ message: 'hello' }, [port1])
     
     port2.on('message', (e) => {
