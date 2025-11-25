@@ -1,5 +1,3 @@
-console.log('got here')
-
 process.parentPort.on('message', (e) => {
   const [port] = e.ports
   port.on('message', (e) => {
