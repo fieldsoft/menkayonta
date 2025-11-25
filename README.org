@@ -8,6 +8,14 @@ The name is significant for a number of reasons.
 2. The project emphasizes notes and collaboration to a greater extent than past fieldwork software.
 3. The project emphasizes community engagement by considering the needs of language learners, as well as scientific research.
 
+** Building
+
+Two commands are needed once nix dependencies are set up.
+
+npm install
+
+npm run rebuild
+
 ** Audience
 
 The emphasis is on the needs of the following groups:

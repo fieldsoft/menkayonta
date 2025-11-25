@@ -42,6 +42,11 @@ module.exports = {
             config: 'vite.preload.config.mjs',
             target: 'preload',
           },
+          {
+            entry: 'src/forker.js',
+            config: 'vite.forker.config.mjs',
+            target: 'main',
+          },
         ],
         renderer: [
           {

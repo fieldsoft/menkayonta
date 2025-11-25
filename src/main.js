@@ -1,9 +1,15 @@
-import { app, BrowserWindow, ipcMain, Menu } from 'electron'
+import { app,
+         BrowserWindow,
+         ipcMain,
+         Menu,
+         utilityProcess,
+         MessageChannelMain
+       } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import started from 'electron-squirrel-startup'
-import { v4, validate as uuidValidate } from 'uuid'
+import { v4 } from 'uuid'
 
 // Load the pouchdb packages. The pouchdb packages need commonjs
 // imports.
@@ -286,6 +292,18 @@ const init = async () => {
         createWindow()
       }
     })
+    
+    // Testing utility processes
+    const { port1, port2 } = new MessageChannelMain()
+    const child = utilityProcess.fork(path.join(__dirname, './forker.js'))
+    child.postMessage({ message: 'hello' }, [port1])
+    
+    port2.on('message', (e) => {
+      console.log(`Message from child: ${e.data}`)
+    })
+    port2.start()
+    port2.postMessage('hello')
+
   } catch (err) {
     console.log(err)
   }
