@@ -199,7 +199,7 @@ const writeGlobalConf = async (configData) => {
 
     gvs.globalConf = configData
 
-    return configData
+    return gvs.globalConf
   } finally {
     if (fh) {
       await fh.close()
@@ -234,15 +234,15 @@ const openGlobalConf = async () => {
   try {
     await fs.mkdir(gvs.projectsPath, { recursive: true })
 
-    const configData = await readGlobalConf()
+    await readGlobalConf()
         
-    return configData
+    return gvs.globalConf
   } catch (err) {
     if (err.code == 'ENOENT') {
       console.log('Initializing global configuration')
       await writeGlobalConf(initialConf)
 
-      return initialConf
+      return gvs.globalConf
     } else {
       throw err
     }
@@ -262,11 +262,12 @@ const createProject = async (_event, projectInfo) => {
   const projSharePath = path.join(projPath, 'share')
   const projConfPath = path.join(projPath, 'config.json')
   const projDBPath = path.join(projPath, `${projectInfo.identifier}.sql`)
+  const equalsCurrent = (p) => p.identifier === projectInfo.identifier
   const initialConf = {}
   
-  let gc = await readGlobalConf()
+  await readGlobalConf()
 
-  if (gc.projects.some((p) => p.identifier === projectInfo.identifier)) {
+  if (gvs.globalConf.projects.some(equalsCurrent)) {
     throw new Error('Project ID exists')
   }
   
@@ -278,10 +279,22 @@ const createProject = async (_event, projectInfo) => {
   const db = new PouchDB(projDBPath, { adapter: 'websql' })
   await db.close()
 
-  gc.projects.push(projectInfo)
-  await writeGlobalConf(gc)
+  gvs.globalConf.projects.push(projectInfo)
+  await writeGlobalConf(gvs.globalConf)
+    
+  // Testing utility processes
+  const { port1, port2 } = new MessageChannelMain()
+  gvs.active[projectInfo.identifier] = utilityProcess.fork(path.join(__dirname, './forker.js'))
+    
+  gvs.active[projectInfo.identifier].postMessage({ message: 'hello' }, [port1])
+    
+  port2.on('message', (e) => {
+    console.log(`Message from ${projectInfo.identifier}: ${e.data}`)
+  })
+  port2.start()
+  port2.postMessage(projectInfo.identifier)
 
-  return gc
+  return gvs.globalConf
 }
 
 const init = async () => {
@@ -299,18 +312,6 @@ const init = async () => {
         createWindow()
       }
     })
-    
-    // Testing utility processes
-    const { port1, port2 } = new MessageChannelMain()
-    const child = utilityProcess.fork(path.join(__dirname, './forker.js'))
-    
-    child.postMessage({ message: 'hello' }, [port1])
-    
-    port2.on('message', (e) => {
-      console.log(`Message from child: ${e.data}`)
-    })
-    port2.start()
-    port2.postMessage('hello')
 
   } catch (err) {
     console.log(err)
