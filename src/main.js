@@ -55,6 +55,40 @@ const handleSetTitle = (event, title) => {
   win.setTitle(title)
 }
 
+// Handle messages from the project processes.
+const handleProjectMessage = (m) => {
+  switch (m.data.command) {
+  case 'info':
+    console.log(`${m.data.identifier}: ${m.data.message}`)
+    break
+  default:
+    console.log(`${m.data.identifier} command: ${m.data.command}`)
+  }
+}
+
+// Ensure that enabled projects are running and disabled processes are
+// stopped.
+const manageProjectProcesses = () => {
+  gvs.globalConf.projects.forEach((p) => {
+    if (!p.enabled && p.identifier in gvs.active) {
+      if (gvs.active[p.identifier].kill()) {
+        delete gvs.active[p.identifier]
+      }
+    } else if (p.enabled && !(p.identifier in gvs.active)) {
+      const initMessage =
+            { command: 'init',
+              identifier: p.identifier,
+              projectsPath: gvs.projectsPath,
+            }
+      
+      gvs.active[p.identifier] =
+            utilityProcess.fork(path.join(__dirname, './forker.js'))
+      gvs.active[p.identifier].postMessage(initMessage)
+      gvs.active[p.identifier].on('message', handleProjectMessage)
+    }
+  })
+}
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -226,7 +260,7 @@ const writeProjConf = async (identifier, configData) => {
 
 // The openConf() function will create the projects directory and
 // global config file in the user's home directory if they do not
-// exist. It returns a JSON object of the apps global configuration,
+// exist. It returns a JSON object of the app's global configuration,
 // such as the projects that exist in the projects directory.
 const openGlobalConf = async () => {
   const initialConf = { projects: [] }
@@ -246,6 +280,8 @@ const openGlobalConf = async () => {
     } else {
       throw err
     }
+  } finally {
+    manageProjectProcesses()
   }
 }
 
@@ -281,18 +317,9 @@ const createProject = async (_event, projectInfo) => {
 
   gvs.globalConf.projects.push(projectInfo)
   await writeGlobalConf(gvs.globalConf)
-    
-  // Testing utility processes
-  const { port1, port2 } = new MessageChannelMain()
-  gvs.active[projectInfo.identifier] = utilityProcess.fork(path.join(__dirname, './forker.js'))
-    
-  gvs.active[projectInfo.identifier].postMessage({ message: 'hello' }, [port1])
-    
-  port2.on('message', (e) => {
-    console.log(`Message from ${projectInfo.identifier}: ${e.data}`)
-  })
-  port2.start()
-  port2.postMessage(projectInfo.identifier)
+
+  // Start up the project if it was enabled.
+  manageProjectProcesses()
 
   return gvs.globalConf
 }
