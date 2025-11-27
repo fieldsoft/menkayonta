@@ -3,28 +3,13 @@ import { app,
          ipcMain,
          Menu,
          utilityProcess,
-         MessageChannelMain
+         MessageChannelMain,
        } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import started from 'electron-squirrel-startup'
 import { v4 } from 'uuid'
-
-// Load the pouchdb packages. The pouchdb packages need commonjs
-// imports.
-const PouchDB = require('pouchdb-core')
-const HttpPouch = require('pouchdb-adapter-http')
-const mapreduce = require('pouchdb-mapreduce')
-const replication = require('pouchdb-replication')
-const sqliteAdapter = require('pouchdb-adapter-node-websql')
-
-// Set the pouchdb plugins.
-PouchDB
-  .plugin(HttpPouch)
-  .plugin(mapreduce)
-  .plugin(replication)
-  .plugin(sqliteAdapter)
 
 // Global variables.
 let gvs =
@@ -57,12 +42,16 @@ const handleSetTitle = (event, title) => {
 
 // Handle messages from the project processes.
 const handleProjectMessage = (m) => {
-  switch (m.data.command) {
+  switch (m.command) {
   case 'info':
-    console.log(`${m.data.identifier}: ${m.data.message}`)
+    console.log(`${m.identifier}: ${m.message}`)
+    break
+  case 'error':
+    m.error.message = `Child ${m.identifier}: ${m.error.message}`
+    throw m.error
     break
   default:
-    console.log(`${m.data.identifier} command: ${m.data.command}`)
+    console.log(`${m.identifier} command: ${m.command}`)
   }
 }
 
@@ -82,7 +71,7 @@ const manageProjectProcesses = () => {
             }
       
       gvs.active[p.identifier] =
-            utilityProcess.fork(path.join(__dirname, './forker.js'))
+        utilityProcess.fork(path.join(__dirname, './project.js'))
       gvs.active[p.identifier].postMessage(initMessage)
       gvs.active[p.identifier].on('message', handleProjectMessage)
     }
@@ -309,11 +298,6 @@ const createProject = async (_event, projectInfo) => {
   
   await fs.mkdir(projSharePath, { recursive: true })
   await writeProjConf(projectInfo.identifier, initialConf)
-
-  // Simply create the database at this point.
-  // The user will need to load it to begin.
-  const db = new PouchDB(projDBPath, { adapter: 'websql' })
-  await db.close()
 
   gvs.globalConf.projects.push(projectInfo)
   await writeGlobalConf(gvs.globalConf)

@@ -114,6 +114,7 @@ type alias GlobalConfig =
 type alias ProjectInfo =
     { title : String
     , identifier : String
+    , enabled : Bool
     }
 
 
@@ -198,7 +199,7 @@ vistas =
       , { project = "global"
         , kind = "new-project"
         , identifier = "new-project"
-        , content = ProjectInfoContent (ProjectInfo "" "")
+        , content = ProjectInfoContent (ProjectInfo "" "" True)
         }
       )
     ]
@@ -1064,9 +1065,10 @@ globalConfigDecoder =
 
 
 projectInfoDecoder =
-    D.map2 ProjectInfo
+    D.map3 ProjectInfo
         (D.field "title" D.string)
         (D.field "identifier" D.string)
+        (D.field "enabled" D.bool)
 
 
 translationsDecoder : D.Decoder (List Translation)
@@ -1082,9 +1084,10 @@ translationDecoder =
 
 
 projectParser =
-    FParse.map2 ProjectInfo
+    FParse.map3 ProjectInfo
         (FParse.field ProjectIdentifier FParse.string)
         (FParse.field ProjectTitle FParse.string)
+        (FParse.field ProjectEnabled FParse.bool)
 
 
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
