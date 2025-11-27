@@ -43,3 +43,8 @@ app.ports.createProject.subscribe(async (projectInfo) => {
   const gconfig = await window.electronAPI.createProject(projectInfo)
   app.ports.receivedGlobalConfig.send(gconfig)
 })
+
+app.ports.readImportFile.subscribe(async (importOptions) => {
+  const result = await window.electronAPI.readImportFile(importOptons)
+  app.ports.receivedJsonFromFile.send(result)
+})

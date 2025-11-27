@@ -11,5 +11,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     (_event, filepath) => callback(filepath)
   ),                      
   requestGlobalConfig : () => ipcRenderer.invoke('request-gconfig'),
-  createProject: (projectInfo) => ipcRenderer.invoke('create-project', projectInfo),
+  createProject: (projectInfo) => ipcRenderer.invoke(
+    'create-project',
+    projectInfo
+  ),
+  readImportFile : (importOptions) => ipcRenderer.invoke(
+    'read-import-file',
+    importOptions
+  ),
 })

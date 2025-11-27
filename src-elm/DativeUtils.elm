@@ -1,4 +1,6 @@
-module DativeUtils exposing (DativeForm)
+module DativeUtils exposing (convert)
+
+import Json.Encode as E
 
 type alias Uuid = String
 
@@ -72,3 +74,6 @@ type alias DativeForm =
     , tags : List Tag
     , files : List String
     }
+
+convert : a -> E.Value
+convert _ = E.null

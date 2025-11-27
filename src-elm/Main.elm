@@ -54,14 +54,29 @@ indicates that the index was received.
 port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
 
+{-| A message was received that contains the result of an attempted import.
+-}
+port receivedJsonFromFile : (E.Value -> msg) -> Sub msg
+
+
 {-| The "New Project" menu item was clicked.
 -}
 port newProject : (String -> msg) -> Sub msg
 
 
+{-| The "Import" menu item was clicked.
+-}
+port importOptions : (String -> msg) -> Sub msg
+
+
 {-| Send ProjectInfo to the backend for creation.
 -}
 port createProject : E.Value -> Cmd msg
+
+
+{-| Send ImportOptions to the backend for execution.
+-}
+port readImportFile : E.Value -> Cmd msg
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -118,6 +133,22 @@ type alias ProjectInfo =
     }
 
 
+type alias ImportOptions =
+    { filepath : Maybe String
+    , content : Maybe String
+    , kind : String
+    , project : String
+    }
+
+
+type alias JsonFromFile =
+    { success : Bool
+    , message : String
+    , options : ImportOptions
+    , content : E.Value
+    }
+
+
 type alias Error =
     { message : String }
 
@@ -131,8 +162,10 @@ type alias Model =
     , vistas : Vistas
     , windowHeight : Int
     , error : Maybe Error
-    , projectFields : Field ProjectField
+    , projectFields : Field ProjectInfoFormField
     , projectSubmitted : Bool
+    , importFields : Field ImportOptionsFormField
+    , importSubmitted : Bool
     }
 
 
@@ -143,13 +176,17 @@ type Direction
     | Down
 
 
-type ProjectField
+type ProjectInfoFormField
     = ProjectIdentifier
     | ProjectTitle
+    | ProjectEnabled
 
 
-type alias FieldKind =
-    ProjectField
+type ImportOptionsFormField
+    = ImportKind
+    | ImportProject
+    | ImportFile
+    | ImportContent
 
 
 type Msg
@@ -159,10 +196,13 @@ type Msg
     | Move Direction
     | SetWindowTitle String
     | ReceivedGlobalConfig E.Value
+    | ReceivedJsonFromFile E.Value
     | ReceivedProjectIndex E.Value
     | RequestProjectIndex String
     | NewProject String
-    | FormChange (Field.Msg FieldKind)
+    | ImportOptionsFile String
+    | ProjectInfoFormChange (Field.Msg ProjectInfoFormField)
+    | ImportOptionsFormChange (Field.Msg ImportOptionsFormField)
     | FormSubmit TabPath
 
 
@@ -176,6 +216,7 @@ type Content
     | TranslationContent Translation
     | TranslationsContent (List Translation)
     | ProjectInfoContent ProjectInfo
+    | ImportOptionsContent ImportOptions
     | ErrorContent Error
 
 
@@ -202,11 +243,18 @@ vistas =
         , content = ProjectInfoContent (ProjectInfo "" "" True)
         }
       )
+    , ( "import-options"
+      , { project = "global"
+        , kind = "import-options"
+        , identifier = "import-options"
+        , content = ImportOptionsContent (ImportOptions Nothing Nothing "" "")
+        }
+      )
     ]
         |> Dict.fromList
 
 
-projectFields : String -> Field ProjectField
+projectFields : String -> Field ProjectInfoFormField
 projectFields ident =
     Field.group []
         [ Field.text
@@ -223,6 +271,63 @@ projectFields ident =
             , Field.identifier ProjectTitle
             , Field.name "title"
             ]
+        , Field.checkbox
+            [ Field.label "Enable"
+            , Field.identifier ProjectEnabled
+            , Field.name "enabled"
+            , Field.value (Value.bool True)
+            ]
+        ]
+
+
+importOptionsFields : Maybe GlobalConfig -> Maybe String -> Field ImportOptionsFormField
+importOptionsFields gc filesource =
+    let
+        inputSource =
+            case filesource of
+                Nothing ->
+                    Field.textarea
+                        [ Field.label "Content"
+                        , Field.required True
+                        , Field.identifier ImportContent
+                        , Field.name "content"
+                        ]
+
+                Just filepath ->
+                    Field.text
+                        [ Field.label "File"
+                        , Field.required True
+                        , Field.disabled True
+                        , Field.identifier ImportFile
+                        , Field.name "file"
+                        , Field.value (Value.string filepath)
+                        ]
+        projects =
+            case gc of
+                Nothing ->
+                    []
+
+                Just gconf ->
+                    gconf.projects
+                        |> List.map
+                           (\x -> (x.title, Value.string x.identifier))
+    in
+    Field.group []
+        [ Field.select
+              [ Field.label "Target Project"
+              , Field.required True
+              , Field.identifier ImportProject
+              , Field.name "project"
+              , Field.options projects
+              ]
+        , Field.select
+              [ Field.label "Import Type"
+              , Field.required True
+              , Field.identifier ImportKind
+              , Field.name "kind"
+              , Field.stringOptions [ "Dative Form Json" ]
+              ]
+        , inputSource
         ]
 
 
@@ -248,6 +353,8 @@ init flags =
       , error = Nothing
       , projectFields = projectFields ""
       , projectSubmitted = False
+      , importFields = importOptionsFields Nothing Nothing
+      , importSubmitted = False
       }
     , requestGlobalConfig ()
     )
@@ -406,6 +513,42 @@ update msg model =
                 Ok gconfig ->
                     ( { model | gconfig = Just gconfig }, Cmd.none )
 
+        ReceivedJsonFromFile jval ->
+            case D.decodeValue jsonFromFileDecoder jval of
+                Err err ->
+                    ( { model |
+                            error = Just (Error (D.errorToString err))
+                      }
+                    , Cmd.none
+                    )
+
+                Ok filedata ->
+                    if filedata.success then
+                        if filedata.options.kind == "Dative Form Json" then
+                            let
+                                newjson =
+                                    DativeUtils.convert filedata.content
+                                newfiledata =
+                                    { filedata
+                                        | success = True
+                                        , message = "from dative form json"
+                                        , content = newjson
+                                    }
+                                newjsonval =
+                                    jsonFromFileEncoder newfiledata
+                                deliverImportData _ = Cmd.none
+                            in
+                            ( model, deliverImportData newjsonval )
+
+                        else
+                            ( model, Cmd.none )
+                    else
+                        ( { model |
+                                error = Just (Error filedata.message)
+                          }
+                        , Cmd.none
+                        )
+
         RequestProjectIndex id ->
             ( model, requestProjectIndex id )
 
@@ -460,8 +603,24 @@ update msg model =
 
                 Just tp ->
                     update (FocusTab tp) newmodel
+                        
+        -- Open or focus the Import Options form with a filename.
+        ImportOptionsFile filepath ->
+            let
+                newmodel =
+                    { model
+                        | importFields = importOptionsFields model.gconfig (Just filepath)
+                        , importSubmitted = False
+                    }
+            in
+            case getByVista "import-options" model.ventanas of
+                Nothing ->
+                    update (NewTab <| Ventana "Import Options" "import-options") newmodel
 
-        FormChange inputMsg ->
+                Just tp ->
+                    update (FocusTab tp) newmodel
+
+        ProjectInfoFormChange inputMsg ->
             let
                 ( formFields, _ ) =
                     FParse.parseUpdate projectParser inputMsg model.projectFields
@@ -473,27 +632,81 @@ update msg model =
             , Cmd.none
             )
 
+        ImportOptionsFormChange inputMsg ->
+            let
+                ( formFields, _ ) =
+                    FParse.parseUpdate importParser inputMsg model.importFields
+            in
+            ( { model
+                | importFields = formFields
+                , importSubmitted = False
+              }
+            , Cmd.none
+            )
+
         FormSubmit tp ->
-            if model.projectSubmitted /= True then
-                case FParse.parseValidate FParse.json model.projectFields of
-                    ( formFields, Ok jsonValue ) ->
-                        ( { model
-                            | projectFields = projectFields ""
-                            , projectSubmitted = True
-                          }
-                        , createProject jsonValue
-                        )
+            let
+                formid = Dict.get tp model.ventanas
+                         |> Maybe.map .vista
+            in
+            case formid of
+                Just "new-project" ->
+                    handleProjectSubmit tp model
 
-                    ( formFields, Err _ ) ->
-                        ( { model
-                            | projectFields = formFields
-                            , projectSubmitted = False
-                          }
-                        , Cmd.none
-                        )
+                Just "import-options" ->
+                    handleImportSubmit tp model
 
-            else
-                update (CloseTab tp) model
+                _ ->
+                    -- This shouldn't be possible
+                    ( model, Cmd.none )
+
+
+handleProjectSubmit : TabPath -> Model -> ( Model, Cmd Msg )
+handleProjectSubmit tp model =
+    if model.projectSubmitted /= True then
+        case FParse.parseValidate FParse.json model.projectFields of
+            ( formFields, Ok jsonValue ) ->
+                ( { model
+                      | projectFields = projectFields ""
+                      , projectSubmitted = True
+                  }
+                , createProject jsonValue
+                )
+
+            ( formFields, Err _ ) ->
+                ( { model
+                      | projectFields = formFields
+                      , projectSubmitted = False
+                  }
+                , Cmd.none
+                )
+
+    else
+        update (CloseTab tp) model
+
+
+handleImportSubmit : TabPath -> Model -> ( Model, Cmd Msg )
+handleImportSubmit tp model =
+    if model.importSubmitted /= True then
+        case FParse.parseValidate FParse.json model.importFields of
+            ( formFields, Ok jsonValue ) ->
+                ( { model
+                      | importFields = importOptionsFields model.gconfig Nothing
+                      , importSubmitted = True
+                  }
+                , readImportFile jsonValue
+                )
+
+            ( formFields, Err _ ) ->
+                ( { model
+                      | importFields = formFields
+                      , importSubmitted = False
+                  }
+                , Cmd.none
+                )
+
+    else
+        update (CloseTab tp) model
 
 
 {-| insertTabPath, newTabPath, and createNecessary are all helpers for
@@ -586,8 +799,10 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
+        , receivedJsonFromFile ReceivedJsonFromFile
         , receivedProjectIndex ReceivedProjectIndex
         , newProject NewProject
+        , importOptions ImportOptionsFile
         ]
 
 
@@ -756,7 +971,14 @@ viewVista model tp vista =
 
         ProjectInfoContent pi ->
             Html.form [ Event.onSubmit (FormSubmit tp) ]
-                [ Field.toHtml FormChange model.projectFields
+                [ Field.toHtml ProjectInfoFormChange model.projectFields
+                , Html.button [ Event.onClick (FormSubmit tp) ]
+                    [ Html.text "Save" ]
+                ]
+
+        ImportOptionsContent io ->
+            Html.form [ Event.onSubmit (FormSubmit tp) ]
+                [ Field.toHtml ImportOptionsFormChange model.importFields
                 , Html.button [ Event.onClick (FormSubmit tp) ]
                     [ Html.text "Save" ]
                 ]
@@ -1064,11 +1286,54 @@ globalConfigDecoder =
         (D.field "projects" (D.list projectInfoDecoder))
 
 
+projectInfoDecoder : D.Decoder ProjectInfo
 projectInfoDecoder =
     D.map3 ProjectInfo
         (D.field "title" D.string)
         (D.field "identifier" D.string)
         (D.field "enabled" D.bool)
+
+
+jsonFromFileDecoder : D.Decoder JsonFromFile
+jsonFromFileDecoder =
+    D.map4 JsonFromFile
+        (D.field "success" D.bool)
+        (D.field "message" D.string)
+        (D.field "options" importOptionsDecoder)
+        (D.field "content" D.value)
+
+
+jsonFromFileEncoder : JsonFromFile -> E.Value
+jsonFromFileEncoder jff =
+    E.object
+        [ ( "success", E.bool jff.success )
+        , ( "message", E.string jff.message )
+        , ( "options", importOptionsEncoder jff.options )
+        , ( "content", jff.content )
+        ]
+
+
+importOptionsDecoder : D.Decoder ImportOptions
+importOptionsDecoder =
+    D.map4 ImportOptions
+        (D.field "filepath" (D.maybe D.string))
+        (D.field "content" (D.maybe D.string))
+        (D.field "kind" D.string)
+        (D.field "project" D.string)
+
+
+importOptionsEncoder : ImportOptions -> E.Value
+importOptionsEncoder io =
+    E.object
+        [ ( "filepath", io.filepath
+          |> Maybe.map E.string
+          |> Maybe.withDefault E.null )
+        , ( "contnet", io.content
+          |> Maybe.map E.string
+          |> Maybe.withDefault E.null )
+        , ( "kind", E.string io.kind )
+        , ( "project", E.string io.project )
+        ]
 
 
 translationsDecoder : D.Decoder (List Translation)
@@ -1083,11 +1348,21 @@ translationDecoder =
         (D.field "translation" D.string)
 
 
+projectParser : FParse.Parser ProjectInfoFormField ProjectInfo
 projectParser =
     FParse.map3 ProjectInfo
         (FParse.field ProjectIdentifier FParse.string)
         (FParse.field ProjectTitle FParse.string)
         (FParse.field ProjectEnabled FParse.bool)
+
+
+importParser : FParse.Parser ImportOptionsFormField ImportOptions
+importParser =
+    FParse.map4 ImportOptions
+        (FParse.field ImportFile (FParse.maybe FParse.string))
+        (FParse.field ImportContent (FParse.maybe FParse.string))
+        (FParse.field ImportKind FParse.string)
+        (FParse.field ImportProject FParse.string)
 
 
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath

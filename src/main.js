@@ -217,21 +217,19 @@ const createWindow = () => {
   }
 }
 
+const readJsonFile = async (filepath) => {
+  const fh = await fs.open(filepath, 'r')
+  const json = await fh.readFile({ encoding: 'utf8' })
+
+  fh.close()
+  
+  return JSON.parse(json)
+}
+
 const readGlobalConf = async () => {
-  let fh
+  gvs.globalConf = readJsonFile(gvs.globalConfPath)
 
-  try {
-    fh = await fs.open(gvs.globalConfPath, 'r')
-    const confData = await fh.readFile({ encoding: 'utf8' })
-
-    gvs.globalConf = JSON.parse(confData)
-
-    return gvs.globalConf
-  } finally {
-    if (fh) {
-      await fh.close()
-    }
-  }
+  return gvs.globalConf
 }
 
 const writeGlobalConf = async (configData) => {
@@ -329,12 +327,33 @@ const createProject = async (_event, projectInfo) => {
   return gvs.globalConf
 }
 
+const readImportFile = async (_event, importOptions) => {
+  switch (importOptions.kind) {
+  case 'Dative Form Json':
+    const parsedJson = await readJsonFile(importOptions.filepath)
+
+    return { success: true,
+             message: 'success',
+             content: parsedJson,
+             options: importOptions,
+           }
+
+  default:
+    return { success: false,
+             message: 'Unrecognized Import Operation',
+             content: null,
+             options: importOptions,
+           }
+  }
+}
+
 const init = async () => {
   try {
     await app.whenReady()
 
     ipcMain.handle('request-gconfig', openGlobalConf)
     ipcMain.handle('create-project', createProject)
+    ipcMain.handle('read-import-file', readImportFile)
     ipcMain.on('set-title', handleSetTitle)
     createWindow()
 
