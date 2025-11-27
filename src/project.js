@@ -1,14 +1,92 @@
+import path from 'node:path'
+import { v4 } from 'uuid'
+import { trans_dd } from './design_docs/trans.js'
+
+// Load the pouchdb packages. The pouchdb packages need commonjs
+// imports.
+const PouchDB = require('pouchdb-core')
+const HttpPouch = require('pouchdb-adapter-http')
+const mapreduce = require('pouchdb-mapreduce')
+const replication = require('pouchdb-replication')
+const sqliteAdapter = require('pouchdb-adapter-node-websql')
+
+// Set the pouchdb plugins.
+PouchDB
+  .plugin(HttpPouch)
+  .plugin(mapreduce)
+  .plugin(replication)
+  .plugin(sqliteAdapter)
+
+// Globals
+let gvs = { design_docs: [ trans_dd ] }
+
+const info = (msg) => {
+  process.parentPort.postMessage(
+      { command: 'info',
+        message: msg,
+        identifier: gvs.identifier,
+      })
+}
+
+const error = (e) => {
+  process.parentPort.postMessage(
+      { command: 'error',
+        error: e,
+        identifier: gvs.identifier,
+      })
+}
+
+const handleInit = ({identifier: i, projectsPath: pp}) => {
+  gvs.identifier = i
+  gvs.path = path.join(pp, i)
+  gvs.dbPath = path.join(gvs.path, `${i}.sql`)
+  gvs.db = new PouchDB(gvs.dbPath, { adapter: 'websql' })
+
+  // Create or update the design documents
+  gvs.design_docs.forEach(async (dd) => {
+    try {
+      const doc = await gvs.db.get(dd._id)
+
+      if (doc.version !== dd.version) {
+        dd._rev = doc._rev
+
+        await gvs.db.put(dd)
+      }
+    } catch (err) {
+      // 404 is given when a document is not found
+      if (err.status === 404) {
+        await gvs.db.put(dd)
+      } else {
+        error(err)
+      }
+    }
+  })
+                     
+  return gvs
+}
+
+const handleBulk = async (docs) => {
+  try {
+    await gvs.db.bulkDocs(docs)
+  } catch (err) {
+    error(err)
+  }
+}
+
 const handleMainMessage = (m) => {
   switch (m.data.command) {
   case 'init':
-    process.parentPort.postMessage({command: 'info', message: 'oko'})
+    handleInit(m.data)
     break
   default:
     process.parentPort.postMessage(
       { command: 'info',
-        message: `Main command: ${m.data.command}`
+        message: `Main command: ${m.data.command}`,
+        identifier: m.data.identifier,
       })
   }            
 }
 
 process.parentPort.on('message', handleMainMessage)
+
+process.on('close', () => gvs.db.close())
