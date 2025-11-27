@@ -34,6 +34,11 @@ window.electronAPI.onNewProject((ident) => {
   app.ports.newProject.send(ident)
 })
 
+window.electronAPI.onImportOptions((filepath) => {
+  console.log(filepath)
+  app.ports.importOptions.send(filepath)
+})
+
 app.ports.createProject.subscribe(async (projectInfo) => {
   const gconfig = await window.electronAPI.createProject(projectInfo)
   app.ports.receivedGlobalConfig.send(gconfig)

@@ -4,6 +4,7 @@ import { app,
          Menu,
          utilityProcess,
          MessageChannelMain,
+         dialog
        } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -78,6 +79,16 @@ const manageProjectProcesses = () => {
   })
 }
 
+// Open a file dialog and return an array of file paths.
+const fileDialogOpen = async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog()
+  if (!canceled) {
+    return filePaths
+  } else {
+    return []
+  }
+}
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -112,6 +123,16 @@ const createWindow = () => {
         {
           click: () => mainWindow.webContents.send('new-project', v4()),
           label: 'New Project',
+        },
+        {
+          click: async () => {
+            const filepaths = await fileDialogOpen()
+
+            if (filepaths.length > 0) {
+              mainWindow.webContents.send('import-options', filepaths[0])
+            }
+          },
+          label: 'Import File'
         },
         ...(isMac ? [{ role: 'close' }] : [{ role: 'quit' }])
       ]
