@@ -227,7 +227,7 @@ const readJsonFile = async (filepath) => {
 }
 
 const readGlobalConf = async () => {
-  gvs.globalConf = readJsonFile(gvs.globalConfPath)
+  gvs.globalConf = await readJsonFile(gvs.globalConfPath)
 
   return gvs.globalConf
 }
@@ -277,7 +277,7 @@ const openGlobalConf = async () => {
     await fs.mkdir(gvs.projectsPath, { recursive: true })
 
     await readGlobalConf()
-        
+    
     return gvs.globalConf
   } catch (err) {
     if (err.code == 'ENOENT') {
@@ -327,23 +327,31 @@ const createProject = async (_event, projectInfo) => {
   return gvs.globalConf
 }
 
-const readImportFile = async (_event, importOptions) => {
+const handlBulkWrite = (data) => {
+  const payload =
+        { command: 'bulk-write',
+          identifier: data.project,
+          bulkDocs: data.bulkDocs,
+        }
+          
+  gvs.active[data.project].postMessage(payload)
+}
+
+const importFile = async (_event, importOptions) => {
   switch (importOptions.kind) {
   case 'Dative Form Json':
-    const parsedJson = await readJsonFile(importOptions.filepath)
+    const converter =
+      utilityProcess.fork(path.join(__dirname, './converter.js'))
 
-    return { success: true,
-             message: 'success',
-             content: parsedJson,
-             options: importOptions,
-           }
+    importOptions.command = 'convert-to-batch'
+    
+    converter.postMessage(importOptions)
+    converter.on('message', handleBulkWrite)
+    
+    return importOptions
 
   default:
-    return { success: false,
-             message: 'Unrecognized Import Operation',
-             content: null,
-             options: importOptions,
-           }
+    return importOptions
   }
 }
 
@@ -353,7 +361,7 @@ const init = async () => {
 
     ipcMain.handle('request-gconfig', openGlobalConf)
     ipcMain.handle('create-project', createProject)
-    ipcMain.handle('read-import-file', readImportFile)
+    ipcMain.handle('import-file', importFile)
     ipcMain.on('set-title', handleSetTitle)
     createWindow()
 

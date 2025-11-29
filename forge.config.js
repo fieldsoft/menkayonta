@@ -47,6 +47,11 @@ module.exports = {
             config: 'vite.project.config.mjs',
             target: 'main',
           },
+          {
+            entry: 'src/converter.js',
+            config: 'vite.converter.config.mjs',
+            target: 'main',
+          },
         ],
         renderer: [
           {

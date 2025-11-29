@@ -78,6 +78,9 @@ const handleMainMessage = (m) => {
   case 'init':
     handleInit(m.data)
     break
+  case 'bulk-write':
+    handleBulk(m.data.bulkDocs)
+    break
   default:
     process.parentPort.postMessage(
       { command: 'info',
