@@ -63,6 +63,6 @@ main =
         }
 
 
-newUuid : UUID.Seeds -> String
+newUuid : UUID.Seeds -> ( UUID.UUID, UUID,Seeds )
 newUuid seeds =
-    UUID.step seeds |> Tuple.first |> UUID.toString
+    UUID.step seeds
