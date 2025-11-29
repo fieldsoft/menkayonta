@@ -15,8 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     'create-project',
     projectInfo
   ),
-  readImportFile : (importOptions) => ipcRenderer.invoke(
-    'read-import-file',
+  importFile : (importOptions) => ipcRenderer.invoke(
+    'import-file',
     importOptions
   ),
 })
