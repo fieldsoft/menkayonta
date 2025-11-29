@@ -17,7 +17,6 @@ import Maybe.Extra as ME
 import Result
 import Set exposing (Set)
 import Task
-import DativeUtils
 
 
 {-| The window title changes depending on the focused tab. This sends
@@ -54,11 +53,6 @@ indicates that the index was received.
 port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
 
-{-| A message was received that contains the result of an attempted import.
--}
-port receivedJsonFromFile : (E.Value -> msg) -> Sub msg
-
-
 {-| The "New Project" menu item was clicked.
 -}
 port newProject : (String -> msg) -> Sub msg
@@ -76,7 +70,7 @@ port createProject : E.Value -> Cmd msg
 
 {-| Send ImportOptions to the backend for execution.
 -}
-port readImportFile : E.Value -> Cmd msg
+port importFile : E.Value -> Cmd msg
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -196,7 +190,6 @@ type Msg
     | Move Direction
     | SetWindowTitle String
     | ReceivedGlobalConfig E.Value
-    | ReceivedJsonFromFile E.Value
     | ReceivedProjectIndex E.Value
     | RequestProjectIndex String
     | NewProject String
@@ -513,42 +506,6 @@ update msg model =
                 Ok gconfig ->
                     ( { model | gconfig = Just gconfig }, Cmd.none )
 
-        ReceivedJsonFromFile jval ->
-            case D.decodeValue jsonFromFileDecoder jval of
-                Err err ->
-                    ( { model |
-                            error = Just (Error (D.errorToString err))
-                      }
-                    , Cmd.none
-                    )
-
-                Ok filedata ->
-                    if filedata.success then
-                        if filedata.options.kind == "Dative Form Json" then
-                            let
-                                newjson =
-                                    DativeUtils.convert filedata.content
-                                newfiledata =
-                                    { filedata
-                                        | success = True
-                                        , message = "from dative form json"
-                                        , content = newjson
-                                    }
-                                newjsonval =
-                                    jsonFromFileEncoder newfiledata
-                                deliverImportData _ = Cmd.none
-                            in
-                            ( model, deliverImportData newjsonval )
-
-                        else
-                            ( model, Cmd.none )
-                    else
-                        ( { model |
-                                error = Just (Error filedata.message)
-                          }
-                        , Cmd.none
-                        )
-
         RequestProjectIndex id ->
             ( model, requestProjectIndex id )
 
@@ -694,7 +651,7 @@ handleImportSubmit tp model =
                       | importFields = importOptionsFields model.gconfig Nothing
                       , importSubmitted = True
                   }
-                , readImportFile jsonValue
+                , importFile jsonValue
                 )
 
             ( formFields, Err _ ) ->
@@ -799,7 +756,6 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
-        , receivedJsonFromFile ReceivedJsonFromFile
         , receivedProjectIndex ReceivedProjectIndex
         , newProject NewProject
         , importOptions ImportOptionsFile
@@ -1292,48 +1248,6 @@ projectInfoDecoder =
         (D.field "title" D.string)
         (D.field "identifier" D.string)
         (D.field "enabled" D.bool)
-
-
-jsonFromFileDecoder : D.Decoder JsonFromFile
-jsonFromFileDecoder =
-    D.map4 JsonFromFile
-        (D.field "success" D.bool)
-        (D.field "message" D.string)
-        (D.field "options" importOptionsDecoder)
-        (D.field "content" D.value)
-
-
-jsonFromFileEncoder : JsonFromFile -> E.Value
-jsonFromFileEncoder jff =
-    E.object
-        [ ( "success", E.bool jff.success )
-        , ( "message", E.string jff.message )
-        , ( "options", importOptionsEncoder jff.options )
-        , ( "content", jff.content )
-        ]
-
-
-importOptionsDecoder : D.Decoder ImportOptions
-importOptionsDecoder =
-    D.map4 ImportOptions
-        (D.field "filepath" (D.maybe D.string))
-        (D.field "content" (D.maybe D.string))
-        (D.field "kind" D.string)
-        (D.field "project" D.string)
-
-
-importOptionsEncoder : ImportOptions -> E.Value
-importOptionsEncoder io =
-    E.object
-        [ ( "filepath", io.filepath
-          |> Maybe.map E.string
-          |> Maybe.withDefault E.null )
-        , ( "contnet", io.content
-          |> Maybe.map E.string
-          |> Maybe.withDefault E.null )
-        , ( "kind", E.string io.kind )
-        , ( "project", E.string io.project )
-        ]
 
 
 translationsDecoder : D.Decoder (List Translation)
