@@ -1,20 +1,19 @@
 module DativeUtils exposing (convert)
 
 import Json.Encode as E
+import UUID
 
-type alias Uuid = String
 
-type alias Date = String
+type alias Token =
+    List (Maybe SubToken)
 
-type alias DateTime = String
-
-type alias Token = List (Maybe SubToken)
 
 type alias SubToken =
     { id : Int
     , code1 : String
     , code2 : String
     }
+
 
 type alias Person =
     { id : Int
@@ -23,6 +22,7 @@ type alias Person =
     , role : String
     }
 
+
 type alias Speaker =
     { id : Int
     , first_name : String
@@ -30,20 +30,23 @@ type alias Speaker =
     , dialect : String
     }
 
+
 type alias Translation =
     { id : Int
     , transcription : String
     , grammaticality : String
     }
 
+
 type alias Tag =
     { id : Int
     , name : String
     }
 
+
 type alias DativeForm =
     { id : Int
-    , uuid : Uuid
+    , uuid : String
     , transcription : String
     , phonetic_transcription : String
     , narrow_phonetic_transcription : String
@@ -75,5 +78,8 @@ type alias DativeForm =
     , files : List String
     }
 
+
 convert : a -> E.Value
-convert _ = E.null
+convert _ =
+    E.null
+

@@ -29,6 +29,20 @@ type alias Flags =
     }
 
 
+type alias TestData =
+    { uuid : UUID.UUID
+    , doctype : String
+    , version : Int
+    , content : String
+    }
+
+
+type alias Job =
+    { project : String
+    , payload : E.Value
+    }
+
+
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
@@ -45,8 +59,37 @@ init flags =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        ReceivedDativeForms _ ->
-            ( model, Cmd.none )
+        ReceivedDativeForms job ->
+            let
+                ( uuid, seeds ) =
+                    UUID.step model.seeds
+
+                td =
+                    [ { uuid = uuid
+                      , doctype = "test"
+                      , version = 1
+                      , content = "test content"
+                      }
+                    ]
+
+                tdval =
+                    E.list testDataEncoder td
+            in
+            case D.decodeValue jobDecoder job of
+                Err _ ->
+                    ( model, Cmd.none )
+
+                Ok j ->
+                    let
+                        jval =
+                            jobEncoder
+                                { project = j.project
+                                , payload = tdval
+                                }
+                    in
+                    ( { model | seeds = seeds }
+                    , sendBulkDocs jval
+                    )
 
 
 subscriptions : Model -> Sub Msg
@@ -63,6 +106,27 @@ main =
         }
 
 
-newUuid : UUID.Seeds -> ( UUID.UUID, UUID,Seeds )
-newUuid seeds =
-    UUID.step seeds
+jobDecoder : D.Decoder Job
+jobDecoder =
+    D.map2 Job
+        (D.field "project" D.string)
+        (D.field "payload" D.value)
+
+
+jobEncoder : Job -> E.Value
+jobEncoder job =
+    E.object
+        [ ( "project", E.string job.project )
+        , ( "payload", job.payload )
+        ]
+
+
+testDataEncoder : TestData -> E.Value
+testDataEncoder td =
+    E.object
+        [ ( "_id"
+          , E.string (String.join "/" [ td.doctype, UUID.toString td.uuid ])
+          )
+        , ( "version", E.int td.version )
+        , ( "content", E.string td.content )
+        ]

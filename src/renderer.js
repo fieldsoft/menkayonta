@@ -35,7 +35,6 @@ window.electronAPI.onNewProject((ident) => {
 })
 
 window.electronAPI.onImportOptions((filepath) => {
-  console.log(filepath)
   app.ports.importOptions.send(filepath)
 })
 
@@ -44,6 +43,6 @@ app.ports.createProject.subscribe(async (projectInfo) => {
   app.ports.receivedGlobalConfig.send(gconfig)
 })
 
-app.ports.importFile.subscribe(async (importOptions) => {
-  window.electronAPI.readImportFile(importOptions)
+app.ports.importFile.subscribe((importOptions) => {
+  window.electronAPI.importFile(importOptions)
 })

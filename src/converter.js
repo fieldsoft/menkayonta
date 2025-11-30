@@ -4,8 +4,8 @@ import fs from 'node:fs/promises'
 
 // Get a high-quality random seed to make a client UUID. We use 4
 // 32-bit integers
-var typedArray = new Int32Array(4)
-var randomSeeds = crypto.getRandomValues(typedArray)
+const typedArray = new Int32Array(4)
+const randomSeeds = crypto.getRandomValues(typedArray)
 
 const app = Elm.Converter.init({ flags: { seed1: randomSeeds[0],
                                           seed2: randomSeeds[1],
@@ -15,12 +15,24 @@ const app = Elm.Converter.init({ flags: { seed1: randomSeeds[0],
                                })
 
 const readJsonFile = async (filepath) => {
-  const fh = await fs.open(filepath, 'r')
-  const json = await fh.readFile({ encoding: 'utf8' })
+  try {
+    const fh = await fs.open(filepath, 'r')
+    const json = await fh.readFile({ encoding: 'utf8' })
 
-  fh.close()
-  
-  return JSON.parse(json)
+    fh.close()
+
+    return JSON.parse(json)
+
+  } catch (e) {
+    process.parentPort.postMessage(
+      { command: 'error',
+        error: e,
+        identifier: 'converter',
+      }
+    )
+
+    throw e
+  }
 }
 
 const handleMainMessage = async (m) => {
@@ -28,14 +40,11 @@ const handleMainMessage = async (m) => {
   case 'convert-to-batch':
     const parsedJson = await readJsonFile(m.data.filepath)
 
-    process.parentPort.postMessage(
-      { command: 'info',
-        message: `The init was done`,
-        identifier: 'converter',
-      })
-
     if (m.data.kind === 'Dative Form Json') {
-      app.ports.receivedDativeForms.send(parsedJson)
+      app.ports.receivedDativeForms.send(
+        { project: m.data.project,
+          payload: parsedJson,
+        })
     }
     break
   case 'init':
@@ -56,7 +65,12 @@ const handleMainMessage = async (m) => {
 
 process.parentPort.on('message', handleMainMessage)
 
-app.ports.subscribe.sendBulkDocs((bulkDocs) => {
+app.ports.sendBulkDocs.subscribe((job) => {
+  process.parentPort.postMessage(
+    { command: 'bulk-write',
+      identifier: job.project,
+      bulkDocs: job.payload,
+    })
 })
-                                 
+                           
 // process.on('close', () => gvs.db.close())

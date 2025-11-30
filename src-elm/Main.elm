@@ -292,7 +292,7 @@ importOptionsFields gc filesource =
                         , Field.required True
                         , Field.disabled True
                         , Field.identifier ImportFile
-                        , Field.name "file"
+                        , Field.name "filepath"
                         , Field.value (Value.string filepath)
                         ]
         projects =

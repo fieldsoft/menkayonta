@@ -66,11 +66,13 @@ const handleInit = ({identifier: i, projectsPath: pp}) => {
 }
 
 const handleBulk = async (docs) => {
-  try {
-    await gvs.db.bulkDocs(docs)
-  } catch (err) {
-    error(err)
-  }
+  process.parentPort.postMessage(
+    { command: 'info',
+      message: 'executing bulk docs code',
+      identifier: gvs.identifier,
+    })
+
+  await gvs.db.bulkDocs(docs)
 }
 
 const handleMainMessage = (m) => {

@@ -129,6 +129,12 @@ const createWindow = () => {
             const filepaths = await fileDialogOpen()
 
             if (filepaths.length > 0) {
+              // Handled by onImportOptions in renderer.js and the
+              // importOptions port in Main.elm. Elm will use the
+              // importFile with an importOptions object after the
+              // user has filled out a form with information about the
+              // import. This calls readImportFile and the import-file
+              // event, which is handled by importFile, below.
               mainWindow.webContents.send('import-options', filepaths[0])
             }
           },
@@ -327,16 +333,30 @@ const createProject = async (_event, projectInfo) => {
   return gvs.globalConf
 }
 
-const handlBulkWrite = (data) => {
-  const payload =
-        { command: 'bulk-write',
-          identifier: data.project,
-          bulkDocs: data.bulkDocs,
-        }
-          
-  gvs.active[data.project].postMessage(payload)
+// This handles messages from a converter process, which has
+// transformed some import data to a format suitable for a project
+// database. The data is sent to the project's process so that it can
+// be written to the database.
+const handleImportWrite = (data) => {
+  if (data.command === 'bulk-write') {
+    const payload =
+          { command: 'bulk-write',
+            identifier: data.identifier,
+            bulkDocs: data.bulkDocs,
+          }
+
+    gvs.active[data.identifier].postMessage(payload)
+  } else {
+    handleProjectMessage(data)
+  }
 }
 
+// This event is triggered when the user has submitted a form
+// containing information about a file import. In most cases, this
+// event will be handled by spawning a converter process, which will
+// read the file in and attempt to convert it to a database native
+// format. The converter process sends a message on completion, which
+// handled by handleDBWrite.
 const importFile = async (_event, importOptions) => {
   switch (importOptions.kind) {
   case 'Dative Form Json':
@@ -346,7 +366,7 @@ const importFile = async (_event, importOptions) => {
     importOptions.command = 'convert-to-batch'
     
     converter.postMessage(importOptions)
-    converter.on('message', handleBulkWrite)
+    converter.on('message', handleImportWrite)
     
     return importOptions
 
