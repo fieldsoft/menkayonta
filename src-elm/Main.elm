@@ -674,7 +674,7 @@ places the focused tab in a preexisting row with tabs.
 insertTabPath : Direction -> TabPath -> ( List Int, List Int ) -> List TabPath -> TabPath
 insertTabPath dir tp ( cols, rows ) keys =
     case dir of
-        Left ->
+        Right ->
             let
                 col =
                     getNext (tcolumn tp) cols
@@ -686,7 +686,7 @@ insertTabPath dir tp ( cols, rows ) keys =
                 |> Maybe.map (\r -> tabpath col r (ttab tp))
                 |> Maybe.withDefault tp
 
-        Right ->
+        Left ->
             let
                 col =
                     getNext (tcolumn tp) (List.reverse cols)
@@ -719,10 +719,10 @@ below, above, to the left or right of the focused tab.
 newTabPath : Direction -> TabPath -> Int -> TabPath
 newTabPath dir tp c =
     case dir of
-        Left ->
+        Right ->
             tabpath c c (ttab tp)
 
-        Right ->
+        Left ->
             tabpath (negate c) c (ttab tp)
 
         Down ->
@@ -739,10 +739,10 @@ of a column or row structure.
 createNecessary : Direction -> TabPath -> ( List Int, List Int ) -> Bool
 createNecessary dir tp ( cols, rows ) =
     case dir of
-        Left ->
+        Right ->
             Just (tcolumn tp) == LE.last cols
 
-        Right ->
+        Left ->
             Just (tcolumn tp) == List.head cols
 
         Down ->
