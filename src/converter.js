@@ -1,5 +1,4 @@
 import { Elm } from '../src-elm/Converter.elm'
-import { v4 } from 'uuid'
 import fs from 'node:fs/promises'
 
 // Get a high-quality random seed to make a client UUID. We use 4
@@ -37,7 +36,7 @@ const readJsonFile = async (filepath) => {
 
 const handleMainMessage = async (m) => {
   switch (m.data.command) {
-    case 'convert-to-batch':
+    case 'convert-to-batch': {
       const parsedJson = await readJsonFile(m.data.filepath)
 
       if (m.data.kind === 'Dative Form Json') {
@@ -47,19 +46,22 @@ const handleMainMessage = async (m) => {
         })
       }
       break
-    case 'init':
+    }
+    case 'init': {
       process.parentPort.postMessage({
         command: 'info',
         message: `The init was done`,
         identifier: 'converter',
       })
       break
-    default:
+    }
+    default: {
       process.parentPort.postMessage({
         command: 'info',
         message: `Main command: ${m.data.command}`,
         identifier: 'converter',
       })
+    }
   }
 }
 

@@ -1,7 +1,8 @@
+/* global emit */
 const trans_version = 1
 const trans_id = '_design/trans'
 
-var trans_dd =  {
+var trans_dd = {
   _id: trans_id,
   version: trans_version,
   views: {
@@ -11,14 +12,14 @@ var trans_dd =  {
           if (doc.transcription && doc.translations.length > 0) {
             doc.translations.forEach(function (trad) {
               emit(doc.transcription, trad.transcription)
-            });
+            })
           } else {
-            emit(doc.transcription, "")
+            emit(doc.transcription, '')
           }
         }
-      }.toString()
-    }
-  }
+      }.toString(),
+    },
+  },
 }
 
 export { trans_dd }

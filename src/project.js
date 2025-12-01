@@ -1,5 +1,4 @@
 import path from 'node:path'
-import { v4 } from 'uuid'
 import { trans_dd } from './design_docs/trans.js'
 
 // Load the pouchdb packages. The pouchdb packages need commonjs
@@ -65,11 +64,7 @@ const handleInit = ({ identifier: i, projectsPath: pp }) => {
 }
 
 const handleBulk = async (docs) => {
-  process.parentPort.postMessage({
-    command: 'info',
-    message: 'executing bulk docs code',
-    identifier: gvs.identifier,
-  })
+  info('executing bulk docs code')
 
   await gvs.db.bulkDocs(docs)
 }
@@ -83,11 +78,7 @@ const handleMainMessage = (m) => {
       handleBulk(m.data.bulkDocs)
       break
     default:
-      process.parentPort.postMessage({
-        command: 'info',
-        message: `Main command: ${m.data.command}`,
-        identifier: m.data.identifier,
-      })
+      info(`Main command: ${m.data.command}`)
   }
 }
 

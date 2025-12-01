@@ -1,10 +1,10 @@
+/* global MAIN_WINDOW_VITE_DEV_SERVER_URL, MAIN_WINDOW_VITE_NAME */
 import {
   app,
   BrowserWindow,
   ipcMain,
   Menu,
   utilityProcess,
-  MessageChannelMain,
   dialog,
 } from 'electron'
 import path from 'node:path'
@@ -31,7 +31,7 @@ if (started) {
 }
 
 // Determine whether the app is running in a development environment.
-const isDev = process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
+// const isDev = process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
 
 // Set the window title according to renderer events
 const handleSetTitle = (event, title) => {
@@ -50,7 +50,6 @@ const handleProjectMessage = (m) => {
     case 'error':
       m.error.message = `Child ${m.identifier}: ${m.error.message}`
       throw m.error
-      break
     default:
       console.log(`${m.identifier} command: ${m.command}`)
   }
@@ -304,8 +303,6 @@ const openGlobalConf = async () => {
 const createProject = async (_event, projectInfo) => {
   const projPath = path.join(gvs.projectsPath, projectInfo.identifier)
   const projSharePath = path.join(projPath, 'share')
-  const projConfPath = path.join(projPath, 'config.json')
-  const projDBPath = path.join(projPath, `${projectInfo.identifier}.sql`)
   const equalsCurrent = (p) => p.identifier === projectInfo.identifier
   const initialConf = {}
 
@@ -353,7 +350,7 @@ const handleImportWrite = (data) => {
 // handled by handleDBWrite.
 const importFile = async (_event, importOptions) => {
   switch (importOptions.kind) {
-    case 'Dative Form Json':
+    case 'Dative Form Json': {
       const converter = utilityProcess.fork(
         path.join(__dirname, './converter.js'),
       )
@@ -364,9 +361,10 @@ const importFile = async (_event, importOptions) => {
       converter.on('message', handleImportWrite)
 
       return importOptions
-
-    default:
+    }
+    default: {
       return importOptions
+    }
   }
 }
 
