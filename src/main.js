@@ -1,11 +1,12 @@
-import { app,
-         BrowserWindow,
-         ipcMain,
-         Menu,
-         utilityProcess,
-         MessageChannelMain,
-         dialog
-       } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  Menu,
+  utilityProcess,
+  MessageChannelMain,
+  dialog,
+} from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
@@ -13,12 +14,12 @@ import started from 'electron-squirrel-startup'
 import { v4 } from 'uuid'
 
 // Global variables.
-let gvs =
-    { projectsPath: path.join(os.homedir(), 'Menkayonta'),
-      globalConfPath: path.join(os.homedir(), 'Menkayonta', 'config.json'),
-      globalConf: null,
-      active: [],
-    }
+let gvs = {
+  projectsPath: path.join(os.homedir(), 'Menkayonta'),
+  globalConfPath: path.join(os.homedir(), 'Menkayonta', 'config.json'),
+  globalConf: null,
+  active: [],
+}
 
 // Test if the platform is macos.
 const isMac = process.platform === 'darwin'
@@ -26,12 +27,11 @@ const isMac = process.platform === 'darwin'
 // Handle creating/removing shortcuts on Windows when
 // installing/uninstalling.
 if (started) {
-  app.quit();
+  app.quit()
 }
 
 // Determine whether the app is running in a development environment.
-const isDev =
-    process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
+const isDev = process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
 
 // Set the window title according to renderer events
 const handleSetTitle = (event, title) => {
@@ -44,15 +44,15 @@ const handleSetTitle = (event, title) => {
 // Handle messages from the project processes.
 const handleProjectMessage = (m) => {
   switch (m.command) {
-  case 'info':
-    console.log(`${m.identifier}: ${m.message}`)
-    break
-  case 'error':
-    m.error.message = `Child ${m.identifier}: ${m.error.message}`
-    throw m.error
-    break
-  default:
-    console.log(`${m.identifier} command: ${m.command}`)
+    case 'info':
+      console.log(`${m.identifier}: ${m.message}`)
+      break
+    case 'error':
+      m.error.message = `Child ${m.identifier}: ${m.error.message}`
+      throw m.error
+      break
+    default:
+      console.log(`${m.identifier} command: ${m.command}`)
   }
 }
 
@@ -65,14 +65,15 @@ const manageProjectProcesses = () => {
         delete gvs.active[p.identifier]
       }
     } else if (p.enabled && !(p.identifier in gvs.active)) {
-      const initMessage =
-            { command: 'init',
-              identifier: p.identifier,
-              projectsPath: gvs.projectsPath,
-            }
-      
-      gvs.active[p.identifier] =
-        utilityProcess.fork(path.join(__dirname, './project.js'))
+      const initMessage = {
+        command: 'init',
+        identifier: p.identifier,
+        projectsPath: gvs.projectsPath,
+      }
+
+      gvs.active[p.identifier] = utilityProcess.fork(
+        path.join(__dirname, './project.js'),
+      )
       gvs.active[p.identifier].postMessage(initMessage)
       gvs.active[p.identifier].on('message', handleProjectMessage)
     }
@@ -93,29 +94,31 @@ const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js')
-    }
+      preload: path.join(__dirname, 'preload.js'),
+    },
   })
 
   // The application menu template
   const template = [
     // { role: 'appMenu' }
     ...(isMac
-        ? [{
-          label: app.name,
-          submenu: [
-            { role: 'about' },
-            { type: 'separator' },
-            { role: 'services' },
-            { type: 'separator' },
-            { role: 'hide' },
-            { role: 'hideOthers' },
-            { role: 'unhide' },
-            { type: 'separator' },
-            { role: 'quit' }
-          ]
-        }]
-        : []),
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]
+      : []),
     // { role: 'fileMenu' }
     {
       label: 'File',
@@ -138,10 +141,10 @@ const createWindow = () => {
               mainWindow.webContents.send('import-options', filepaths[0])
             }
           },
-          label: 'Import File'
+          label: 'Import File',
         },
-        ...(isMac ? [{ role: 'close' }] : [{ role: 'quit' }])
-      ]
+        ...(isMac ? [{ role: 'close' }] : [{ role: 'quit' }]),
+      ],
     },
     // { role: 'editMenu' }
     {
@@ -154,25 +157,18 @@ const createWindow = () => {
         { role: 'copy' },
         { role: 'paste' },
         ...(isMac
-            ? [
+          ? [
               { role: 'pasteAndMatchStyle' },
               { role: 'delete' },
               { role: 'selectAll' },
               { type: 'separator' },
               {
                 label: 'Speech',
-                submenu: [
-                  { role: 'startSpeaking' },
-                  { role: 'stopSpeaking' }
-                ]
-              }
+                submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }],
+              },
             ]
-            : [
-              { role: 'delete' },
-              { type: 'separator' },
-              { role: 'selectAll' }
-            ])
-      ]
+          : [{ role: 'delete' }, { type: 'separator' }, { role: 'selectAll' }]),
+      ],
     },
     // { role: 'viewMenu' }
     {
@@ -186,8 +182,8 @@ const createWindow = () => {
         { role: 'zoomIn' },
         { role: 'zoomOut' },
         { type: 'separator' },
-        { role: 'togglefullscreen' }
-      ]
+        { role: 'togglefullscreen' },
+      ],
     },
     // { role: 'windowMenu' }
     {
@@ -196,30 +192,28 @@ const createWindow = () => {
         { role: 'minimize' },
         { role: 'zoom' },
         ...(isMac
-            ? [
+          ? [
               { type: 'separator' },
               { role: 'front' },
               { type: 'separator' },
-              { role: 'window' }
+              { role: 'window' },
             ]
-            : [
-              { role: 'close' }
-            ])
-      ]
+          : [{ role: 'close' }]),
+      ],
     },
   ]
 
   const menu = Menu.buildFromTemplate(template)
   Menu.setApplicationMenu(menu)
   mainWindow.setMenu(menu)
-  
+
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
   } else {
     mainWindow.loadFile(
-      path.join(__dirname,
-                `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
+    )
   }
 }
 
@@ -228,7 +222,7 @@ const readJsonFile = async (filepath) => {
   const json = await fh.readFile({ encoding: 'utf8' })
 
   fh.close()
-  
+
   return JSON.parse(json)
 }
 
@@ -283,7 +277,7 @@ const openGlobalConf = async () => {
     await fs.mkdir(gvs.projectsPath, { recursive: true })
 
     await readGlobalConf()
-    
+
     return gvs.globalConf
   } catch (err) {
     if (err.code == 'ENOENT') {
@@ -314,13 +308,13 @@ const createProject = async (_event, projectInfo) => {
   const projDBPath = path.join(projPath, `${projectInfo.identifier}.sql`)
   const equalsCurrent = (p) => p.identifier === projectInfo.identifier
   const initialConf = {}
-  
+
   await readGlobalConf()
 
   if (gvs.globalConf.projects.some(equalsCurrent)) {
     throw new Error('Project ID exists')
   }
-  
+
   await fs.mkdir(projSharePath, { recursive: true })
   await writeProjConf(projectInfo.identifier, initialConf)
 
@@ -339,11 +333,11 @@ const createProject = async (_event, projectInfo) => {
 // be written to the database.
 const handleImportWrite = (data) => {
   if (data.command === 'bulk-write') {
-    const payload =
-          { command: 'bulk-write',
-            identifier: data.identifier,
-            bulkDocs: data.bulkDocs,
-          }
+    const payload = {
+      command: 'bulk-write',
+      identifier: data.identifier,
+      bulkDocs: data.bulkDocs,
+    }
 
     gvs.active[data.identifier].postMessage(payload)
   } else {
@@ -359,19 +353,20 @@ const handleImportWrite = (data) => {
 // handled by handleDBWrite.
 const importFile = async (_event, importOptions) => {
   switch (importOptions.kind) {
-  case 'Dative Form Json':
-    const converter =
-      utilityProcess.fork(path.join(__dirname, './converter.js'))
+    case 'Dative Form Json':
+      const converter = utilityProcess.fork(
+        path.join(__dirname, './converter.js'),
+      )
 
-    importOptions.command = 'convert-to-batch'
-    
-    converter.postMessage(importOptions)
-    converter.on('message', handleImportWrite)
-    
-    return importOptions
+      importOptions.command = 'convert-to-batch'
 
-  default:
-    return importOptions
+      converter.postMessage(importOptions)
+      converter.on('message', handleImportWrite)
+
+      return importOptions
+
+    default:
+      return importOptions
   }
 }
 
@@ -391,7 +386,6 @@ const init = async () => {
         createWindow()
       }
     })
-
   } catch (err) {
     console.log(err)
   }

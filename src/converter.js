@@ -7,12 +7,14 @@ import fs from 'node:fs/promises'
 const typedArray = new Int32Array(4)
 const randomSeeds = crypto.getRandomValues(typedArray)
 
-const app = Elm.Converter.init({ flags: { seed1: randomSeeds[0],
-                                          seed2: randomSeeds[1],
-                                          seed3: randomSeeds[2],
-                                          seed4: randomSeeds[3],
-                                        }
-                               })
+const app = Elm.Converter.init({
+  flags: {
+    seed1: randomSeeds[0],
+    seed2: randomSeeds[1],
+    seed3: randomSeeds[2],
+    seed4: randomSeeds[3],
+  },
+})
 
 const readJsonFile = async (filepath) => {
   try {
@@ -22,14 +24,12 @@ const readJsonFile = async (filepath) => {
     fh.close()
 
     return JSON.parse(json)
-
   } catch (e) {
-    process.parentPort.postMessage(
-      { command: 'error',
-        error: e,
-        identifier: 'converter',
-      }
-    )
+    process.parentPort.postMessage({
+      command: 'error',
+      error: e,
+      identifier: 'converter',
+    })
 
     throw e
   }
@@ -37,40 +37,38 @@ const readJsonFile = async (filepath) => {
 
 const handleMainMessage = async (m) => {
   switch (m.data.command) {
-  case 'convert-to-batch':
-    const parsedJson = await readJsonFile(m.data.filepath)
+    case 'convert-to-batch':
+      const parsedJson = await readJsonFile(m.data.filepath)
 
-    if (m.data.kind === 'Dative Form Json') {
-      app.ports.receivedDativeForms.send(
-        { project: m.data.project,
+      if (m.data.kind === 'Dative Form Json') {
+        app.ports.receivedDativeForms.send({
+          project: m.data.project,
           payload: parsedJson,
         })
-    }
-    break
-  case 'init':
-    process.parentPort.postMessage(
-      { command: 'info',
+      }
+      break
+    case 'init':
+      process.parentPort.postMessage({
+        command: 'info',
         message: `The init was done`,
         identifier: 'converter',
       })
-    break
-  default:
-    process.parentPort.postMessage(
-      { command: 'info',
+      break
+    default:
+      process.parentPort.postMessage({
+        command: 'info',
         message: `Main command: ${m.data.command}`,
         identifier: 'converter',
       })
-  }            
+  }
 }
 
 process.parentPort.on('message', handleMainMessage)
 
 app.ports.sendBulkDocs.subscribe((job) => {
-  process.parentPort.postMessage(
-    { command: 'bulk-write',
-      identifier: job.project,
-      bulkDocs: job.payload,
-    })
+  process.parentPort.postMessage({
+    command: 'bulk-write',
+    identifier: job.project,
+    bulkDocs: job.payload,
+  })
 })
-                           
-// process.on('close', () => gvs.db.close())

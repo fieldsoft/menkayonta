@@ -11,32 +11,31 @@ const replication = require('pouchdb-replication')
 const sqliteAdapter = require('pouchdb-adapter-node-websql')
 
 // Set the pouchdb plugins.
-PouchDB
-  .plugin(HttpPouch)
+PouchDB.plugin(HttpPouch)
   .plugin(mapreduce)
   .plugin(replication)
   .plugin(sqliteAdapter)
 
 // Globals
-let gvs = { design_docs: [ trans_dd ] }
+let gvs = { design_docs: [trans_dd] }
 
 const info = (msg) => {
-  process.parentPort.postMessage(
-      { command: 'info',
-        message: msg,
-        identifier: gvs.identifier,
-      })
+  process.parentPort.postMessage({
+    command: 'info',
+    message: msg,
+    identifier: gvs.identifier,
+  })
 }
 
 const error = (e) => {
-  process.parentPort.postMessage(
-      { command: 'error',
-        error: e,
-        identifier: gvs.identifier,
-      })
+  process.parentPort.postMessage({
+    command: 'error',
+    error: e,
+    identifier: gvs.identifier,
+  })
 }
 
-const handleInit = ({identifier: i, projectsPath: pp}) => {
+const handleInit = ({ identifier: i, projectsPath: pp }) => {
   gvs.identifier = i
   gvs.path = path.join(pp, i)
   gvs.dbPath = path.join(gvs.path, `${i}.sql`)
@@ -61,35 +60,35 @@ const handleInit = ({identifier: i, projectsPath: pp}) => {
       }
     }
   })
-                     
+
   return gvs
 }
 
 const handleBulk = async (docs) => {
-  process.parentPort.postMessage(
-    { command: 'info',
-      message: 'executing bulk docs code',
-      identifier: gvs.identifier,
-    })
+  process.parentPort.postMessage({
+    command: 'info',
+    message: 'executing bulk docs code',
+    identifier: gvs.identifier,
+  })
 
   await gvs.db.bulkDocs(docs)
 }
 
 const handleMainMessage = (m) => {
   switch (m.data.command) {
-  case 'init':
-    handleInit(m.data)
-    break
-  case 'bulk-write':
-    handleBulk(m.data.bulkDocs)
-    break
-  default:
-    process.parentPort.postMessage(
-      { command: 'info',
+    case 'init':
+      handleInit(m.data)
+      break
+    case 'bulk-write':
+      handleBulk(m.data.bulkDocs)
+      break
+    default:
+      process.parentPort.postMessage({
+        command: 'info',
         message: `Main command: ${m.data.command}`,
         identifier: m.data.identifier,
       })
-  }            
+  }
 }
 
 process.parentPort.on('message', handleMainMessage)

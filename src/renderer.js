@@ -1,8 +1,9 @@
 import { Elm } from '../src-elm/Main.elm'
 
-const app = Elm.Main.init({ node: document.getElementById("root"),
-                            flags: { windowHeight: window.innerHeight }
-                          })
+const app = Elm.Main.init({
+  node: document.getElementById('root'),
+  flags: { windowHeight: window.innerHeight },
+})
 
 app.ports.setWindowTitle.subscribe((title) => {
   window.electronAPI.setTitle(title)
@@ -14,19 +15,22 @@ app.ports.requestGlobalConfig.subscribe(async () => {
 })
 
 app.ports.requestProjectIndex.subscribe((identifier) => {
-  const demo = { project : identifier,
-                 kind : 'all-translations',
-                 identifier : `all-translations::${identifier}`,
-                 content : [ { source : 'Abadeka adoke epene oñompa.',
-                               translation : 'There is only a duck in the river.',
-                             },
-                             {
-                               source : 'Abopa adoke okiye.',
-                               translation : 'I see one woman.',
-                             },
-                           ]
-               }
-  
+  const demo = {
+    project: identifier,
+    kind: 'all-translations',
+    identifier: `all-translations::${identifier}`,
+    content: [
+      {
+        source: 'Abadeka adoke epene oñompa.',
+        translation: 'There is only a duck in the river.',
+      },
+      {
+        source: 'Abopa adoke okiye.',
+        translation: 'I see one woman.',
+      },
+    ],
+  }
+
   app.ports.receivedProjectIndex.send(demo)
 })
 
