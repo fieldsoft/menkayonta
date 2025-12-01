@@ -1,4 +1,4 @@
-module DativeUtils exposing (convert)
+module DativeTypes exposing (convert)
 
 import Json.Encode as E
 import UUID
