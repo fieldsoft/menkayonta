@@ -15,6 +15,22 @@ const app = Elm.Converter.init({
   },
 })
 
+const info = (msg) => {
+  process.parentPort.postMessage({
+    command: 'info',
+    message: msg,
+    identifier: 'converter',
+  })
+}
+
+const error = (e) => {
+  process.parentPort.postMessage({
+    command: 'error',
+    error: e,
+    identifier: 'converter',
+  })
+}
+
 const readJsonFile = async (filepath) => {
   try {
     const fh = await fs.open(filepath, 'r')
@@ -24,13 +40,9 @@ const readJsonFile = async (filepath) => {
 
     return JSON.parse(json)
   } catch (e) {
-    process.parentPort.postMessage({
-      command: 'error',
-      error: e,
-      identifier: 'converter',
-    })
+    error(e)
 
-    throw e
+    return null
   }
 }
 
@@ -48,19 +60,11 @@ const handleMainMessage = async (m) => {
       break
     }
     case 'init': {
-      process.parentPort.postMessage({
-        command: 'info',
-        message: `The init was done`,
-        identifier: 'converter',
-      })
+      info('The init was done')
       break
     }
     default: {
-      process.parentPort.postMessage({
-        command: 'info',
-        message: `Main command: ${m.data.command}`,
-        identifier: 'converter',
-      })
+      info(`Main command: ${m.data.command}`)
     }
   }
 }
@@ -68,9 +72,13 @@ const handleMainMessage = async (m) => {
 process.parentPort.on('message', handleMainMessage)
 
 app.ports.sendBulkDocs.subscribe((job) => {
-  process.parentPort.postMessage({
-    command: 'bulk-write',
-    identifier: job.project,
-    bulkDocs: job.payload,
-  })
+  if (Array.isArray(job.payload)) {
+    process.parentPort.postMessage({
+      command: 'bulk-write',
+      identifier: job.project,
+      bulkDocs: job.payload,
+    })
+  } else {
+    error(Error('Likely bad parse on import.'))
+  }
 })

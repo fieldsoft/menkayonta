@@ -5,6 +5,7 @@ import Json.Encode as E
 import Platform
 import Random
 import UUID
+import DativeTypes
 
 
 port receivedDativeForms : (E.Value -> msg) -> Sub msg
@@ -60,21 +61,21 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ReceivedDativeForms job ->
-            let
-                ( uuid, seeds ) =
-                    UUID.step model.seeds
+            -- let
+            --     ( uuid, seeds ) =
+            --         UUID.step model.seeds
 
-                td =
-                    [ { uuid = uuid
-                      , doctype = "test"
-                      , version = 1
-                      , content = "test content"
-                      }
-                    ]
+            --     td =
+            --         [ { uuid = uuid
+            --           , doctype = "test"
+            --           , version = 1
+            --           , content = "test content"
+            --           }
+            --         ]
 
-                tdval =
-                    E.list testDataEncoder td
-            in
+            --     tdval =
+            --         E.list testDataEncoder td
+            -- in
             case D.decodeValue jobDecoder job of
                 Err _ ->
                     ( model, Cmd.none )
@@ -84,10 +85,10 @@ update msg model =
                         jval =
                             jobEncoder
                                 { project = j.project
-                                , payload = tdval
+                                , payload = DativeTypes.convert j.payload
                                 }
                     in
-                    ( { model | seeds = seeds }
+                    ( model
                     , sendBulkDocs jval
                     )
 

@@ -66,7 +66,11 @@ const handleInit = ({ identifier: i, projectsPath: pp }) => {
 const handleBulk = async (docs) => {
   info('executing bulk docs code')
 
-  await gvs.db.bulkDocs(docs)
+  try {
+    await gvs.db.bulkDocs(docs)
+  } catch (e) {
+    error(e)
+  }
 }
 
 const handleMainMessage = (m) => {
