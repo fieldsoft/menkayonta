@@ -15,23 +15,7 @@ app.ports.requestGlobalConfig.subscribe(async () => {
 })
 
 app.ports.requestProjectIndex.subscribe((identifier) => {
-  const demo = {
-    project: identifier,
-    kind: 'all-translations',
-    identifier: `all-translations::${identifier}`,
-    content: [
-      {
-        source: 'Abadeka adoke epene oñompa.',
-        translation: 'There is only a duck in the river.',
-      },
-      {
-        source: 'Abopa adoke okiye.',
-        translation: 'I see one woman.',
-      },
-    ],
-  }
-
-  app.ports.receivedProjectIndex.send(demo)
+  window.electronAPI.requestProjectIndex(identifier)
 })
 
 window.electronAPI.onNewProject((ident) => {
@@ -40,6 +24,17 @@ window.electronAPI.onNewProject((ident) => {
 
 window.electronAPI.onImportOptions((filepath) => {
   app.ports.importOptions.send(filepath)
+})
+
+window.electronAPI.onReceivedTransIndex((data) => {
+  const vista = {
+    project: data.identifier,
+    kind: 'all-translations',
+    identifier: `all-translations::${data.identifier}`,
+    content: data.payload.rows,
+  }
+
+  app.ports.receivedProjectIndex.send(vista)
 })
 
 app.ports.createProject.subscribe(async (projectInfo) => {

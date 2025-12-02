@@ -64,8 +64,6 @@ const handleInit = ({ identifier: i, projectsPath: pp }) => {
 }
 
 const handleBulk = async (docs) => {
-  info('executing bulk docs code')
-
   try {
     await gvs.db.bulkDocs(docs)
   } catch (e) {
@@ -73,16 +71,39 @@ const handleBulk = async (docs) => {
   }
 }
 
+const handleRequestTranslations = async () => {
+  try {
+    const transIndex = await gvs.db.query('trans/simple')
+
+    process.parentPort.postMessage({
+      command: 'received-trans-index',
+      payload: transIndex,
+      identifier: gvs.identifier,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleMainMessage = (m) => {
   switch (m.data.command) {
-    case 'init':
+    case 'init': {
       handleInit(m.data)
       break
-    case 'bulk-write':
+    }
+
+    case 'bulk-write': {
       handleBulk(m.data.bulkDocs)
       break
-    default:
+    }
+
+    case 'request-trans-index': {
+      handleRequestTranslations()
+      break
+    }
+    default: {
       info(`Main command: ${m.data.command}`)
+    }
   }
 }
 

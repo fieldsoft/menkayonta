@@ -135,14 +135,6 @@ type alias ImportOptions =
     }
 
 
-type alias JsonFromFile =
-    { success : Bool
-    , message : String
-    , options : ImportOptions
-    , content : E.Value
-    }
-
-
 type alias Error =
     { message : String }
 
@@ -204,9 +196,7 @@ type alias Flags =
 
 
 type Content
-    = DemoContent Demo
-    | DemoListContent (List Demo)
-    | TranslationContent Translation
+    = TranslationContent Translation
     | TranslationsContent (List Translation)
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
@@ -214,16 +204,9 @@ type Content
 
 
 type alias Translation =
-    { source : String
-    , translation : String
-    }
-
-
-type alias Demo =
-    { source : String
-    , translation : String
-    , parse : String
-    , gloss : String
+    { key : String
+    , value : String
+    , id : String
     }
 
 
@@ -919,12 +902,6 @@ viewProjects model =
 viewVista : Model -> TabPath -> Vista -> Html Msg
 viewVista model tp vista =
     case vista.content of
-        DemoContent dc ->
-            viewDemo model dc
-
-        DemoListContent dcs ->
-            Html.table [] (List.map (viewDemo model) dcs)
-
         ProjectInfoContent pi ->
             Html.form [ Event.onSubmit (FormSubmit tp) ]
                 [ Field.toHtml ProjectInfoFormChange model.projectFields
@@ -954,21 +931,11 @@ viewError _ err =
     Html.text err.message
 
 
-viewDemo : Model -> Demo -> Html.Html Msg
-viewDemo model dc =
-    Html.tr []
-        [ Html.td [] [ Html.text dc.source ]
-        , Html.td [] [ Html.text dc.parse ]
-        , Html.td [] [ Html.text dc.gloss ]
-        , Html.td [] [ Html.text dc.translation ]
-        ]
-
-
 viewTranslation : Model -> Translation -> Html.Html Msg
 viewTranslation model dc =
     Html.tr []
-        [ Html.td [] [ Html.text dc.source ]
-        , Html.td [] [ Html.text dc.translation ]
+        [ Html.td [] [ Html.text dc.key ]
+        , Html.td [] [ Html.text dc.value ]
         ]
 
 
@@ -1257,9 +1224,10 @@ translationsDecoder =
 
 translationDecoder : D.Decoder Translation
 translationDecoder =
-    D.map2 Translation
-        (D.field "source" D.string)
-        (D.field "translation" D.string)
+    D.map3 Translation
+        (D.field "key" D.string)
+        (D.field "value" D.string)
+        (D.field "id" D.string)
 
 
 projectParser : FParse.Parser ProjectInfoFormField ProjectInfo

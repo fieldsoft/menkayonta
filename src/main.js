@@ -50,6 +50,9 @@ const handleProjectMessage = (m) => {
     case 'error':
       m.error.message = `Child ${m.identifier}: ${m.error.message}`
       throw m.error
+    case 'received-trans-index':
+      gvs.webContents.send(m.command, m)
+      break
     default:
       console.log(`${m.identifier} command: ${m.command}`)
   }
@@ -205,6 +208,8 @@ const createWindow = () => {
   const menu = Menu.buildFromTemplate(template)
   Menu.setApplicationMenu(menu)
   mainWindow.setMenu(menu)
+
+  gvs.webContents = mainWindow.webContents
 
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -368,11 +373,18 @@ const importFile = async (_event, importOptions) => {
   }
 }
 
+const requestTransIndex = (_event, identifier) => {
+  gvs.active[identifier].postMessage({
+    command: 'request-trans-index',
+  })
+}
+
 const init = async () => {
   try {
     await app.whenReady()
 
     ipcMain.handle('request-gconfig', openGlobalConf)
+    ipcMain.handle('request-trans-index', requestTransIndex)
     ipcMain.handle('create-project', createProject)
     ipcMain.handle('import-file', importFile)
     ipcMain.on('set-title', handleSetTitle)

@@ -6,7 +6,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('new-project', (_event, ident) => callback(ident)),
   onImportOptions: (callback) =>
     ipcRenderer.on('import-options', (_event, filepath) => callback(filepath)),
+  onReceivedTransIndex: (callback) =>
+    ipcRenderer.on('received-trans-index', (_event, data) => callback(data)),
   requestGlobalConfig: () => ipcRenderer.invoke('request-gconfig'),
+  requestProjectIndex: (identifier) =>
+    ipcRenderer.invoke('request-trans-index', identifier),
   createProject: (projectInfo) =>
     ipcRenderer.invoke('create-project', projectInfo),
   importFile: (importOptions) =>
