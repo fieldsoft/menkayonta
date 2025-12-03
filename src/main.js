@@ -145,6 +145,11 @@ const createWindow = () => {
           },
           label: 'Import File',
         },
+        {
+          click: () =>
+            mainWindow.webContents.send('global-settings', gvs.globalConf),
+          label: 'Settings',
+        },
         ...(isMac ? [{ role: 'close' }] : [{ role: 'quit' }]),
       ],
     },
@@ -275,7 +280,7 @@ const writeProjConf = async (identifier, configData) => {
 // exist. It returns a JSON object of the app's global configuration,
 // such as the projects that exist in the projects directory.
 const openGlobalConf = async () => {
-  const initialConf = { projects: [] }
+  const initialConf = { projects: [], name: null, email: null }
 
   try {
     await fs.mkdir(gvs.projectsPath, { recursive: true })
@@ -285,7 +290,6 @@ const openGlobalConf = async () => {
     return gvs.globalConf
   } catch (err) {
     if (err.code == 'ENOENT') {
-      console.log('Initializing global configuration')
       await writeGlobalConf(initialConf)
 
       return gvs.globalConf
@@ -325,6 +329,17 @@ const createProject = async (_event, projectInfo) => {
 
   // Start up the project if it was enabled.
   manageProjectProcesses()
+
+  return gvs.globalConf
+}
+
+// This updates the non-projects related portion of global
+// configuration.
+const updateGlobalSettings = async (_event, globalSettings) => {
+  gvs.globalConf.name = globalSettings.name
+  gvs.globalConf.email = globalSettings.email
+
+  await writeGlobalConf(gvs.globalConf)
 
   return gvs.globalConf
 }
@@ -387,6 +402,7 @@ const init = async () => {
     ipcMain.handle('request-trans-index', requestTransIndex)
     ipcMain.handle('create-project', createProject)
     ipcMain.handle('import-file', importFile)
+    ipcMain.handle('update-global-settings', updateGlobalSettings)
     ipcMain.on('set-title', handleSetTitle)
     createWindow()
 

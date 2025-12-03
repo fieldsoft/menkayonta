@@ -18,14 +18,6 @@ app.ports.requestProjectIndex.subscribe((identifier) => {
   window.electronAPI.requestProjectIndex(identifier)
 })
 
-window.electronAPI.onNewProject((ident) => {
-  app.ports.newProject.send(ident)
-})
-
-window.electronAPI.onImportOptions((filepath) => {
-  app.ports.importOptions.send(filepath)
-})
-
 window.electronAPI.onReceivedTransIndex((data) => {
   const vista = {
     project: data.identifier,
@@ -44,4 +36,23 @@ app.ports.createProject.subscribe(async (projectInfo) => {
 
 app.ports.importFile.subscribe((importOptions) => {
   window.electronAPI.importFile(importOptions)
+})
+
+app.ports.updateGlobalSettings.subscribe(async (globalSettings) => {
+  await window.electronAPI.updateGlobalSettings(globalSettings)
+  const gconfig = await window.electronAPI.requestGlobalConfig()
+  app.ports.receivedGlobalConfig.send(gconfig)
+})
+
+// The following are all triggered by application menu selection.
+window.electronAPI.onNewProject((ident) => {
+  app.ports.newProject.send(ident)
+})
+
+window.electronAPI.onImportOptions((filepath) => {
+  app.ports.importOptions.send(filepath)
+})
+
+window.electronAPI.onGlobalSettings((globalConf) => {
+  app.ports.globalSettings.send(globalConf)
 })

@@ -58,7 +58,12 @@ port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 port newProject : (String -> msg) -> Sub msg
 
 
-{-| The "Import" menu item was clicked.
+{-| The "New Project" menu item was clicked.
+-}
+port globalSettings : (E.Value -> msg) -> Sub msg
+
+
+{-| The "Import File" menu item was clicked.
 -}
 port importOptions : (String -> msg) -> Sub msg
 
@@ -71,6 +76,12 @@ port createProject : E.Value -> Cmd msg
 {-| Send ImportOptions to the backend for execution.
 -}
 port importFile : E.Value -> Cmd msg
+
+
+{-| Send the portion of the global configuration that does not include
+project configuration to the backend.
+ -}
+port updateGlobalSettings : E.Value -> Cmd msg
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -117,13 +128,35 @@ type alias VisVentanas =
 
 
 type alias GlobalConfig =
-    { projects : List ProjectInfo }
+    { projects : List ProjectInfo
+    , name : Maybe String
+    , email : Maybe String
+    }
+
+
+{-| This is the subset of global configuration that is not specific to
+a project.
+-}
+type alias GlobalSettings =
+    { name : String
+    , email : String
+    }
 
 
 type alias ProjectInfo =
     { title : String
     , identifier : String
     , enabled : Bool
+
+    --    , subscriptions : List Server
+    --    , peers : List Server
+    }
+
+
+type alias Server =
+    { url : String
+    , username : String
+    , password : String
     }
 
 
@@ -152,6 +185,8 @@ type alias Model =
     , projectSubmitted : Bool
     , importFields : Field ImportOptionsFormField
     , importSubmitted : Bool
+    , globalFields : Field GlobalSettingsFormField
+    , globalSubmitted : Bool
     }
 
 
@@ -175,6 +210,11 @@ type ImportOptionsFormField
     | ImportContent
 
 
+type GlobalSettingsFormField
+    = GlobalName
+    | GlobalEmail
+
+
 type Msg
     = NewTab Ventana
     | FocusTab TabPath
@@ -184,10 +224,12 @@ type Msg
     | ReceivedGlobalConfig E.Value
     | ReceivedProjectIndex E.Value
     | RequestProjectIndex String
-    | NewProject String
-    | ImportOptionsFile String
+    | NewProjectMenu String
+    | ImportOptionsFileMenu String
+    | GlobalSettingsMenu E.Value
     | ProjectInfoFormChange (Field.Msg ProjectInfoFormField)
     | ImportOptionsFormChange (Field.Msg ImportOptionsFormField)
+    | GlobalSettingsFormChange (Field.Msg GlobalSettingsFormField)
     | FormSubmit TabPath
 
 
@@ -200,6 +242,7 @@ type Content
     | TranslationsContent (List Translation)
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
+    | GlobalSettingsContent GlobalSettings
     | ErrorContent Error
 
 
@@ -224,6 +267,13 @@ vistas =
         , kind = "import-options"
         , identifier = "import-options"
         , content = ImportOptionsContent (ImportOptions Nothing Nothing "" "")
+        }
+      )
+    , ( "global-settings"
+      , { project = "global"
+        , kind = "global-settings"
+        , identifier = "global-settings"
+        , content = GlobalSettingsContent (GlobalSettings "" "")
         }
       )
     ]
@@ -278,6 +328,7 @@ importOptionsFields gc filesource =
                         , Field.name "filepath"
                         , Field.value (Value.string filepath)
                         ]
+
         projects =
             case gc of
                 Nothing ->
@@ -286,24 +337,44 @@ importOptionsFields gc filesource =
                 Just gconf ->
                     gconf.projects
                         |> List.map
-                           (\x -> (x.title, Value.string x.identifier))
+                            (\x -> ( x.title, Value.string x.identifier ))
     in
     Field.group []
         [ Field.select
-              [ Field.label "Target Project"
-              , Field.required True
-              , Field.identifier ImportProject
-              , Field.name "project"
-              , Field.options projects
-              ]
+            [ Field.label "Target Project"
+            , Field.required True
+            , Field.identifier ImportProject
+            , Field.name "project"
+            , Field.options projects
+            ]
         , Field.select
-              [ Field.label "Import Type"
-              , Field.required True
-              , Field.identifier ImportKind
-              , Field.name "kind"
-              , Field.stringOptions [ "Dative Form Json" ]
-              ]
+            [ Field.label "Import Type"
+            , Field.required True
+            , Field.identifier ImportKind
+            , Field.name "kind"
+            , Field.stringOptions [ "Dative Form Json" ]
+            ]
         , inputSource
+        ]
+
+
+globalSettingsFields : GlobalSettings -> Field GlobalSettingsFormField
+globalSettingsFields gs =
+    Field.group []
+        [ Field.text
+              [ Field.label "Your Name"
+              , Field.required True
+              , Field.identifier GlobalName
+              , Field.name "name"
+              , Field.value (Value.string gs.name)
+              ]
+        , Field.email
+            [ Field.label "Your Email"
+            , Field.required True
+            , Field.identifier GlobalEmail
+            , Field.name "email"
+            , Field.value (Value.string gs.email)
+            ]
         ]
 
 
@@ -331,6 +402,8 @@ init flags =
       , projectSubmitted = False
       , importFields = importOptionsFields Nothing Nothing
       , importSubmitted = False
+      , globalFields = globalSettingsFields <| GlobalSettings "" ""
+      , globalSubmitted = False
       }
     , requestGlobalConfig ()
     )
@@ -486,8 +559,22 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok gconfig ->
-                    ( { model | gconfig = Just gconfig }, Cmd.none )
+                Ok gc1 ->
+                    let
+                        nm = { model | gconfig = Just gc1 }
+                        openMenu = update (GlobalSettingsMenu gc) nm
+                        cmd =
+                            case (gc1.name, gc1.email) of
+                                (Nothing, _) ->
+                                    openMenu
+
+                                (_, Nothing) ->
+                                    openMenu
+
+                                _ ->
+                                    (nm, Cmd.none)
+                    in
+                    cmd
 
         RequestProjectIndex id ->
             ( model, requestProjectIndex id )
@@ -529,7 +616,7 @@ update msg model =
                                     update (FocusTab tp) newmodel
 
         -- Open or focus the New Project form.
-        NewProject ident ->
+        NewProjectMenu ident ->
             let
                 newmodel =
                     { model
@@ -543,9 +630,9 @@ update msg model =
 
                 Just tp ->
                     update (FocusTab tp) newmodel
-                        
+
         -- Open or focus the Import Options form with a filename.
-        ImportOptionsFile filepath ->
+        ImportOptionsFileMenu filepath ->
             let
                 newmodel =
                     { model
@@ -559,6 +646,32 @@ update msg model =
 
                 Just tp ->
                     update (FocusTab tp) newmodel
+
+        -- Open or focus the Global Settings form with updated global
+        -- configuration.
+        GlobalSettingsMenu value ->
+            case D.decodeValue globalConfigDecoder value of
+                Err _ ->
+                    ( model, Cmd.none )
+
+                Ok gf ->
+                    let
+                        gs = GlobalSettings
+                             (Maybe.withDefault "" gf.name)
+                             (Maybe.withDefault "" gf.email)
+                        newmodel =
+                            { model
+                                | gconfig = Just gf
+                                , globalFields = globalSettingsFields gs
+                                , globalSubmitted = False
+                            }
+                    in
+                    case getByVista "global-settings" model.ventanas of
+                        Nothing ->
+                            update (NewTab <| Ventana "Settings" "global-settings") newmodel
+
+                        Just tp ->
+                            update (FocusTab tp) newmodel
 
         ProjectInfoFormChange inputMsg ->
             let
@@ -584,10 +697,23 @@ update msg model =
             , Cmd.none
             )
 
+        GlobalSettingsFormChange inputMsg ->
+            let
+                ( formFields, _ ) =
+                    FParse.parseUpdate globalParser inputMsg model.globalFields
+            in
+            ( { model
+                | globalFields = formFields
+                , globalSubmitted = False
+              }
+            , Cmd.none
+            )
+
         FormSubmit tp ->
             let
-                formid = Dict.get tp model.ventanas
-                         |> Maybe.map .vista
+                formid =
+                    Dict.get tp model.ventanas
+                        |> Maybe.map .vista
             in
             case formid of
                 Just "new-project" ->
@@ -595,6 +721,9 @@ update msg model =
 
                 Just "import-options" ->
                     handleImportSubmit tp model
+
+                Just "global-settings" ->
+                    handleGlobalSubmit tp model
 
                 _ ->
                     -- This shouldn't be possible
@@ -607,16 +736,16 @@ handleProjectSubmit tp model =
         case FParse.parseValidate FParse.json model.projectFields of
             ( formFields, Ok jsonValue ) ->
                 ( { model
-                      | projectFields = projectFields ""
-                      , projectSubmitted = True
+                    | projectFields = projectFields ""
+                    , projectSubmitted = True
                   }
                 , createProject jsonValue
                 )
 
             ( formFields, Err _ ) ->
                 ( { model
-                      | projectFields = formFields
-                      , projectSubmitted = False
+                    | projectFields = formFields
+                    , projectSubmitted = False
                   }
                 , Cmd.none
                 )
@@ -631,16 +760,41 @@ handleImportSubmit tp model =
         case FParse.parseValidate FParse.json model.importFields of
             ( formFields, Ok jsonValue ) ->
                 ( { model
-                      | importFields = importOptionsFields model.gconfig Nothing
-                      , importSubmitted = True
+                    | importFields = importOptionsFields model.gconfig Nothing
+                    , importSubmitted = True
                   }
                 , importFile jsonValue
                 )
 
             ( formFields, Err _ ) ->
                 ( { model
-                      | importFields = formFields
-                      , importSubmitted = False
+                    | importFields = formFields
+                    , importSubmitted = False
+                  }
+                , Cmd.none
+                )
+
+    else
+        update (CloseTab tp) model
+
+
+handleGlobalSubmit : TabPath -> Model -> ( Model, Cmd Msg )
+handleGlobalSubmit tp model =
+    if model.globalSubmitted /= True then
+        case FParse.parseValidate FParse.json model.globalFields of
+            ( formFields, Ok jsonValue ) ->
+                ( { model
+                    | error = Just (Error <| E.encode 2 jsonValue)
+                      , globalFields = globalSettingsFields <| GlobalSettings "" ""
+                      , globalSubmitted = True
+                  }
+                , updateGlobalSettings jsonValue
+                )
+
+            ( formFields, Err _ ) ->
+                ( { model
+                    | globalFields = formFields
+                    , globalSubmitted = False
                   }
                 , Cmd.none
                 )
@@ -740,8 +894,9 @@ subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedProjectIndex ReceivedProjectIndex
-        , newProject NewProject
-        , importOptions ImportOptionsFile
+        , newProject NewProjectMenu
+        , importOptions ImportOptionsFileMenu
+        , globalSettings GlobalSettingsMenu
         ]
 
 
@@ -914,6 +1069,19 @@ viewVista model tp vista =
                 [ Field.toHtml ImportOptionsFormChange model.importFields
                 , Html.button [ Event.onClick (FormSubmit tp) ]
                     [ Html.text "Save" ]
+                ]
+
+        GlobalSettingsContent gs ->
+            Html.div []
+                [ Html.p []
+                      [ Html.text "You must set a name and email address before continuing to use the application."
+                      ]
+                , Html.form [ Event.onSubmit (FormSubmit tp) ]
+                    [ Field.toHtml
+                          GlobalSettingsFormChange model.globalFields
+                    , Html.button [ Event.onClick (FormSubmit tp) ]
+                        [ Html.text "Save" ]
+                    ]
                 ]
 
         TranslationContent trn ->
@@ -1205,8 +1373,10 @@ contentDecoder kind =
 
 globalConfigDecoder : D.Decoder GlobalConfig
 globalConfigDecoder =
-    D.map GlobalConfig
-        (D.field "projects" (D.list projectInfoDecoder))
+    D.map3 GlobalConfig
+        (D.field "projects" <| D.list projectInfoDecoder)
+        (D.field "name" <| D.nullable D.string)
+        (D.field "email" <| D.nullable D.string)
 
 
 projectInfoDecoder : D.Decoder ProjectInfo
@@ -1245,6 +1415,13 @@ importParser =
         (FParse.field ImportContent (FParse.maybe FParse.string))
         (FParse.field ImportKind FParse.string)
         (FParse.field ImportProject FParse.string)
+
+
+globalParser : FParse.Parser GlobalSettingsFormField GlobalSettings
+globalParser =
+    FParse.map2 GlobalSettings
+        (FParse.field GlobalName FParse.string)
+        (FParse.field GlobalEmail FParse.email)
 
 
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
