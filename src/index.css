@@ -85,10 +85,6 @@ h2 button {
     grid-template-columns: 8fr 1fr 1fr;
 }
 
-.side {
-    background-color: var(--pico-secondary-background);
-}
-
 details {
     cursor: default;
 }

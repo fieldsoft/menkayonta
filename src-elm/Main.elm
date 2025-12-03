@@ -147,9 +147,7 @@ type alias ProjectInfo =
     { title : String
     , identifier : String
     , enabled : Bool
-
-    --    , subscriptions : List Server
-    --    , peers : List Server
+    , url : Maybe String
     }
 
 
@@ -201,6 +199,7 @@ type ProjectInfoFormField
     = ProjectIdentifier
     | ProjectTitle
     | ProjectEnabled
+    | ProjectUrl
 
 
 type ImportOptionsFormField
@@ -230,6 +229,7 @@ type Msg
     | ProjectInfoFormChange (Field.Msg ProjectInfoFormField)
     | ImportOptionsFormChange (Field.Msg ImportOptionsFormField)
     | GlobalSettingsFormChange (Field.Msg GlobalSettingsFormField)
+    | ProjectSettingsEdit ProjectInfo
     | FormSubmit TabPath
 
 
@@ -259,7 +259,7 @@ vistas =
       , { project = "global"
         , kind = "new-project"
         , identifier = "new-project"
-        , content = ProjectInfoContent (ProjectInfo "" "" True)
+        , content = ProjectInfoContent (ProjectInfo "" "" True Nothing)
         }
       )
     , ( "import-options"
@@ -280,8 +280,8 @@ vistas =
         |> Dict.fromList
 
 
-projectFields : String -> Field ProjectInfoFormField
-projectFields ident =
+projectFields : ProjectInfo -> Field ProjectInfoFormField
+projectFields pi =
     Field.group []
         [ Field.text
             [ Field.label "Identifier"
@@ -289,20 +289,29 @@ projectFields ident =
             , Field.disabled True
             , Field.identifier ProjectIdentifier
             , Field.name "identifier"
-            , Field.value (Value.string ident)
+            , Field.value (Value.string pi.identifier)
             ]
         , Field.text
             [ Field.label "Title"
             , Field.required True
             , Field.identifier ProjectTitle
             , Field.name "title"
+            , Field.value (Value.string pi.title)
             ]
         , Field.checkbox
             [ Field.label "Enable"
             , Field.identifier ProjectEnabled
             , Field.name "enabled"
-            , Field.value (Value.bool True)
+            , Field.hint "Be careful! Disabling a project will hide it."
+            , Field.value (Value.bool pi.enabled)
             ]
+        , Field.text
+              [ Field.label "Url"
+              , Field.required False
+              , Field.identifier ProjectUrl
+              , Field.name "url"
+              , Field.value (Value.string <| Maybe.withDefault "" pi.url)
+              ]
         ]
 
 
@@ -398,7 +407,7 @@ init flags =
       , vistas = vistas
       , windowHeight = flags.windowHeight
       , error = Nothing
-      , projectFields = projectFields ""
+      , projectFields = projectFields <| ProjectInfo "" "" True Nothing
       , projectSubmitted = False
       , importFields = importOptionsFields Nothing Nothing
       , importSubmitted = False
@@ -620,7 +629,7 @@ update msg model =
             let
                 newmodel =
                     { model
-                        | projectFields = projectFields ident
+                        | projectFields = projectFields <| ProjectInfo "" ident True Nothing
                         , projectSubmitted = False
                     }
             in
@@ -630,6 +639,9 @@ update msg model =
 
                 Just tp ->
                     update (FocusTab tp) newmodel
+
+        ProjectSettingsEdit _ ->
+            ( model, Cmd.none )
 
         -- Open or focus the Import Options form with a filename.
         ImportOptionsFileMenu filepath ->
@@ -736,7 +748,7 @@ handleProjectSubmit tp model =
         case FParse.parseValidate FParse.json model.projectFields of
             ( formFields, Ok jsonValue ) ->
                 ( { model
-                    | projectFields = projectFields ""
+                    | projectFields = projectFields <| ProjectInfo "" "" True Nothing
                     , projectSubmitted = True
                   }
                 , createProject jsonValue
@@ -1040,18 +1052,27 @@ viewProjects model =
 
         Just gconfig ->
             Html.ul []
-                (List.map
-                    (\p ->
-                        Html.li []
-                            [ Html.a
-                                [ Attr.href ("#" ++ p.identifier)
-                                , Event.onClick (RequestProjectIndex p.identifier)
-                                ]
-                                [ Html.text p.title ]
-                            ]
-                    )
-                    gconfig.projects
-                )
+                <| List.map viewProject gconfig.projects
+                
+
+
+viewProject : ProjectInfo -> Html.Html Msg
+viewProject p =
+    Html.li []
+        [ Html.a [ Attr.href "#"
+                 , Event.onClick <| RequestProjectIndex p.identifier
+                 ]
+              [ Html.text p.title ]
+        , Html.ul []
+            [ Html.li []
+                  [ Html.a [ Attr.href "#"
+                           , Event.onClick <| ProjectSettingsEdit p
+                           , Attr.class "secondary"
+                           ]
+                        [ Html.text "Settings" ]
+                  ]
+            ]
+        ]
 
 
 viewVista : Model -> TabPath -> Vista -> Html Msg
@@ -1074,7 +1095,7 @@ viewVista model tp vista =
         GlobalSettingsContent gs ->
             Html.div []
                 [ Html.p []
-                      [ Html.text "You must set a name and email address before continuing to use the application."
+                      [ Html.text "Name and email address required."
                       ]
                 , Html.form [ Event.onSubmit (FormSubmit tp) ]
                     [ Field.toHtml
@@ -1381,10 +1402,24 @@ globalConfigDecoder =
 
 projectInfoDecoder : D.Decoder ProjectInfo
 projectInfoDecoder =
-    D.map3 ProjectInfo
+    D.map4 ProjectInfo
         (D.field "title" D.string)
         (D.field "identifier" D.string)
         (D.field "enabled" D.bool)
+        (D.field "url" (D.nullable D.string))
+
+
+serversDecode : D.Decoder (List Server)
+serversDecode =
+    D.list serverDecode
+
+
+serverDecode : D.Decoder Server
+serverDecode =
+    D.map3 Server
+        (D.field "url" D.string)
+        (D.field "username" D.string)
+        (D.field "password" D.string)
 
 
 translationsDecoder : D.Decoder (List Translation)
@@ -1402,10 +1437,11 @@ translationDecoder =
 
 projectParser : FParse.Parser ProjectInfoFormField ProjectInfo
 projectParser =
-    FParse.map3 ProjectInfo
+    FParse.map4 ProjectInfo
         (FParse.field ProjectIdentifier FParse.string)
         (FParse.field ProjectTitle FParse.string)
         (FParse.field ProjectEnabled FParse.bool)
+        (FParse.field ProjectUrl (FParse.maybe FParse.string))
 
 
 importParser : FParse.Parser ImportOptionsFormField ImportOptions
