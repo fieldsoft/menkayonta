@@ -92,7 +92,12 @@ already commonly referred to object or concepts such as "window" or
 type alias Ventana =
     { title : String
     , vista : String
+    , params : VentanaParams
     }
+
+
+type alias VentanaParams =
+    { length : Int }
 
 
 {-| All of the viewable content associated with a tab.
@@ -629,7 +634,7 @@ update msg model =
                             case getByVista v.identifier model.ventanas of
                                 Nothing ->
                                     update
-                                        (NewTab <| Ventana title v.identifier)
+                                        (NewTab <| Ventana title v.identifier (VentanaParams 1000))
                                         newmodel
 
                                 Just tp ->
@@ -645,7 +650,7 @@ update msg model =
             in
             case getByVista "new-project" model.ventanas of
                 Nothing ->
-                    update (NewTab <| Ventana "New Project" "new-project") newmodel
+                    update (NewTab <| Ventana "New Project" "new-project" (VentanaParams 0)) newmodel
 
                 Just tp ->
                     update (FocusTab tp) newmodel
@@ -670,7 +675,7 @@ update msg model =
             in
             case getByVista "import-options" model.ventanas of
                 Nothing ->
-                    update (NewTab <| Ventana "Import Options" "import-options") newmodel
+                    update (NewTab <| Ventana "Import Options" "import-options" (VentanaParams 0)) newmodel
 
                 Just tp ->
                     update (FocusTab tp) newmodel
@@ -706,7 +711,7 @@ update msg model =
                     in
                     case getByVista "global-settings" model.ventanas of
                         Nothing ->
-                            update (NewTab <| Ventana "Settings" "global-settings") newmodel
+                            update (NewTab <| Ventana "Settings" "global-settings" (VentanaParams 0)) newmodel
 
                         Just tp ->
                             update (FocusTab tp) newmodel
@@ -1057,6 +1062,7 @@ viewTabHeader model tp =
             |> Maybe.withDefault
                 { title = "Error"
                 , vista = "Vista not found"
+                , params = VentanaParams 0
                 }
             |> .title
             |> Html.text
@@ -1167,7 +1173,13 @@ viewVista model tp vista =
             viewTranslation model trn
 
         TranslationsContent trns ->
-            Html.table [] (List.map (viewTranslation model) trns)
+            let
+                params = Dict.get tp model.ventanas
+                       |> Maybe.map .params
+                       |> Maybe.withDefault (VentanaParams 1000)
+                ts = List.take params.length trns
+            in
+            Html.table [] (List.map (viewTranslation model) ts)
 
         ErrorContent err ->
             viewError model err
