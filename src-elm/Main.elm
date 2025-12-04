@@ -230,6 +230,7 @@ type Msg
     | GlobalSettingsFormChange (Field.Msg FieldKind)
     | ProjectSettingsEdit ProjectInfo
     | FormSubmit TabPath
+    | ChangeLengthParam TabPath String
 
 
 type alias Flags =
@@ -788,6 +789,25 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+        ChangeLengthParam tp str ->
+            case String.toInt str of
+                Just i ->
+                    case Dict.get tp model.ventanas of
+                        Just ventana ->
+                            let
+                                params = ventana.params
+                                np = VentanaParams i
+                                nv = { ventana | params = np }
+                                nvs = Dict.insert tp nv model.ventanas
+                            in
+                            ( { model | ventanas = nvs }, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+                                
+                Nothing ->
+                    ( model, Cmd.none )
+
 
 handleSubmit : String -> FormData -> Model -> ( Model, Cmd Msg )
 handleSubmit ident fd model =
@@ -1178,8 +1198,19 @@ viewVista model tp vista =
                        |> Maybe.map .params
                        |> Maybe.withDefault (VentanaParams 1000)
                 ts = List.take params.length trns
+                len = String.fromInt params.length
             in
-            Html.table [] (List.map (viewTranslation model) ts)
+            Html.div []
+                [ Html.label []
+                      [ Html.text <| "Show (" ++ len ++ ")"
+                      , Html.input [ Attr.type_ "text"
+                                   , Attr.value len
+                                   , Attr.placeholder len
+                                   , Event.onInput (ChangeLengthParam tp)
+                                   ] []
+                      ]
+                , Html.table [] (List.map (viewTranslation model) ts)
+                ]
 
         ErrorContent err ->
             viewError model err
