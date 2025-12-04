@@ -151,13 +151,6 @@ type alias ProjectInfo =
     }
 
 
-type alias Server =
-    { url : String
-    , username : String
-    , password : String
-    }
-
-
 type alias ImportOptions =
     { filepath : Maybe String
     , content : Maybe String
@@ -169,6 +162,12 @@ type alias ImportOptions =
 type alias Error =
     { message : String }
 
+      
+type alias FormData =
+    { fields : Field FieldKind
+    , submitted : Bool
+    }
+
 
 type alias Model =
     { gconfig : Maybe GlobalConfig
@@ -179,12 +178,13 @@ type alias Model =
     , vistas : Vistas
     , windowHeight : Int
     , error : Maybe Error
-    , projectFields : Field ProjectInfoFormField
-    , projectSubmitted : Bool
-    , importFields : Field ImportOptionsFormField
-    , importSubmitted : Bool
-    , globalFields : Field GlobalSettingsFormField
-    , globalSubmitted : Bool
+    , forms : Dict String FormData
+    -- , projectFields : Field ProjectInfoFormField
+    -- , projectSubmitted : Bool
+    -- , importFields : Field ImportOptionsFormField
+    -- , importSubmitted : Bool
+    -- , globalFields : Field GlobalSettingsFormField
+    -- , globalSubmitted : Bool
     }
 
 
@@ -195,22 +195,16 @@ type Direction
     | Down
 
 
-type ProjectInfoFormField
+type FieldKind
     = ProjectIdentifier
     | ProjectTitle
     | ProjectEnabled
     | ProjectUrl
-
-
-type ImportOptionsFormField
-    = ImportKind
+    | ImportKind
     | ImportProject
     | ImportFile
     | ImportContent
-
-
-type GlobalSettingsFormField
-    = GlobalName
+    | GlobalName
     | GlobalEmail
 
 
@@ -226,9 +220,9 @@ type Msg
     | NewProjectMenu String
     | ImportOptionsFileMenu String
     | GlobalSettingsMenu E.Value
-    | ProjectInfoFormChange (Field.Msg ProjectInfoFormField)
-    | ImportOptionsFormChange (Field.Msg ImportOptionsFormField)
-    | GlobalSettingsFormChange (Field.Msg GlobalSettingsFormField)
+    | ProjectInfoFormChange (Field.Msg FieldKind)
+    | ImportOptionsFormChange (Field.Msg FieldKind)
+    | GlobalSettingsFormChange (Field.Msg FieldKind)
     | ProjectSettingsEdit ProjectInfo
     | FormSubmit TabPath
 
@@ -280,7 +274,7 @@ vistas =
         |> Dict.fromList
 
 
-projectFields : ProjectInfo -> Field ProjectInfoFormField
+projectFields : ProjectInfo -> Field FieldKind
 projectFields pi =
     Field.group []
         [ Field.text
@@ -315,7 +309,7 @@ projectFields pi =
         ]
 
 
-importOptionsFields : Maybe GlobalConfig -> Maybe String -> Field ImportOptionsFormField
+importOptionsFields : Maybe GlobalConfig -> Maybe String -> Field FieldKind
 importOptionsFields gc filesource =
     let
         inputSource =
@@ -367,7 +361,7 @@ importOptionsFields gc filesource =
         ]
 
 
-globalSettingsFields : GlobalSettings -> Field GlobalSettingsFormField
+globalSettingsFields : GlobalSettings -> Field FieldKind
 globalSettingsFields gs =
     Field.group []
         [ Field.text
@@ -399,6 +393,28 @@ main =
 
 init : Flags -> ( Model, Cmd Msg )
 init flags =
+    let
+        newProjectForm =
+            { fields = projectFields <| ProjectInfo "" "" True Nothing
+            , submitted = False
+            }
+            
+        importForm =
+            { fields = importOptionsFields Nothing Nothing
+            , submitted = False
+            }
+            
+        globalForm =
+            { fields = globalSettingsFields <| GlobalSettings "" ""
+            , submitted = False
+            }
+
+        forms = Dict.empty
+                |> Dict.insert "new-project" newProjectForm
+                |> Dict.insert "import-options" importForm
+                |> Dict.insert "global-settings" globalForm
+        
+    in
     ( { gconfig = Nothing
       , counter = 0
       , ventanas = Dict.empty
@@ -407,12 +423,7 @@ init flags =
       , vistas = vistas
       , windowHeight = flags.windowHeight
       , error = Nothing
-      , projectFields = projectFields <| ProjectInfo "" "" True Nothing
-      , projectSubmitted = False
-      , importFields = importOptionsFields Nothing Nothing
-      , importSubmitted = False
-      , globalFields = globalSettingsFields <| GlobalSettings "" ""
-      , globalSubmitted = False
+      , forms = forms
       }
     , requestGlobalConfig ()
     )
@@ -627,11 +638,10 @@ update msg model =
         -- Open or focus the New Project form.
         NewProjectMenu ident ->
             let
-                newmodel =
-                    { model
-                        | projectFields = projectFields <| ProjectInfo "" ident True Nothing
-                        , projectSubmitted = False
-                    }
+                pi = ProjectInfo "" ident True Nothing
+                pif = { fields = projectFields pi, submitted = False }
+                forms = Dict.insert "new-project" pif model.forms
+                newmodel = { model | forms = forms }
             in
             case getByVista "new-project" model.ventanas of
                 Nothing ->
@@ -646,11 +656,17 @@ update msg model =
         -- Open or focus the Import Options form with a filename.
         ImportOptionsFileMenu filepath ->
             let
-                newmodel =
-                    { model
-                        | importFields = importOptionsFields model.gconfig (Just filepath)
-                        , importSubmitted = False
+                formData =
+                    { fields =
+                          importOptionsFields model.gconfig (Just filepath)
+                    , submitted =
+                        False
                     }
+
+                forms =
+                    Dict.insert "import-options" formData model.forms
+                newmodel =
+                    { model | forms = forms }
             in
             case getByVista "import-options" model.ventanas of
                 Nothing ->
@@ -668,14 +684,24 @@ update msg model =
 
                 Ok gf ->
                     let
-                        gs = GlobalSettings
-                             (Maybe.withDefault "" gf.name)
-                             (Maybe.withDefault "" gf.email)
+                        gs =
+                            GlobalSettings
+                            (Maybe.withDefault "" gf.name)
+                            (Maybe.withDefault "" gf.email)
+                                
+                        gsForm =
+                            { fields = globalSettingsFields gs
+                            , submitted = False
+                            }
+                            
+                        forms =
+                            Dict.insert "global-settings" gsForm
+                                model.forms
+                                
                         newmodel =
                             { model
                                 | gconfig = Just gf
-                                , globalFields = globalSettingsFields gs
-                                , globalSubmitted = False
+                                , forms = forms
                             }
                     in
                     case getByVista "global-settings" model.ventanas of
@@ -685,134 +711,151 @@ update msg model =
                         Just tp ->
                             update (FocusTab tp) newmodel
 
-        ProjectInfoFormChange inputMsg ->
-            let
-                ( formFields, _ ) =
-                    FParse.parseUpdate projectParser inputMsg model.projectFields
-            in
-            ( { model
-                | projectFields = formFields
-                , projectSubmitted = False
-              }
-            , Cmd.none
-            )
+        ProjectInfoFormChange mesg ->
+            case Dict.get "new-project" model.forms of
+                Just fd ->
+                    let
+                        ( fields, _ ) =
+                            FParse.parseUpdate projectParser mesg fd.fields
+                        pif = { fd | fields = fields }
+                        forms = Dict.insert "new-project" pif model.forms
+                    in
+                    ( { model | forms = forms }, Cmd.none )
 
-        ImportOptionsFormChange inputMsg ->
-            let
-                ( formFields, _ ) =
-                    FParse.parseUpdate importParser inputMsg model.importFields
-            in
-            ( { model
-                | importFields = formFields
-                , importSubmitted = False
-              }
-            , Cmd.none
-            )
+                Nothing ->
+                    ( model, Cmd.none )
 
-        GlobalSettingsFormChange inputMsg ->
-            let
-                ( formFields, _ ) =
-                    FParse.parseUpdate globalParser inputMsg model.globalFields
-            in
-            ( { model
-                | globalFields = formFields
-                , globalSubmitted = False
-              }
-            , Cmd.none
-            )
+        ImportOptionsFormChange mesg ->
+            case Dict.get "import-options" model.forms of
+                Just fd ->
+                    let
+                        ( fields, _ ) =
+                            FParse.parseUpdate importParser mesg fd.fields
+                        ipf = { fd | fields = fields }
+                        forms =
+                            Dict.insert "import-options" ipf model.forms
+                    in
+                    ( { model | forms = forms }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+                        
+        GlobalSettingsFormChange mesg ->
+            case Dict.get "global-settings" model.forms of
+                Just fd ->
+                    let
+                        ( fields, _ ) =
+                            FParse.parseUpdate globalParser mesg fd.fields
+                        gsf = { fd | fields = fields }
+                        forms =
+                            Dict.insert "global-settings" gsf model.forms
+                    in
+                    ( { model | forms = forms }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+                         
 
         FormSubmit tp ->
             let
                 formid =
-                    Dict.get tp model.ventanas
-                        |> Maybe.map .vista
+                    Dict.get tp model.ventanas |> Maybe.map .vista
             in
             case formid of
-                Just "new-project" ->
-                    handleProjectSubmit tp model
+                Just ident ->
+                    case Dict.get ident model.forms of
+                        Nothing ->
+                            ( model, Cmd.none )
 
-                Just "import-options" ->
-                    handleImportSubmit tp model
+                        Just fd ->
+                            if fd.submitted then
+                                -- The form was already
+                                -- submitted. Just close the tab.
+                                ( closeTab tp model, Cmd.none )
 
-                Just "global-settings" ->
-                    handleGlobalSubmit tp model
+                            else
+                                let
+                                    ( nm, cmd ) =
+                                        handleSubmit ident fd model
+                                in
+                                ( closeTab tp model, cmd )
 
-                _ ->
-                    -- This shouldn't be possible
+                Nothing ->
                     ( model, Cmd.none )
 
 
-handleProjectSubmit : TabPath -> Model -> ( Model, Cmd Msg )
-handleProjectSubmit tp model =
-    if model.projectSubmitted /= True then
-        case FParse.parseValidate FParse.json model.projectFields of
-            ( formFields, Ok jsonValue ) ->
-                ( { model
-                    | projectFields = projectFields <| ProjectInfo "" "" True Nothing
-                    , projectSubmitted = True
-                  }
-                , createProject jsonValue
-                )
+handleSubmit : String -> FormData -> Model -> ( Model, Cmd Msg )
+handleSubmit ident fd model =
+    case ident of
+        "new-project" ->
+            handleProjectSubmit fd model
+                
+        "import-options" ->
+            handleImportSubmit fd model
+                        
+        "global-settings" ->
+            handleGlobalSubmit fd model
+                                
+        _ ->
+            -- This shouldn't be possible
+            ( model, Cmd.none )
+                                        
+                                        
+handleProjectSubmit : FormData -> Model -> ( Model, Cmd Msg )
+handleProjectSubmit fd model =
+    case FParse.parseValidate FParse.json fd.fields of
+        ( _, Ok jsonValue ) ->
+            let
+                pi = ProjectInfo "" "" True Nothing
+                pif = { fd | fields = projectFields pi }
+                forms = Dict.insert "new-project" pif model.forms
+            in
+            ( { model | forms = forms }, createProject jsonValue )
 
-            ( formFields, Err _ ) ->
-                ( { model
-                    | projectFields = formFields
-                    , projectSubmitted = False
-                  }
-                , Cmd.none
-                )
-
-    else
-        update (CloseTab tp) model
-
-
-handleImportSubmit : TabPath -> Model -> ( Model, Cmd Msg )
-handleImportSubmit tp model =
-    if model.importSubmitted /= True then
-        case FParse.parseValidate FParse.json model.importFields of
-            ( formFields, Ok jsonValue ) ->
-                ( { model
-                    | importFields = importOptionsFields model.gconfig Nothing
-                    , importSubmitted = True
-                  }
-                , importFile jsonValue
-                )
-
-            ( formFields, Err _ ) ->
-                ( { model
-                    | importFields = formFields
-                    , importSubmitted = False
-                  }
-                , Cmd.none
-                )
-
-    else
-        update (CloseTab tp) model
+        ( formFields, Err _ ) ->
+            let
+                pif = { fd | submitted = False }
+                forms = Dict.insert "new-project" pif model.forms
+            in
+            ( { model | forms = forms }, Cmd.none )
 
 
-handleGlobalSubmit : TabPath -> Model -> ( Model, Cmd Msg )
-handleGlobalSubmit tp model =
-    if model.globalSubmitted /= True then
-        case FParse.parseValidate FParse.json model.globalFields of
-            ( formFields, Ok jsonValue ) ->
-                ( { model
-                    | error = Just (Error <| E.encode 2 jsonValue)
-                      , globalFields = globalSettingsFields <| GlobalSettings "" ""
-                      , globalSubmitted = True
-                  }
-                , updateGlobalSettings jsonValue
-                )
+handleImportSubmit : FormData -> Model -> ( Model, Cmd Msg )
+handleImportSubmit fd model =
+    case FParse.parseValidate FParse.json fd.fields of
+        ( _, Ok jsonValue ) ->
+            let
+                ipf = importOptionsFields model.gconfig Nothing
+                ipff = { fd | fields = ipf }
+                forms = Dict.insert "import-options" ipff model.forms
+            in
+            ( { model | forms = forms }, importFile jsonValue )
 
-            ( formFields, Err _ ) ->
-                ( { model
-                    | globalFields = formFields
-                    , globalSubmitted = False
-                  }
-                , Cmd.none
-                )
+        ( _, Err _ ) ->
+            let
+                ipff = { fd | submitted = False }
+                forms = Dict.insert "import-options" ipff model.forms
+            in
+            ( { model | forms = forms }, Cmd.none )
 
-    else
-        update (CloseTab tp) model
+
+handleGlobalSubmit : FormData -> Model -> ( Model, Cmd Msg )
+handleGlobalSubmit fd model =
+    case FParse.parseValidate FParse.json fd.fields of
+        ( _, Ok jsonValue ) ->
+            let
+                gs = GlobalSettings "" ""
+                gsf = { fd | fields = globalSettingsFields gs }
+                forms = Dict.insert "global-settings" gsf model.forms
+            in
+            ( { model | forms = forms }, updateGlobalSettings jsonValue )
+
+        ( _, Err _ ) ->
+            let
+                gsf = { fd | submitted = False }
+                forms = Dict.insert "global-settings" gsf model.forms
+            in
+            ( { model | forms = forms }, Cmd.none )
 
 
 {-| insertTabPath, newTabPath, and createNecessary are all helpers for
@@ -1079,31 +1122,46 @@ viewVista : Model -> TabPath -> Vista -> Html Msg
 viewVista model tp vista =
     case vista.content of
         ProjectInfoContent pi ->
-            Html.form [ Event.onSubmit (FormSubmit tp) ]
-                [ Field.toHtml ProjectInfoFormChange model.projectFields
-                , Html.button [ Event.onClick (FormSubmit tp) ]
-                    [ Html.text "Save" ]
-                ]
+            case Dict.get "new-project" model.forms of
+                Just f ->
+                    Html.form [ Event.onSubmit (FormSubmit tp) ]
+                        [ Field.toHtml ProjectInfoFormChange f.fields
+                        , Html.button [ Event.onClick (FormSubmit tp) ]
+                            [ Html.text "Save" ]
+                        ]
+
+                Nothing ->
+                    Html.text "No such form."
 
         ImportOptionsContent io ->
-            Html.form [ Event.onSubmit (FormSubmit tp) ]
-                [ Field.toHtml ImportOptionsFormChange model.importFields
-                , Html.button [ Event.onClick (FormSubmit tp) ]
-                    [ Html.text "Save" ]
-                ]
+            case Dict.get "import-options" model.forms of
+                Just f ->
+                    Html.form [ Event.onSubmit (FormSubmit tp) ]
+                        [ Field.toHtml ImportOptionsFormChange f.fields
+                        , Html.button [ Event.onClick (FormSubmit tp) ]
+                            [ Html.text "Save" ]
+                        ]
+
+                Nothing ->
+                    Html.text "No such form."
 
         GlobalSettingsContent gs ->
-            Html.div []
-                [ Html.p []
-                      [ Html.text "Name and email address required."
-                      ]
-                , Html.form [ Event.onSubmit (FormSubmit tp) ]
-                    [ Field.toHtml
-                          GlobalSettingsFormChange model.globalFields
-                    , Html.button [ Event.onClick (FormSubmit tp) ]
-                        [ Html.text "Save" ]
-                    ]
-                ]
+            case Dict.get "global-settings" model.forms of
+                Just f ->
+                    Html.div []
+                        [ Html.p []
+                              [ Html.text
+                                    "Name and email address required."
+                              ]
+                        , Html.form [ Event.onSubmit (FormSubmit tp) ]
+                            [ Field.toHtml GlobalSettingsFormChange f.fields
+                            , Html.button [ Event.onClick (FormSubmit tp) ]
+                                [ Html.text "Save" ]
+                            ]
+                        ]
+
+                Nothing ->
+                    Html.text "No such form."
 
         TranslationContent trn ->
             viewTranslation model trn
@@ -1409,19 +1467,6 @@ projectInfoDecoder =
         (D.field "url" (D.nullable D.string))
 
 
-serversDecode : D.Decoder (List Server)
-serversDecode =
-    D.list serverDecode
-
-
-serverDecode : D.Decoder Server
-serverDecode =
-    D.map3 Server
-        (D.field "url" D.string)
-        (D.field "username" D.string)
-        (D.field "password" D.string)
-
-
 translationsDecoder : D.Decoder (List Translation)
 translationsDecoder =
     D.list translationDecoder
@@ -1435,7 +1480,7 @@ translationDecoder =
         (D.field "id" D.string)
 
 
-projectParser : FParse.Parser ProjectInfoFormField ProjectInfo
+projectParser : FParse.Parser FieldKind ProjectInfo
 projectParser =
     FParse.map4 ProjectInfo
         (FParse.field ProjectIdentifier FParse.string)
@@ -1444,7 +1489,7 @@ projectParser =
         (FParse.field ProjectUrl (FParse.maybe FParse.string))
 
 
-importParser : FParse.Parser ImportOptionsFormField ImportOptions
+importParser : FParse.Parser FieldKind ImportOptions
 importParser =
     FParse.map4 ImportOptions
         (FParse.field ImportFile (FParse.maybe FParse.string))
@@ -1453,7 +1498,7 @@ importParser =
         (FParse.field ImportProject FParse.string)
 
 
-globalParser : FParse.Parser GlobalSettingsFormField GlobalSettings
+globalParser : FParse.Parser FieldKind GlobalSettings
 globalParser =
     FParse.map2 GlobalSettings
         (FParse.field GlobalName FParse.string)
