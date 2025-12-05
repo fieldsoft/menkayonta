@@ -73,6 +73,11 @@ port importOptions : (String -> msg) -> Sub msg
 port createProject : E.Value -> Cmd msg
 
 
+{-| Send ProjectInfo to the backend for update.
+-}
+port updateProject : E.Value -> Cmd msg
+
+
 {-| Send ImportOptions to the backend for execution.
 -}
 port importFile : E.Value -> Cmd msg
@@ -184,13 +189,6 @@ type alias Model =
     , windowHeight : Int
     , error : Maybe Error
     , forms : Dict String FormData
-
-    -- , projectFields : Field ProjectInfoFormField
-    -- , projectSubmitted : Bool
-    -- , importFields : Field ImportOptionsFormField
-    -- , importSubmitted : Bool
-    -- , globalFields : Field GlobalSettingsFormField
-    -- , globalSubmitted : Bool
     }
 
 
@@ -226,7 +224,7 @@ type Msg
     | NewProjectMenu String
     | ImportOptionsFileMenu String
     | GlobalSettingsMenu E.Value
-    | ProjectInfoFormChange (Field.Msg FieldKind)
+    | ProjectInfoFormChange TabPath (Field.Msg FieldKind)
     | ImportOptionsFormChange (Field.Msg FieldKind)
     | GlobalSettingsFormChange (Field.Msg FieldKind)
     | ProjectSettingsEdit ProjectInfo
@@ -254,8 +252,11 @@ type alias Translation =
     }
 
 
-vistas : Dict String Vista
-vistas =
+{-| These are not specific to any project and are kept around, even
+when not in use.
+-}
+globalVistas : Dict String Vista
+globalVistas =
     [ ( "new-project"
       , { project = "global"
         , kind = "new-project"
@@ -427,7 +428,7 @@ init flags =
       , ventanas = Dict.empty
       , focused = Nothing
       , visVentanas = Dict.empty
-      , vistas = vistas
+      , vistas = globalVistas
       , windowHeight = flags.windowHeight
       , error = Nothing
       , forms = forms
@@ -640,7 +641,7 @@ update msg model =
                             case getByVista v.identifier model.ventanas of
                                 Nothing ->
                                     update
-                                        (NewTab <| Ventana title v.identifier (VentanaParams 1000))
+                                        (NewTab <| Ventana title v.identifier (VentanaParams 100))
                                         newmodel
 
                                 Just tp ->
@@ -658,18 +659,60 @@ update msg model =
                 forms =
                     Dict.insert "new-project" pif model.forms
 
+                newVentana =
+                    Ventana "New Project" "new-project" (VentanaParams 0)
+
                 newmodel =
                     { model | forms = forms }
             in
             case getByVista "new-project" model.ventanas of
                 Nothing ->
-                    update (NewTab <| Ventana "New Project" "new-project" (VentanaParams 0)) newmodel
+                    update (NewTab newVentana) newmodel
 
                 Just tp ->
                     update (FocusTab tp) newmodel
 
-        ProjectSettingsEdit _ ->
-            ( model, Cmd.none )
+        ProjectSettingsEdit pi ->
+            let
+                piid =
+                    "edit-project::" ++ pi.identifier
+
+                pif =
+                    { fields = projectFields pi, submitted = False }
+
+                tabtitle =
+                    pi.title ++ " Settings"
+
+                newVentana =
+                    Ventana tabtitle piid (VentanaParams 0)
+
+                newVista =
+                    { project = pi.identifier
+                    , kind = "edit-project"
+                    , identifier = piid
+                    , content = ProjectInfoContent pi
+                    }
+
+                vistas =
+                    Dict.insert piid newVista model.vistas
+
+                forms =
+                    case Dict.get piid model.forms of
+                        Nothing ->
+                            Dict.insert piid pif model.forms
+
+                        _ ->
+                            model.forms
+
+                newmodel =
+                    { model | forms = forms, vistas = vistas }
+            in
+            case getByVista piid model.ventanas of
+                Nothing ->
+                    update (NewTab newVentana) newmodel
+
+                Just tp ->
+                    update (FocusTab tp) newmodel
 
         -- Open or focus the Import Options form with a filename.
         ImportOptionsFileMenu filepath ->
@@ -731,8 +774,14 @@ update msg model =
                         Just tp ->
                             update (FocusTab tp) newmodel
 
-        ProjectInfoFormChange mesg ->
-            case Dict.get "new-project" model.forms of
+        ProjectInfoFormChange tp mesg ->
+            let
+                ident =
+                    Dict.get tp model.ventanas
+                        |> Maybe.map .vista
+                        |> Maybe.withDefault "bad-identifier"
+            in
+            case Dict.get ident model.forms of
                 Just fd ->
                     let
                         ( fields, _ ) =
@@ -742,7 +791,7 @@ update msg model =
                             { fd | fields = fields }
 
                         forms =
-                            Dict.insert "new-project" pif model.forms
+                            Dict.insert ident pif model.forms
                     in
                     ( { model | forms = forms }, Cmd.none )
 
@@ -804,8 +853,11 @@ update msg model =
 
                             else
                                 let
+                                    divid =
+                                        String.split "::" ident
+
                                     ( nm, cmd ) =
-                                        handleSubmit ident fd model
+                                        handleSubmit divid fd model
                                 in
                                 ( closeTab tp model, cmd )
 
@@ -839,38 +891,50 @@ update msg model =
                     ( model, Cmd.none )
 
 
-handleSubmit : String -> FormData -> Model -> ( Model, Cmd Msg )
+handleSubmit : List String -> FormData -> Model -> ( Model, Cmd Msg )
 handleSubmit ident fd model =
+    let
+        strIdent =
+            String.join "::" ident
+    in
     case ident of
-        "new-project" ->
-            handleProjectSubmit fd model
+        "new-project" :: _ ->
+            handleProjectSubmit strIdent fd model
 
-        "import-options" ->
+        "import-options" :: _ ->
             handleImportSubmit fd model
 
-        "global-settings" ->
+        "global-settings" :: _ ->
             handleGlobalSubmit fd model
+
+        "edit-project" :: _ ->
+            handleProjectSubmit strIdent fd model
 
         _ ->
             -- This shouldn't be possible
             ( model, Cmd.none )
 
 
-handleProjectSubmit : FormData -> Model -> ( Model, Cmd Msg )
-handleProjectSubmit fd model =
+handleProjectSubmit : String -> FormData -> Model -> ( Model, Cmd Msg )
+handleProjectSubmit ident fd model =
     case FParse.parseValidate FParse.json fd.fields of
         ( _, Ok jsonValue ) ->
             let
-                pi =
-                    ProjectInfo "" "" True Nothing
-
-                pif =
-                    { fd | fields = projectFields pi }
-
                 forms =
-                    Dict.insert "new-project" pif model.forms
+                    Dict.remove ident model.forms
+
+                ( vistas, command ) =
+                    if ident == "new-project" then
+                        ( model.vistas, createProject jsonValue )
+
+                    else
+                        ( Dict.remove ident model.vistas
+                        , updateProject jsonValue
+                        )
             in
-            ( { model | forms = forms }, createProject jsonValue )
+            ( { model | forms = forms, vistas = vistas }
+            , command
+            )
 
         ( formFields, Err _ ) ->
             let
@@ -878,7 +942,7 @@ handleProjectSubmit fd model =
                     { fd | submitted = False }
 
                 forms =
-                    Dict.insert "new-project" pif model.forms
+                    Dict.insert ident pif model.forms
             in
             ( { model | forms = forms }, Cmd.none )
 
@@ -1203,10 +1267,10 @@ viewVista : Model -> TabPath -> Vista -> Html Msg
 viewVista model tp vista =
     case vista.content of
         ProjectInfoContent pi ->
-            case Dict.get "new-project" model.forms of
+            case Dict.get vista.identifier model.forms of
                 Just f ->
                     Html.form [ Event.onSubmit (FormSubmit tp) ]
-                        [ Field.toHtml ProjectInfoFormChange f.fields
+                        [ Field.toHtml (ProjectInfoFormChange tp) f.fields
                         , Html.button [ Event.onClick (FormSubmit tp) ]
                             [ Html.text "Save" ]
                         ]
@@ -1252,7 +1316,7 @@ viewVista model tp vista =
                 params =
                     Dict.get tp model.ventanas
                         |> Maybe.map .params
-                        |> Maybe.withDefault (VentanaParams 1000)
+                        |> Maybe.withDefault (VentanaParams 100)
 
                 ts =
                     List.take params.length trns

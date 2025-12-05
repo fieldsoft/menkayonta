@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('request-trans-index', identifier),
   createProject: (projectInfo) =>
     ipcRenderer.invoke('create-project', projectInfo),
+  updateProject: (projectInfo) =>
+    ipcRenderer.invoke('update-project', projectInfo),
   importFile: (importOptions) =>
     ipcRenderer.invoke('import-file', importOptions),
   updateGlobalSettings: (globalSettings) =>

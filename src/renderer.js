@@ -34,6 +34,11 @@ app.ports.createProject.subscribe(async (projectInfo) => {
   app.ports.receivedGlobalConfig.send(gconfig)
 })
 
+app.ports.updateProject.subscribe(async (projectInfo) => {
+  const gconfig = await window.electronAPI.updateProject(projectInfo)
+  app.ports.receivedGlobalConfig.send(gconfig)
+})
+
 app.ports.importFile.subscribe((importOptions) => {
   window.electronAPI.importFile(importOptions)
 })

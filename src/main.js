@@ -334,6 +334,37 @@ const createProject = async (_event, projectInfo) => {
   return gvs.globalConf
 }
 
+const updateProject = async (_event, projectInfo) => {
+  const equalsCurrent = (p) => p.identifier === projectInfo.identifier
+
+  await readGlobalConf()
+
+  const curr = gvs.globalConf.projects.findIndex(equalsCurrent)
+
+  console.log(curr)
+
+  if (!isNaN(curr)) {
+    gvs.globalConf.projects[curr] = projectInfo
+  }
+
+  await writeGlobalConf(gvs.globalConf)
+
+  if (gvs.active[projectInfo.identifier]) {
+    try {
+      gvs.active[projectInfo.identifier].kill()
+    } catch (e) {
+      console.log(e.message)
+    }
+
+    delete gvs.active[projectInfo.identifier]
+  }
+
+  // Start up the project if it was enabled.
+  manageProjectProcesses()
+
+  return gvs.globalConf
+}
+
 // This updates the non-projects related portion of global
 // configuration.
 const updateGlobalSettings = async (_event, globalSettings) => {
@@ -402,6 +433,7 @@ const init = async () => {
     ipcMain.handle('request-gconfig', openGlobalConf)
     ipcMain.handle('request-trans-index', requestTransIndex)
     ipcMain.handle('create-project', createProject)
+    ipcMain.handle('update-project', updateProject)
     ipcMain.handle('import-file', importFile)
     ipcMain.handle('update-global-settings', updateGlobalSettings)
     ipcMain.on('set-title', handleSetTitle)

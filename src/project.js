@@ -52,14 +52,12 @@ const startSync = async (url) => {
         info(info)
       })
       .on('paused', (err) => {
-        info('paused')
-        info(err)
+        // currently do nothing
       })
       .on('active', () => {
-        info('replication resumed')
+        // currently do nothing
       })
       .on('denied', (err) => {
-        info('denied')
         info(err)
       })
       .on('complete', (info) => {
