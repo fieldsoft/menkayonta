@@ -89,19 +89,19 @@ project configuration to the backend.
 port updateGlobalSettings : E.Value -> Cmd msg
 
 
-port moveLeft : (String -> msg) -> Sub msg
+port moveLeft : (() -> msg) -> Sub msg
 
 
-port moveRight : (String -> msg) -> Sub msg
+port moveRight : (() -> msg) -> Sub msg
 
 
-port moveUp : (String -> msg) -> Sub msg
+port moveUp : (() -> msg) -> Sub msg
 
 
-port moveDown : (String -> msg) -> Sub msg
+port moveDown : (() -> msg) -> Sub msg
 
 
-port closeTab_ : (String -> msg) -> Sub msg
+port closeTab_ : (() -> msg) -> Sub msg
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -232,7 +232,6 @@ type Msg
     | FocusTab TabPath
     | CloseTab TabPath
     | Move Direction
-    | FocusMove Direction (Maybe TabPath)
     | SetWindowTitle String
     | ReceivedGlobalConfig E.Value
     | ReceivedProjectIndex E.Value
@@ -511,21 +510,6 @@ update msg model =
                                 )
                 in
                 ( newmodel, Cmd.none )
-
-        FocusMove dir mtp ->
-            case mtp of
-                Just tp ->
-                    let
-                        ( fm, fc ) =
-                            update (FocusTab tp) model
-
-                        ( mm, mc ) =
-                            update (Move dir) fm
-                    in
-                    ( mm, fc )
-
-                Nothing ->
-                    ( model, Cmd.none)
                     
         FocusTab tp ->
             let
@@ -1121,18 +1105,18 @@ createNecessary dir tp ( cols, rows ) =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedProjectIndex ReceivedProjectIndex
         , newProject NewProjectMenu
         , importOptions ImportOptionsFileMenu
         , globalSettings GlobalSettingsMenu
-        , moveLeft (\s -> FocusMove Left (sToTp s))
-        , moveRight (\s -> FocusMove Right (sToTp s))
-        , moveUp (\s -> FocusMove Up (sToTp s))
-        , moveDown (\s -> FocusMove Down (sToTp s))
-        , closeTab_ (\tp -> CloseTab (Maybe.withDefault (tabpath -1 -1 -1) <| sToTp tp))
+        , moveLeft (\_ -> Move Left)
+        , moveRight (\_ -> Move Right)
+        , moveUp (\_ -> Move Up)
+        , moveDown (\_ -> Move Down)
+        , closeTab_ (\_ -> CloseTab (Maybe.withDefault (tabpath -1 -1 -1) <| model.focused))
         ]
 
 

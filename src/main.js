@@ -193,6 +193,31 @@ const createWindow = () => {
         { role: 'togglefullscreen' },
       ],
     },
+    {
+      label: 'Tab',
+      submenu: [
+        {
+          click: () => mainWindow.webContents.send('move-left'),
+          label: 'Move Left',
+        },
+        {
+          click: () => mainWindow.webContents.send('move-right'),
+          label: 'Move Right',
+        },
+        {
+          click: () => mainWindow.webContents.send('move-up'),
+          label: 'Move Up',
+        },
+        {
+          click: () => mainWindow.webContents.send('move-down'),
+          label: 'Move Down',
+        },
+        {
+          click: () => mainWindow.webContents.send('close-tab'),
+          label: 'Close Tab',
+        },
+      ],
+    },
     // { role: 'windowMenu' }
     {
       label: 'Window',
@@ -218,30 +243,6 @@ const createWindow = () => {
     { role: 'selectall' },
   ])
 
-  const tabMenu = (tabpath) =>
-    Menu.buildFromTemplate([
-      {
-        click: () => mainWindow.webContents.send('move-left', tabpath),
-        label: 'Move Left',
-      },
-      {
-        click: () => mainWindow.webContents.send('move-right', tabpath),
-        label: 'Move Right',
-      },
-      {
-        click: () => mainWindow.webContents.send('move-up', tabpath),
-        label: 'Move Up',
-      },
-      {
-        click: () => mainWindow.webContents.send('move-down', tabpath),
-        label: 'Move Down',
-      },
-      {
-        click: () => mainWindow.webContents.send('close-tab', tabpath),
-        label: 'Close Tab',
-      },
-    ])
-
   const menu = Menu.buildFromTemplate(mainMenu)
   Menu.setApplicationMenu(menu)
   mainWindow.setMenu(menu)
@@ -250,13 +251,6 @@ const createWindow = () => {
     if (params.formControlType !== 'submit-button') {
       contextMenu.popup()
     }
-  })
-
-  ipcMain.on('tab-menu', (event, tabpath) => {
-    console.log(tabpath)
-    tabMenu(tabpath).popup({
-      window: BrowserWindow.fromWebContents(event.sender),
-    })
   })
 
   gvs.webContents = mainWindow.webContents

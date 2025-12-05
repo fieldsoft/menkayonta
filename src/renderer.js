@@ -63,23 +63,22 @@ window.electronAPI.onGlobalSettings((globalConf) => {
 })
 
 // The following are triggered by tab-only context menu selection.
-window.electronAPI.onMoveLeft((tabpath) => {
-  app.ports.moveLeft.send(tabpath)
+window.electronAPI.onMoveLeft(() => {
+  app.ports.moveLeft.send(null)
 })
 
-window.electronAPI.onMoveRight((tabpath) => {
-  app.ports.moveRight.send(tabpath)
+window.electronAPI.onMoveRight(() => {
+  app.ports.moveRight.send(null)
 })
 
-window.electronAPI.onMoveUp((tabpath) => {
-  console.log('move up' + tabpath)
-  app.ports.moveUp.send(tabpath)
+window.electronAPI.onMoveUp(() => {
+  app.ports.moveUp.send(null)
 })
 
-window.electronAPI.onMoveDown((tabpath) => {
-  app.ports.moveDown.send(tabpath)
+window.electronAPI.onMoveDown(() => {
+  app.ports.moveDown.send(null)
 })
 
-window.electronAPI.onCloseTab((tabpath) => {
-  app.ports.closeTab_.send(tabpath)
+window.electronAPI.onCloseTab(() => {
+  app.ports.closeTab_.send(null)
 })
