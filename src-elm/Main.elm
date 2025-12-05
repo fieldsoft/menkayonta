@@ -89,6 +89,21 @@ project configuration to the backend.
 port updateGlobalSettings : E.Value -> Cmd msg
 
 
+port moveLeft : (String -> msg) -> Sub msg
+
+
+port moveRight : (String -> msg) -> Sub msg
+
+
+port moveUp : (String -> msg) -> Sub msg
+
+
+port moveDown : (String -> msg) -> Sub msg
+
+
+port closeTab_ : (String -> msg) -> Sub msg
+
+
 {-| A Ventana supplies the title and a referrence to a Vista, which is
 an identifier for some viewable content. I use Spanish when there are
 already commonly referred to object or concepts such as "window" or
@@ -217,6 +232,7 @@ type Msg
     | FocusTab TabPath
     | CloseTab TabPath
     | Move Direction
+    | FocusMove Direction (Maybe TabPath)
     | SetWindowTitle String
     | ReceivedGlobalConfig E.Value
     | ReceivedProjectIndex E.Value
@@ -472,10 +488,10 @@ update msg model =
                        the unlikely case of a bad state, the input model
                        is returned. Perhaps an error would be better.
                     -}
-                    newmodel =
+                    ( newmodel, tp ) =
                         case model.focused of
                             Nothing ->
-                                model
+                                ( model, tabpath -1 -1 -1 )
 
                             Just tp1 ->
                                 let
@@ -485,15 +501,32 @@ update msg model =
                                     tp2 =
                                         tabpath column row c
                                 in
-                                { model
-                                    | counter = c + 1
-                                    , ventanas = Dict.insert tp2 ventana model.ventanas
-                                    , visVentanas = visInsert tp2 model.visVentanas
-                                    , focused = Just tp2
-                                }
+                                ( { model
+                                      | counter = c + 1
+                                      , ventanas = Dict.insert tp2 ventana model.ventanas
+                                      , visVentanas = visInsert tp2 model.visVentanas
+                                      , focused = Just tp2
+                                  }
+                                , tp2
+                                )
                 in
                 ( newmodel, Cmd.none )
 
+        FocusMove dir mtp ->
+            case mtp of
+                Just tp ->
+                    let
+                        ( fm, fc ) =
+                            update (FocusTab tp) model
+
+                        ( mm, mc ) =
+                            update (Move dir) fm
+                    in
+                    ( mm, fc )
+
+                Nothing ->
+                    ( model, Cmd.none)
+                    
         FocusTab tp ->
             let
                 title =
@@ -1095,6 +1128,11 @@ subscriptions _ =
         , newProject NewProjectMenu
         , importOptions ImportOptionsFileMenu
         , globalSettings GlobalSettingsMenu
+        , moveLeft (\s -> FocusMove Left (sToTp s))
+        , moveRight (\s -> FocusMove Right (sToTp s))
+        , moveUp (\s -> FocusMove Up (sToTp s))
+        , moveDown (\s -> FocusMove Down (sToTp s))
+        , closeTab_ (\tp -> CloseTab (Maybe.withDefault (tabpath -1 -1 -1) <| sToTp tp))
         ]
 
 
@@ -1114,29 +1152,9 @@ view model =
     Html.main_ [ Attr.class "grid-with-side" ]
         [ Html.aside [ Attr.class "side" ]
             [ Html.nav []
-                [ Html.a
-                    [ Attr.href "#"
-                    , Event.onClick <| Move Left
-                    ]
-                    [ Html.text " Left " ]
-                , Html.a
-                    [ Attr.href "#"
-                    , Event.onClick <| Move Down
-                    ]
-                    [ Html.text " Down " ]
-                , Html.a
-                    [ Attr.href "#"
-                    , Event.onClick <| Move Right
-                    ]
-                    [ Html.text " Right " ]
-                , Html.a
-                    [ Attr.href "#"
-                    , Event.onClick <| Move Up
-                    ]
-                    [ Html.text " Up " ]
-                , Html.h2 [] [ Html.text "Projects" ]
-                , viewProjects model
-                ]
+                  [ Html.h2 [] [ Html.text "Projects" ]
+                  , viewProjects model
+                  ]
             ]
         , if Dict.isEmpty tabtree then
             Html.div
@@ -1183,28 +1201,32 @@ viewRow model col rowcount row tabs =
 
 viewTabHeader : Model -> TabPath -> Html.Html Msg
 viewTabHeader model tp =
+    let
+        ventana =
+            Dict.get tp model.ventanas
+                |> Maybe.withDefault
+                    { title = "Error"
+                    , vista = "Vista not found"
+                    , params = VentanaParams 0
+                    }
+
+        focused =
+            Just tp == model.focused
+
+        visible =
+            visMember tp model.visVentanas
+    in
     Html.button
         [ Event.onClick (FocusTab tp)
-        , Attr.class
-            (if Just tp == model.focused then
-                "focused"
-
-             else if visMember tp model.visVentanas then
-                "secondary"
-
-             else
-                "secondary outline"
-            )
+        , Attr.id (tpToS tp)
+        , Attr.classList
+            [ ( "focused", focused )
+            , ( "secondary", not focused && visible )
+            , ( "secondary outline", not focused && not visible )
+            , ( "tabnav", True )
+            ]
         ]
-        [ Dict.get tp model.ventanas
-            |> Maybe.withDefault
-                { title = "Error"
-                , vista = "Vista not found"
-                , params = VentanaParams 0
-                }
-            |> .title
-            |> Html.text
-        ]
+        [ Html.text ventana.title ]
 
 
 viewTab : Model -> TabPath -> Html.Html Msg
@@ -1215,14 +1237,7 @@ viewTab model tp =
             , ( "hidden", not (visMember tp model.visVentanas) )
             ]
         ]
-        [ Html.div [ Attr.class "tab-inner-header" ]
-            [ Html.a
-                [ Attr.href "#"
-                , Event.onClick (CloseTab tp)
-                ]
-                [ Html.text "Close" ]
-            ]
-        , Html.div []
+        [ Html.div []
             [ Dict.get tp model.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.vistas)
                 |> Maybe.map (viewVista model tp)
@@ -1517,6 +1532,31 @@ treeifyTabs tps =
 tabpath : Int -> Int -> Int -> TabPath
 tabpath c r t =
     ( c, ( r, t ) )
+
+
+tpToS : TabPath -> String
+tpToS ( c, ( r, t ) ) =
+    [ c, r, t ]
+        |> List.map String.fromInt
+        |> String.join ","
+
+           
+listToTp : List Int -> Maybe TabPath
+listToTp is =
+    case is of
+        c :: r :: t :: [] ->
+            Just (tabpath c r t)
+
+        _ ->
+            Nothing
+
+
+sToTp : String -> Maybe TabPath
+sToTp s =
+    String.split "," s
+        |> List.map String.toInt
+        |> ME.values
+        |> listToTp
 
 
 tcolumn : TabPath -> Int
