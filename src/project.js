@@ -34,11 +34,58 @@ const error = (e) => {
   })
 }
 
-const handleInit = ({ identifier: i, projectsPath: pp }) => {
+const startSync = async (url) => {
+  gvs.remotedb = new PouchDB(url, { adapter: 'http' })
+
+  try {
+    const dbinfo = await gvs.remotedb.info()
+
+    info(JSON.stringify(dbinfo))
+
+    gvs.sync = gvs.db
+      .sync(gvs.remotedb, {
+        live: true,
+        retry: true,
+      })
+      .on('change', (info) => {
+        info('change')
+        info(info)
+      })
+      .on('paused', (err) => {
+        info('paused')
+        info(err)
+      })
+      .on('active', () => {
+        info('replication resumed')
+      })
+      .on('denied', (err) => {
+        info('denied')
+        info(err)
+      })
+      .on('complete', (info) => {
+        info('complete')
+        info(info)
+      })
+      .on('error', (err) => {
+        info('sync err')
+        info(err)
+      })
+
+    info(JSON.stringify(gvs.sync))
+  } catch (e) {
+    info(e.message)
+  }
+}
+
+const handleInit = ({ identifier: i, projectsPath: pp, url: url }) => {
   gvs.identifier = i
   gvs.path = path.join(pp, i)
   gvs.dbPath = path.join(gvs.path, `${i}.sql`)
   gvs.db = new PouchDB(gvs.dbPath, { adapter: 'websql' })
+
+  if (url) {
+    startSync(url)
+  }
 
   // Create or update the design documents
   gvs.design_docs.forEach(async (dd) => {

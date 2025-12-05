@@ -71,6 +71,7 @@ const manageProjectProcesses = () => {
         command: 'init',
         identifier: p.identifier,
         projectsPath: gvs.projectsPath,
+        url: p.url,
       }
 
       gvs.active[p.identifier] = utilityProcess.fork(
