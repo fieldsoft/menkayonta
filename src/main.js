@@ -213,6 +213,10 @@ const createWindow = () => {
           label: 'Move Down',
         },
         {
+          click: () => mainWindow.webContents.send('clone-tab'),
+          label: 'Clone Tab',
+        },
+        {
           click: () => mainWindow.webContents.send('close-tab'),
           label: 'Close Tab',
         },
