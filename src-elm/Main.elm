@@ -17,6 +17,7 @@ import Maybe.Extra as ME
 import Result
 import Set exposing (Set)
 import Task
+import SharedTypes as ST
 
 
 {-| The window title changes depending on the focused tab. This sends
@@ -30,6 +31,9 @@ translations, which serves as an entry point to a project. This port
 requests the index.
 -}
 port requestProjectIndex : String -> Cmd msg
+
+
+port requestInterlinearIndex : String -> Cmd msg
 
 
 {-| The global configuration lists projects and whether they are
@@ -52,6 +56,9 @@ indicates that the index was received.
 -}
 port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
+
+port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
+                            
 
 {-| The "New Project" menu item was clicked.
 -}
@@ -239,7 +246,9 @@ type Msg
     | SetWindowTitle String
     | ReceivedGlobalConfig E.Value
     | ReceivedProjectIndex E.Value
+    | ReceivedInterlinearIndex E.Value
     | RequestProjectIndex String
+    | RequestInterlinearIndex String
     | NewProjectMenu String
     | ImportOptionsFileMenu String
     | GlobalSettingsMenu E.Value
@@ -258,6 +267,7 @@ type alias Flags =
 type Content
     = TranslationContent Translation
     | TranslationsContent (List Translation)
+    | InterlinearsContent (List ST.Interlinear)
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
     | GlobalSettingsContent GlobalSettings
@@ -650,7 +660,46 @@ update msg model =
         RequestProjectIndex id ->
             ( model, requestProjectIndex id )
 
+        RequestInterlinearIndex id ->
+            ( model, requestInterlinearIndex id )
+
         ReceivedProjectIndex pi ->
+            case D.decodeValue vistaDecoder pi of
+                Err err ->
+                    ( { model | error = Just (Error (D.errorToString err)) }
+                    , Cmd.none
+                    )
+
+                Ok v ->
+                    case getProjectTitle v.project model of
+                        Nothing ->
+                            ( { model
+                                | error = Just (Error "No such project")
+                              }
+                            , Cmd.none
+                            )
+
+                        Just title ->
+                            let
+                                newmodel =
+                                    { model
+                                        | vistas =
+                                            Dict.insert
+                                                v.identifier
+                                                v
+                                                model.vistas
+                                    }
+                            in
+                            case getByVista v.identifier model.ventanas of
+                                Nothing ->
+                                    update
+                                        (NewTab <| Ventana title v.identifier (VentanaParams 100))
+                                        newmodel
+
+                                Just tp ->
+                                    update (FocusTab tp) newmodel
+
+        ReceivedInterlinearIndex pi ->
             case D.decodeValue vistaDecoder pi of
                 Err err ->
                     ( { model | error = Just (Error (D.errorToString err)) }
@@ -1131,6 +1180,7 @@ subscriptions model =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedProjectIndex ReceivedProjectIndex
+        , receivedInterlinearIndex ReceivedInterlinearIndex
         , newProject NewProjectMenu
         , importOptions ImportOptionsFileMenu
         , globalSettings GlobalSettingsMenu
@@ -1285,6 +1335,14 @@ viewProject p =
                     ]
                     [ Html.text "Settings" ]
                 ]
+            , Html.li []
+                [ Html.a
+                      [ Attr.href "#"
+                      , Event.onClick <| RequestInterlinearIndex p.identifier
+                      , Attr.class "secondary"
+                      ]
+                      [ Html.text "Gloss Index" ]
+                ]    
             ]
         ]
 
@@ -1370,6 +1428,33 @@ viewVista model tp vista =
                 , Html.table [] (List.map (viewTranslation model) ts)
                 ]
 
+        InterlinearsContent ints ->
+            let
+                params =
+                    Dict.get tp model.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.withDefault (VentanaParams 100)
+
+                is =
+                    List.take params.length ints
+
+                len =
+                    String.fromInt params.length
+            in
+            Html.div []
+                [ Html.label []
+                    [ Html.text <| "Show (" ++ len ++ ")"
+                    , Html.input
+                        [ Attr.type_ "text"
+                        , Attr.value len
+                        , Attr.placeholder len
+                        , Event.onInput (ChangeLengthParam tp)
+                        ]
+                        []
+                    ]
+                , Html.table [] (List.map (viewInterlinearItem model) is)
+                ]
+
         ErrorContent err ->
             viewError model err
 
@@ -1377,6 +1462,14 @@ viewVista model tp vista =
 viewError : Model -> Error -> Html Msg
 viewError _ err =
     Html.text err.message
+
+
+viewInterlinearItem : Model -> ST.Interlinear -> Html.Html Msg
+viewInterlinearItem model int =
+    Html.tr []
+        [ Html.td [] [ Html.text int.transcription ]
+        , Html.td [] [ Html.text int.transcription ]
+        ]
 
 
 viewTranslation : Model -> Translation -> Html.Html Msg
@@ -1695,6 +1788,11 @@ contentDecoder kind =
         "new-project" ->
             D.map ProjectInfoContent
                 (D.field "content" projectInfoDecoder)
+
+
+        "all-interlinears" ->
+            D.map InterlinearsContent
+                (D.field "content" (D.list ST.interlinearDecoder))
 
         _ ->
             D.fail ("Unsupported content kind " ++ kind)

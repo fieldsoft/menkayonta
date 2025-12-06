@@ -18,6 +18,10 @@ app.ports.requestProjectIndex.subscribe((identifier) => {
   window.electronAPI.requestProjectIndex(identifier)
 })
 
+app.ports.requestInterlinearIndex.subscribe((identifier) => {
+  window.electronAPI.requestInterlinearIndex(identifier)
+})
+
 window.electronAPI.onReceivedTransIndex((data) => {
   const vista = {
     project: data.identifier,
@@ -27,6 +31,17 @@ window.electronAPI.onReceivedTransIndex((data) => {
   }
 
   app.ports.receivedProjectIndex.send(vista)
+})
+
+window.electronAPI.onReceivedInterlinearIndex((data) => {
+  const vista = {
+    project: data.identifier,
+    kind: 'all-interlinears',
+    identifier: `all-interlinears::${data.identifier}`,
+    content: data.payload.rows.map((elem) => elem.doc),
+  }
+
+  app.ports.receivedInterlinearIndex.send(vista)
 })
 
 app.ports.createProject.subscribe(async (projectInfo) => {

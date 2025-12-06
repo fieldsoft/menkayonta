@@ -116,6 +116,24 @@ const handleBulk = async (docs) => {
   }
 }
 
+const handleRequestInterlinears = async () => {
+  try {
+    const interlinearIndex = await gvs.db.allDocs({
+      include_docs: true,
+      startkey: 'interlinear/',
+      endkey: 'interlinear/\ufff0',
+    })
+
+    process.parentPort.postMessage({
+      command: 'received-interlinear-index',
+      payload: interlinearIndex,
+      identifier: gvs.identifier,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleRequestTranslations = async () => {
   try {
     const transIndex = await gvs.db.query('trans/simple')
@@ -144,6 +162,11 @@ const handleMainMessage = (m) => {
 
     case 'request-trans-index': {
       handleRequestTranslations()
+      break
+    }
+
+    case 'request-interlinear-index': {
+      handleRequestInterlinears()
       break
     }
     default: {
