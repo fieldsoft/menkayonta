@@ -664,76 +664,10 @@ update msg model =
             ( model, requestInterlinearIndex id )
 
         ReceivedProjectIndex pi ->
-            case D.decodeValue vistaDecoder pi of
-                Err err ->
-                    ( { model | error = Just (Error (D.errorToString err)) }
-                    , Cmd.none
-                    )
+            handleReceivedVista pi "Index" model
 
-                Ok v ->
-                    case getProjectTitle v.project model of
-                        Nothing ->
-                            ( { model
-                                | error = Just (Error "No such project")
-                              }
-                            , Cmd.none
-                            )
-
-                        Just title ->
-                            let
-                                newmodel =
-                                    { model
-                                        | vistas =
-                                            Dict.insert
-                                                v.identifier
-                                                v
-                                                model.vistas
-                                    }
-                            in
-                            case getByVista v.identifier model.ventanas of
-                                Nothing ->
-                                    update
-                                        (NewTab <| Ventana title v.identifier (VentanaParams 100))
-                                        newmodel
-
-                                Just tp ->
-                                    update (FocusTab tp) newmodel
-
-        ReceivedInterlinearIndex pi ->
-            case D.decodeValue vistaDecoder pi of
-                Err err ->
-                    ( { model | error = Just (Error (D.errorToString err)) }
-                    , Cmd.none
-                    )
-
-                Ok v ->
-                    case getProjectTitle v.project model of
-                        Nothing ->
-                            ( { model
-                                | error = Just (Error "No such project")
-                              }
-                            , Cmd.none
-                            )
-
-                        Just title ->
-                            let
-                                newmodel =
-                                    { model
-                                        | vistas =
-                                            Dict.insert
-                                                v.identifier
-                                                v
-                                                model.vistas
-                                    }
-                            in
-                            case getByVista v.identifier model.ventanas of
-                                Nothing ->
-                                    update
-                                        (NewTab <| Ventana title v.identifier (VentanaParams 100))
-                                        newmodel
-
-                                Just tp ->
-                                    update (FocusTab tp) newmodel
+        ReceivedInterlinearIndex ii ->
+            handleReceivedVista ii "Glosses" model
 
         -- Open or focus the New Project form.
         NewProjectMenu ident ->
@@ -977,6 +911,44 @@ update msg model =
 
                 Nothing ->
                     ( model, Cmd.none )
+
+
+handleReceivedVista : E.Value -> String -> Model -> ( Model, Cmd Msg )
+handleReceivedVista val st model =
+    case D.decodeValue vistaDecoder val of
+        Err err ->
+            ( { model | error = Just (Error (D.errorToString err)) }
+            , Cmd.none
+            )
+
+        Ok v ->
+            case getProjectTitle v.project model of
+                Nothing ->
+                    ( { model | error = Just (Error "No such project") }
+                    , Cmd.none
+                    )
+
+                Just title ->
+                    let
+                        vistas =
+                            Dict.insert v.identifier v model.vistas
+                            
+                        newmodel =
+                            { model | vistas = vistas }
+                    in
+                    case getByVista v.identifier model.ventanas of
+                        Nothing ->
+                            let
+                                vt =
+                                    { title = title ++ ": " ++ st
+                                    , vista = v.identifier
+                                    , params = VentanaParams 20
+                                    }
+                            in
+                            update (NewTab vt) newmodel
+
+                        Just tp ->
+                            update (FocusTab tp) newmodel
 
 
 handleSubmit : List String -> FormData -> Model -> ( Model, Cmd Msg )
