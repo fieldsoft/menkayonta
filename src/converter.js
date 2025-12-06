@@ -79,6 +79,6 @@ app.ports.sendBulkDocs.subscribe((job) => {
       bulkDocs: job.payload,
     })
   } else {
-    error(Error('Likely bad parse on import.'))
+    error(Error(job.payload))
   }
 })

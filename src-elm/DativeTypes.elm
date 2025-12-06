@@ -1,19 +1,60 @@
 module DativeTypes exposing (convert)
 
 import Json.Decode as D
+import Json.Decode.Extra as DE
 import Json.Encode as E
+import Time
 import UUID
 
 
+type alias SyntacticCategory =
+    { id : Int
+    , name : String
+    }
+
+
+syntacticCategoryDecoder : D.Decoder SyntacticCategory
+syntacticCategoryDecoder =
+    D.map2 SyntacticCategory
+        (D.field "id" D.int)
+        (D.field "name" D.string)
+
+
+type alias ElicitationMethod =
+    { id : Int
+    , name : String
+    }
+
+
+elicitationMethodDecoder : D.Decoder ElicitationMethod
+elicitationMethodDecoder =
+    D.map2 SyntacticCategory
+        (D.field "id" D.int)
+        (D.field "name" D.string)
+
+
 type alias Token =
-    List (Maybe SubToken)
+    List SubToken
+
+
+tokenDecoder : D.Decoder Token
+tokenDecoder =
+    D.list subTokenDecoder
 
 
 type alias SubToken =
-    { id : Int
-    , code1 : String
-    , code2 : String
+    { id : Maybe Int
+    , code1 : Maybe String
+    , code2 : Maybe String
     }
+
+
+subTokenDecoder : D.Decoder SubToken
+subTokenDecoder =
+    D.map3 SubToken
+        (D.maybe (D.index 0 D.int))
+        (D.maybe (D.index 1 D.string))
+        (D.maybe (D.index 2 D.string))
 
 
 type alias Person =
@@ -24,12 +65,30 @@ type alias Person =
     }
 
 
+personDecoder : D.Decoder Person
+personDecoder =
+    D.map4 Person
+        (D.field "id" D.int)
+        (D.field "first_name" D.string)
+        (D.field "last_name" D.string)
+        (D.field "role" D.string)
+
+
 type alias Speaker =
     { id : Int
     , first_name : String
     , last_name : String
-    , dialect : String
+    , dialect : Maybe String
     }
+
+
+speakerDecoder : D.Decoder Speaker
+speakerDecoder =
+    D.map4 Speaker
+        (D.field "id" D.int)
+        (D.field "first_name" D.string)
+        (D.field "last_name" D.string)
+        (D.field "dialect" (D.nullable D.string))
 
 
 type alias Translation =
@@ -62,36 +121,17 @@ type alias Tag =
     }
 
 
-type alias TestForm =
-    { uuid : String
-    , transcription : String
-    , phonetic_transcription : String
-    , morpheme_break : String
-    , morpheme_gloss : String
-    , translations : List Translation
-    }
+tagDecoder : D.Decoder Tag
+tagDecoder =
+    D.map2 Tag
+        (D.field "id" D.int)
+        (D.field "name" D.string)
 
 
-testFormDecoder : D.Decoder TestForm
-testFormDecoder =
-    D.map6 TestForm
-        (D.field "UUID" D.string)
-        (D.field "transcription" D.string)
-        (D.field "phonetic_transcription" D.string)
-        (D.field "morpheme_break" D.string)
-        (D.field "morpheme_gloss" D.string)
-        (D.field "translations" <| D.list translationDecoder)
-
-
-testFormsDecoder : D.Decoder (List TestForm)
-testFormsDecoder =
-    D.list testFormDecoder
-
-
-testFormEncoder : TestForm -> E.Value
+testFormEncoder : DativeForm -> E.Value
 testFormEncoder tf =
     E.object
-        [ ( "_id", E.string ("interlinear::" ++ tf.uuid) )
+        [ ( "_id", E.string ("interlinear::" ++ UUID.toString tf.uuid) )
         , ( "version", E.int 1 )
         , ( "transcription", E.string tf.transcription )
         , ( "phonetic_transcription", E.string tf.phonetic_transcription )
@@ -101,7 +141,7 @@ testFormEncoder tf =
         ]
 
 
-testFormsEncoder : List TestForm -> E.Value
+testFormsEncoder : List DativeForm -> E.Value
 testFormsEncoder tfs =
     E.list testFormEncoder tfs
 
@@ -117,34 +157,69 @@ type alias DativeForm =
     , comments : String
     , speaker_comments : String
     , grammaticality : String
-
-    --    , date_elicited : Maybe Date
-    --    , datetime_entered : DateTime
-    --    , datetime_modified : DateTime
-    , syntactic_category_string : String
-    , morpheme_break_ids : List Token
-    , morpheme_gloss_ids : List Token
-    , break_gloss_category : String
+    , date_elicited : Maybe Time.Posix
+    , datetime_entered : Time.Posix
+    , datetime_modified : Time.Posix
+    , syntactic_category_string : Maybe String
+    , morpheme_break_ids : Maybe (List Token)
+    , morpheme_gloss_ids : Maybe (List Token)
+    , break_gloss_category : Maybe String
     , syntax : String
     , semantics : String
     , status : String
-    , elictor : Maybe Person
-    , enterer : Person
-    , modifier : Person
+    , elicitor : Maybe Person
+    , enterer : Maybe Person
+    , modifier : Maybe Person
     , verifier : Maybe Person
-    , speaker : Speaker
-    , elicitation_method : Maybe String
-    , syntactic_category : Maybe String
+    , speaker : Maybe Speaker
+    , elicitation_method : Maybe ElicitationMethod
+    , syntactic_category : Maybe SyntacticCategory
     , source : Maybe String
-    , translation : List Translation
+    , translations : List Translation
     , tags : List Tag
     , files : List String
     }
 
 
+dativeFormDecoder : D.Decoder DativeForm
+dativeFormDecoder =
+    D.succeed DativeForm
+        |> DE.andMap (D.field "id" D.int)
+        |> DE.andMap (D.field "UUID" UUID.jsonDecoder)
+        |> DE.andMap (D.field "transcription" D.string)
+        |> DE.andMap (D.field "phonetic_transcription" D.string)
+        |> DE.andMap (D.field "narrow_phonetic_transcription" D.string)
+        |> DE.andMap (D.field "morpheme_break" D.string)
+        |> DE.andMap (D.field "morpheme_gloss" D.string)
+        |> DE.andMap (D.field "comments" D.string)
+        |> DE.andMap (D.field "speaker_comments" D.string)
+        |> DE.andMap (D.field "grammaticality" D.string)
+        |> DE.andMap (D.field "date_elicited" (D.nullable DE.datetime))
+        |> DE.andMap (D.field "datetime_entered" DE.datetime)
+        |> DE.andMap (D.field "datetime_modified" DE.datetime)
+        |> DE.andMap (D.field "syntactic_category_string" (D.nullable D.string))
+        |> DE.andMap (D.field "morpheme_break_ids" (D.nullable (D.list tokenDecoder)))
+        |> DE.andMap (D.field "morpheme_gloss_ids" (D.nullable (D.list tokenDecoder)))
+        |> DE.andMap (D.field "break_gloss_category" (D.nullable D.string))
+        |> DE.andMap (D.field "syntax" D.string)
+        |> DE.andMap (D.field "semantics" D.string)
+        |> DE.andMap (D.field "status" D.string)
+        |> DE.andMap (D.field "elicitor" (D.nullable personDecoder))
+        |> DE.andMap (D.field "enterer" (D.nullable personDecoder))
+        |> DE.andMap (D.field "modifier" (D.nullable personDecoder))
+        |> DE.andMap (D.field "verifier" (D.nullable personDecoder))
+        |> DE.andMap (D.field "speaker" (D.nullable speakerDecoder))
+        |> DE.andMap (D.field "elicitation_method" (D.nullable elicitationMethodDecoder))
+        |> DE.andMap (D.field "syntactic_category" (D.nullable syntacticCategoryDecoder))
+        |> DE.andMap (D.field "source" (D.nullable D.string))
+        |> DE.andMap (D.field "translations" (D.list translationDecoder))
+        |> DE.andMap (D.field "tags" (D.list tagDecoder))
+        |> DE.andMap (D.field "files" (D.list D.string))
+
+
 convert : E.Value -> E.Value
 convert vals =
-    case D.decodeValue testFormsDecoder vals of
+    case D.decodeValue (D.list dativeFormDecoder) vals of
         Err e ->
             E.string <| D.errorToString e
 
