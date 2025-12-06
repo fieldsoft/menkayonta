@@ -135,3 +135,12 @@ div.hidden {
 .tabview {
     overflow-y: scroll;
 }
+
+.all-glosses {
+    padding: 2em;
+}
+
+.gloss-column {
+    display: inline-table;
+    padding: 0.25em;
+}

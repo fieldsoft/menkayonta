@@ -1424,7 +1424,8 @@ viewVista model tp vista =
                         ]
                         []
                     ]
-                , Html.table [] (List.map (viewInterlinearItem model) is)
+                , Html.ol [ Attr.class "all-glosses" ]
+                    (List.map (viewInterlinearItem model) is)
                 ]
 
         ErrorContent err ->
@@ -1438,11 +1439,46 @@ viewError _ err =
 
 viewInterlinearItem : Model -> ST.Interlinear -> Html.Html Msg
 viewInterlinearItem model int =
-    Html.tr []
-        [ Html.td [] [ Html.text int.transcription ]
-        , Html.td [] [ Html.text int.transcription ]
-        ]
+    let
+        srcLine =
+            if int.morpheme_break /= "" then
+                viewGlosses int.transcription int.morpheme_break int.morpheme_gloss
+            else
+                Html.p [ ] [ Html.text int.transcription ]
 
+        transLines =
+            List.map (\t -> Html.p [ ] [ Html.text t.transcription ]) int.translations
+    in
+    Html.li [] (srcLine :: transLines)
+
+
+viewGlosses : String -> String -> String -> Html.Html Msg
+viewGlosses src brk gls =
+    let
+        src_ =
+            String.split " " src
+
+        brk_ =
+            String.split " " brk
+
+        gls_ =
+            String.split " " gls
+
+        aligned =
+            LE.zip3 src_ brk_ gls_
+    in
+    List.map viewGlossTriple aligned
+        |> Html.div [ Attr.class "aligned-glosses" ]
+
+
+viewGlossTriple : ( String, String, String ) -> Html.Html Msg
+viewGlossTriple ( a,  b, c ) =
+    Html.div [ Attr.class "gloss-column" ]
+        [ Html.div [ ] [ Html.text a ]
+        , Html.div [ ] [ Html.text b ]
+        , Html.div [ ] [ Html.text c ]
+        ]
+        
 
 viewTranslation : Model -> Translation -> Html.Html Msg
 viewTranslation model dc =

@@ -1,9 +1,9 @@
 module SharedTypes exposing (..)
 
 import Json.Decode as D
+import Json.Decode.Extra as DE
 import Json.Encode as E
 import Json.Encode.Extra as EE
-import Json.Decode.Extra as DE
 import Time
 
 
@@ -13,33 +13,8 @@ type alias Named =
     }
 
 
-namedDecoder : D.Decoder Named
-namedDecoder =
-    D.map2 Named
-        (D.field "id" D.int)
-        (D.field "name" D.string)
-
-
-namedEncoder : Named -> E.Value
-namedEncoder named =
-    E.object
-        [ ( "id", E.int named.id )
-        , ( "name", E.string named.name )
-        ]
-
-
 type alias Token =
     List SubToken
-
-
-tokenDecoder : D.Decoder Token
-tokenDecoder =
-    D.list subTokenDecoder
-
-
-tokenEncoder : List SubToken -> E.Value
-tokenEncoder sts =
-    E.list subTokenEncoder sts
 
 
 type alias SubToken =
@@ -49,48 +24,12 @@ type alias SubToken =
     }
 
 
-subTokenEncoder : SubToken -> E.Value
-subTokenEncoder st =
-    E.object
-        [ ( "id", EE.maybe E.int st.id )
-        , ( "code1", EE.maybe E.string st.code1 )
-        , ( "code2", EE.maybe E.string st.code2 )
-        ]
-
-
-subTokenDecoder : D.Decoder SubToken
-subTokenDecoder =
-    D.map3 SubToken
-        ( D.field "id" (D.nullable D.int))
-        ( D.field "code1" (D.nullable D.string))
-        ( D.field "code2" (D.nullable D.string))
-
-            
 type alias Person =
     { id : Int
     , first_name : String
     , last_name : String
     , role : String
     }
-
-
-personDecoder : D.Decoder Person
-personDecoder =
-    D.map4 Person
-        (D.field "id" D.int)
-        (D.field "first_name" D.string)
-        (D.field "last_name" D.string)
-        (D.field "role" D.string)
-
-
-personEncoder : Person -> E.Value
-personEncoder person =
-    E.object
-        [ ( "id", E.int person.id )
-        , ( "first_name", E.string person.first_name )
-        , ( "last_name", E.string person.last_name )
-        , ( "role", E.string person.role )
-        ]
 
 
 type alias Speaker =
@@ -101,47 +40,11 @@ type alias Speaker =
     }
 
 
-speakerDecoder : D.Decoder Speaker
-speakerDecoder =
-    D.map4 Speaker
-        (D.field "id" D.int)
-        (D.field "first_name" D.string)
-        (D.field "last_name" D.string)
-        (D.field "dialect" (D.nullable D.string))
-
-
-speakerEncoder : Speaker -> E.Value
-speakerEncoder speaker =
-    E.object
-        [ ( "id", E.int speaker.id )
-        , ( "first_name", E.string speaker.first_name )
-        , ( "last_name", E.string speaker.last_name )
-        , ( "dialect", EE.maybe E.string speaker.dialect )
-        ]
-
-
 type alias Translation =
     { id : Int
     , transcription : String
     , grammaticality : String
     }
-
-
-translationDecoder : D.Decoder Translation
-translationDecoder =
-    D.map3 Translation
-        (D.field "id" D.int)
-        (D.field "transcription" D.string)
-        (D.field "grammaticality" D.string)
-
-
-translationEncoder : Translation -> E.Value
-translationEncoder tr =
-    E.object
-        [ ( "id", E.int tr.id )
-        , ( "transcription", E.string tr.transcription )
-        , ( "grammaticality", E.string tr.grammaticality )
-        ]
 
 
 type alias Interlinear =
@@ -178,6 +81,103 @@ type alias Interlinear =
     , tags : List Named
     , files : List String
     }
+
+
+namedDecoder : D.Decoder Named
+namedDecoder =
+    D.map2 Named
+        (D.field "id" D.int)
+        (D.field "name" D.string)
+
+
+namedEncoder : Named -> E.Value
+namedEncoder named =
+    E.object
+        [ ( "id", E.int named.id )
+        , ( "name", E.string named.name )
+        ]
+
+
+tokenDecoder : D.Decoder Token
+tokenDecoder =
+    D.list subTokenDecoder
+
+
+tokenEncoder : List SubToken -> E.Value
+tokenEncoder sts =
+    E.list subTokenEncoder sts
+
+
+subTokenEncoder : SubToken -> E.Value
+subTokenEncoder st =
+    E.object
+        [ ( "id", EE.maybe E.int st.id )
+        , ( "code1", EE.maybe E.string st.code1 )
+        , ( "code2", EE.maybe E.string st.code2 )
+        ]
+
+
+subTokenDecoder : D.Decoder SubToken
+subTokenDecoder =
+    D.map3 SubToken
+        (D.field "id" (D.nullable D.int))
+        (D.field "code1" (D.nullable D.string))
+        (D.field "code2" (D.nullable D.string))
+
+
+personDecoder : D.Decoder Person
+personDecoder =
+    D.map4 Person
+        (D.field "id" D.int)
+        (D.field "first_name" D.string)
+        (D.field "last_name" D.string)
+        (D.field "role" D.string)
+
+
+personEncoder : Person -> E.Value
+personEncoder person =
+    E.object
+        [ ( "id", E.int person.id )
+        , ( "first_name", E.string person.first_name )
+        , ( "last_name", E.string person.last_name )
+        , ( "role", E.string person.role )
+        ]
+
+
+speakerDecoder : D.Decoder Speaker
+speakerDecoder =
+    D.map4 Speaker
+        (D.field "id" D.int)
+        (D.field "first_name" D.string)
+        (D.field "last_name" D.string)
+        (D.field "dialect" (D.nullable D.string))
+
+
+speakerEncoder : Speaker -> E.Value
+speakerEncoder speaker =
+    E.object
+        [ ( "id", E.int speaker.id )
+        , ( "first_name", E.string speaker.first_name )
+        , ( "last_name", E.string speaker.last_name )
+        , ( "dialect", EE.maybe E.string speaker.dialect )
+        ]
+
+
+translationDecoder : D.Decoder Translation
+translationDecoder =
+    D.map3 Translation
+        (D.field "id" D.int)
+        (D.field "transcription" D.string)
+        (D.field "grammaticality" D.string)
+
+
+translationEncoder : Translation -> E.Value
+translationEncoder tr =
+    E.object
+        [ ( "id", E.int tr.id )
+        , ( "transcription", E.string tr.transcription )
+        , ( "grammaticality", E.string tr.grammaticality )
+        ]
 
 
 interlinearDecoder : D.Decoder Interlinear
