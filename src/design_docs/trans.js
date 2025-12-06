@@ -8,7 +8,7 @@ var trans_dd = {
   views: {
     simple: {
       map: function (doc) {
-        if (doc._id.startsWith('interlinear::') && doc._deleted !== true) {
+        if (doc._id.startsWith('interlinear/') && doc._deleted !== true) {
           if (doc.transcription && doc.translations.length > 0) {
             doc.translations.forEach(function (trad) {
               emit(doc.transcription, trad.transcription)
