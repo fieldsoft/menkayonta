@@ -16,8 +16,8 @@ import Math.Vector3 as V3
 import Maybe.Extra as ME
 import Result
 import Set exposing (Set)
-import Task
 import SharedTypes as ST
+import Task
 
 
 {-| The window title changes depending on the focused tab. This sends
@@ -58,7 +58,7 @@ port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
 
 port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
-                            
+
 
 {-| The "New Project" menu item was clicked.
 -}
@@ -127,7 +127,9 @@ type alias Ventana =
 
 
 type alias VentanaParams =
-    { length : Int }
+    { length : Int
+    , searchString : String
+    }
 
 
 {-| All of the viewable content associated with a tab.
@@ -258,6 +260,7 @@ type Msg
     | ProjectSettingsEdit ProjectInfo
     | FormSubmit TabPath
     | ChangeLengthParam TabPath String
+    | ChangeSearchParam TabPath String
 
 
 type alias Flags =
@@ -515,16 +518,16 @@ update msg model =
                                         tabpath column row c
                                 in
                                 ( { model
-                                      | counter = c + 1
-                                      , ventanas = Dict.insert tp2 ventana model.ventanas
-                                      , visVentanas = visInsert tp2 model.visVentanas
-                                      , focused = Just tp2
+                                    | counter = c + 1
+                                    , ventanas = Dict.insert tp2 ventana model.ventanas
+                                    , visVentanas = visInsert tp2 model.visVentanas
+                                    , focused = Just tp2
                                   }
                                 , tp2
                                 )
                 in
                 ( newmodel, Cmd.none )
-                    
+
         FocusTab tp ->
             let
                 title =
@@ -551,7 +554,7 @@ update msg model =
                 ventana =
                     model.focused
                         |> Maybe.andThen
-                           (\tp -> Dict.get tp model.ventanas)
+                            (\tp -> Dict.get tp model.ventanas)
             in
             case ventana of
                 Nothing ->
@@ -682,7 +685,7 @@ update msg model =
                     Dict.insert "new-project" pif model.forms
 
                 newVentana =
-                    Ventana "New Project" "new-project" (VentanaParams 0)
+                    Ventana "New Project" "new-project" (VentanaParams 0 "")
 
                 newmodel =
                     { model | forms = forms }
@@ -706,7 +709,7 @@ update msg model =
                     pi.title ++ " Settings"
 
                 newVentana =
-                    Ventana tabtitle piid (VentanaParams 0)
+                    Ventana tabtitle piid (VentanaParams 0 "")
 
                 newVista =
                     { project = pi.identifier
@@ -754,7 +757,19 @@ update msg model =
             in
             case getByVista "import-options" model.ventanas of
                 Nothing ->
-                    update (NewTab <| Ventana "Import Options" "import-options" (VentanaParams 0)) newmodel
+                    let
+                        params =
+                            { length = 0
+                            , searchString = ""
+                            }
+
+                        newVentana =
+                            { title = "Import Options"
+                            , vista = "import-options"
+                            , params = params
+                            }
+                    in
+                    update (NewTab newVentana) newmodel
 
                 Just tp ->
                     update (FocusTab tp) newmodel
@@ -791,7 +806,19 @@ update msg model =
                     in
                     case getByVista "global-settings" model.ventanas of
                         Nothing ->
-                            update (NewTab <| Ventana "Settings" "global-settings" (VentanaParams 0)) newmodel
+                            let
+                                params =
+                                    { length = 0
+                                    , searchString = ""
+                                    }
+
+                                newVentana =
+                                    { title = "Settings"
+                                    , vista = "global-settings"
+                                    , params = params
+                                    }
+                            in
+                            update (NewTab newVentana) newmodel
 
                         Just tp ->
                             update (FocusTab tp) newmodel
@@ -896,7 +923,7 @@ update msg model =
                                     ventana.params
 
                                 np =
-                                    VentanaParams i
+                                    { params | length = i }
 
                                 nv =
                                     { ventana | params = np }
@@ -908,6 +935,27 @@ update msg model =
 
                         Nothing ->
                             ( model, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ChangeSearchParam tp str ->
+            case Dict.get tp model.ventanas of
+                Just ventana ->
+                    let
+                        params =
+                            ventana.params
+
+                        np =
+                            { params | searchString = str }
+
+                        nv =
+                            { ventana | params = np }
+
+                        nvs =
+                            Dict.insert tp nv model.ventanas
+                    in
+                    ( { model | ventanas = nvs }, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -932,7 +980,7 @@ handleReceivedVista val st model =
                     let
                         vistas =
                             Dict.insert v.identifier v model.vistas
-                            
+
                         newmodel =
                             { model | vistas = vistas }
                     in
@@ -942,7 +990,7 @@ handleReceivedVista val st model =
                                 vt =
                                     { title = title ++ ": " ++ st
                                     , vista = v.identifier
-                                    , params = VentanaParams 20
+                                    , params = VentanaParams 20 ""
                                     }
                             in
                             update (NewTab vt) newmodel
@@ -1181,9 +1229,9 @@ view model =
     Html.main_ [ Attr.class "grid-with-side" ]
         [ Html.aside [ Attr.class "side" ]
             [ Html.nav []
-                  [ Html.h2 [] [ Html.text "Projects" ]
-                  , viewProjects model
-                  ]
+                [ Html.h2 [] [ Html.text "Projects" ]
+                , viewProjects model
+                ]
             ]
         , if Dict.isEmpty tabtree then
             Html.div
@@ -1236,7 +1284,7 @@ viewTabHeader model tp =
                 |> Maybe.withDefault
                     { title = "Error"
                     , vista = "Vista not found"
-                    , params = VentanaParams 0
+                    , params = VentanaParams 0 ""
                     }
 
         focused =
@@ -1266,11 +1314,11 @@ viewTab model tp =
             , ( "hidden", not (visMember tp model.visVentanas) )
             , ( "tabview", True )
             ]
-        , Attr.style "max-height" ((String.fromInt (model.windowHeight - 50)) ++ "px")
-        , Attr.style "height" ((String.fromInt (model.windowHeight - 50)) ++ "px")
+        , Attr.style "max-height" (String.fromInt (model.windowHeight - 50) ++ "px")
+        , Attr.style "height" (String.fromInt (model.windowHeight - 50) ++ "px")
         , Attr.height model.windowHeight
         ]
-        [ Html.div [ ]
+        [ Html.div []
             [ Dict.get tp model.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.vistas)
                 |> Maybe.map (viewVista model tp)
@@ -1309,12 +1357,12 @@ viewProject p =
                 ]
             , Html.li []
                 [ Html.a
-                      [ Attr.href "#"
-                      , Event.onClick <| RequestInterlinearIndex p.identifier
-                      , Attr.class "secondary"
-                      ]
-                      [ Html.text "Gloss Index" ]
-                ]    
+                    [ Attr.href "#"
+                    , Event.onClick <| RequestInterlinearIndex p.identifier
+                    , Attr.class "secondary"
+                    ]
+                    [ Html.text "Gloss Index" ]
+                ]
             ]
         ]
 
@@ -1378,10 +1426,67 @@ viewVista model tp vista =
                 params =
                     Dict.get tp model.ventanas
                         |> Maybe.map .params
-                        |> Maybe.withDefault (VentanaParams 100)
+                        |> Maybe.withDefault (VentanaParams 20 "")
+
+                ss =
+                    params.searchString
+
+                searched =
+                    List.filter
+                        (\t ->
+                            String.contains ss t.key
+                                || String.contains ss t.value
+                        )
+                        trns
 
                 ts =
-                    List.take params.length trns
+                    List.take params.length searched
+
+                len =
+                    String.fromInt params.length
+            in
+            Html.div []
+                [ Html.label []
+                    [ Html.text <| "Show (" ++ len ++ ")"
+                    , Html.input
+                        [ Attr.type_ "text"
+                        , Attr.value len
+                        , Event.onInput (ChangeLengthParam tp)
+                        ]
+                        []
+                    , Html.input
+                        [ Attr.type_ "text"
+                        , Attr.value ss
+                        , Event.onInput (ChangeSearchParam tp)
+                        ]
+                        []
+                    ]
+                , Html.table [] (List.map (viewTranslation model) ts)
+                ]
+
+        InterlinearsContent ints ->
+            let
+                params =
+                    Dict.get tp model.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.withDefault (VentanaParams 20 "")
+
+                ss =
+                    params.searchString
+
+                searched =
+                    List.filter
+                        (\i ->
+                            String.contains ss i.transcription
+                                || String.contains ss i.morpheme_gloss
+                                || List.any
+                                    (\t -> String.contains ss t.transcription)
+                                    i.translations
+                        )
+                        ints
+
+                is =
+                    List.take params.length searched
 
                 len =
                     String.fromInt params.length
@@ -1396,31 +1501,10 @@ viewVista model tp vista =
                         , Event.onInput (ChangeLengthParam tp)
                         ]
                         []
-                    ]
-                , Html.table [] (List.map (viewTranslation model) ts)
-                ]
-
-        InterlinearsContent ints ->
-            let
-                params =
-                    Dict.get tp model.ventanas
-                        |> Maybe.map .params
-                        |> Maybe.withDefault (VentanaParams 100)
-
-                is =
-                    List.take params.length ints
-
-                len =
-                    String.fromInt params.length
-            in
-            Html.div []
-                [ Html.label []
-                    [ Html.text <| "Show (" ++ len ++ ")"
                     , Html.input
                         [ Attr.type_ "text"
-                        , Attr.value len
-                        , Attr.placeholder len
-                        , Event.onInput (ChangeLengthParam tp)
+                        , Attr.value ss
+                        , Event.onInput (ChangeSearchParam tp)
                         ]
                         []
                     ]
@@ -1443,11 +1527,12 @@ viewInterlinearItem model int =
         srcLine =
             if int.morpheme_break /= "" then
                 viewGlosses int.transcription int.morpheme_break int.morpheme_gloss
+
             else
-                Html.p [ ] [ Html.text int.transcription ]
+                Html.p [] [ Html.text int.transcription ]
 
         transLines =
-            List.map (\t -> Html.p [ ] [ Html.text t.transcription ]) int.translations
+            List.map (\t -> Html.p [] [ Html.text t.transcription ]) int.translations
     in
     Html.li [] (srcLine :: transLines)
 
@@ -1472,13 +1557,13 @@ viewGlosses src brk gls =
 
 
 viewGlossTriple : ( String, String, String ) -> Html.Html Msg
-viewGlossTriple ( a,  b, c ) =
+viewGlossTriple ( a, b, c ) =
     Html.div [ Attr.class "gloss-column" ]
-        [ Html.div [ ] [ Html.text a ]
-        , Html.div [ ] [ Html.text b ]
-        , Html.div [ ] [ Html.text c ]
+        [ Html.div [] [ Html.text a ]
+        , Html.div [] [ Html.text b ]
+        , Html.div [] [ Html.text c ]
         ]
-        
+
 
 viewTranslation : Model -> Translation -> Html.Html Msg
 viewTranslation model dc =
@@ -1554,7 +1639,7 @@ closeTab tp model =
 
         nonglobal =
             not <| List.member vista gvistas
-                
+
         vistas =
             if nonglobal && not multiref then
                 Dict.remove vista model.vistas
@@ -1682,7 +1767,7 @@ tpToS ( c, ( r, t ) ) =
         |> List.map String.fromInt
         |> String.join ","
 
-           
+
 listToTp : List Int -> Maybe TabPath
 listToTp is =
     case is of
@@ -1796,7 +1881,6 @@ contentDecoder kind =
         "new-project" ->
             D.map ProjectInfoContent
                 (D.field "content" projectInfoDecoder)
-
 
         "all-interlinears" ->
             D.map InterlinearsContent
