@@ -1219,9 +1219,13 @@ viewTab model tp =
         [ Attr.classList
             [ ( "focused", Just tp == model.focused )
             , ( "hidden", not (visMember tp model.visVentanas) )
+            , ( "tabview", True )
             ]
+        , Attr.style "max-height" ((String.fromInt (model.windowHeight - 50)) ++ "px")
+        , Attr.style "height" ((String.fromInt (model.windowHeight - 50)) ++ "px")
+        , Attr.height model.windowHeight
         ]
-        [ Html.div []
+        [ Html.div [ ]
             [ Dict.get tp model.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.vistas)
                 |> Maybe.map (viewVista model tp)
@@ -1272,6 +1276,8 @@ viewVista model tp vista =
                         [ Field.toHtml (ProjectInfoFormChange tp) f.fields
                         , Html.button [ Event.onClick (FormSubmit tp) ]
                             [ Html.text "Save" ]
+                        , Html.button [ Event.onClick (CloseTab tp) ]
+                            [ Html.text "Cancel" ]
                         ]
 
                 Nothing ->
@@ -1284,6 +1290,8 @@ viewVista model tp vista =
                         [ Field.toHtml ImportOptionsFormChange f.fields
                         , Html.button [ Event.onClick (FormSubmit tp) ]
                             [ Html.text "Save" ]
+                        , Html.button [ Event.onClick (CloseTab tp) ]
+                            [ Html.text "Cancel" ]
                         ]
 
                 Nothing ->
@@ -1301,6 +1309,8 @@ viewVista model tp vista =
                             [ Field.toHtml GlobalSettingsFormChange f.fields
                             , Html.button [ Event.onClick (FormSubmit tp) ]
                                 [ Html.text "Save" ]
+                            , Html.button [ Event.onClick (CloseTab tp) ]
+                                [ Html.text "Cancel" ]
                             ]
                         ]
 
