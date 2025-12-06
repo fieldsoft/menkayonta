@@ -30,9 +30,6 @@ if (started) {
   app.quit()
 }
 
-// Determine whether the app is running in a development environment.
-// const isDev = process.env.APP_DEV ? process.env.APP_DEV.trim() == 'true' : false
-
 // Set the window title according to renderer events
 const handleSetTitle = (event, title) => {
   const webContents = event.sender
