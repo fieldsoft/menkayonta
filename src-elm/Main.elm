@@ -1415,6 +1415,29 @@ nearest tp model =
 closeTab : TabPath -> Model -> Model
 closeTab tp model =
     let
+        gvistas =
+            Dict.keys globalVistas
+
+        vista =
+            Dict.get tp model.ventanas
+                |> Maybe.map .vista
+                |> Maybe.withDefault "fake"
+
+        multiref =
+            getAllByVista vista model.ventanas
+                |> List.length
+                |> (<) 1
+
+        nonglobal =
+            not <| List.member vista gvistas
+                
+        vistas =
+            if nonglobal && not multiref then
+                Dict.remove vista model.vistas
+
+            else
+                model.vistas
+
         notClosed =
             visRemove tp model.visVentanas
 
@@ -1430,6 +1453,7 @@ closeTab tp model =
         | ventanas = Dict.remove tp model.ventanas
         , focused = focused
         , visVentanas = visVentanas
+        , vistas = vistas
     }
 
 
@@ -1710,16 +1734,13 @@ globalParser =
 
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
 getByVista vista ventanas =
-    let
-        keys =
-            List.filter (\( k, v ) -> v.vista == vista) (Dict.toList ventanas)
-    in
-    case keys of
-        [] ->
-            Nothing
+    List.head <| getAllByVista vista ventanas
 
-        ( key, _ ) :: _ ->
-            Just key
+
+getAllByVista : String -> Dict TabPath Ventana -> List TabPath
+getAllByVista vista ventanas =
+    List.filter (\( k, v ) -> v.vista == vista) (Dict.toList ventanas)
+        |> List.map Tuple.first
 
 
 getProjectTitle : String -> Model -> Maybe String
