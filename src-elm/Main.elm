@@ -89,19 +89,22 @@ project configuration to the backend.
 port updateGlobalSettings : E.Value -> Cmd msg
 
 
-port moveLeft : (() -> msg) -> Sub msg
+port moveLeft_ : (() -> msg) -> Sub msg
 
 
-port moveRight : (() -> msg) -> Sub msg
+port moveRight_ : (() -> msg) -> Sub msg
 
 
-port moveUp : (() -> msg) -> Sub msg
+port moveUp_ : (() -> msg) -> Sub msg
 
 
-port moveDown : (() -> msg) -> Sub msg
+port moveDown_ : (() -> msg) -> Sub msg
 
 
 port closeTab_ : (() -> msg) -> Sub msg
+
+
+port cloneTab_ : (() -> msg) -> Sub msg
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -230,7 +233,8 @@ type FieldKind
 type Msg
     = NewTab Ventana
     | FocusTab TabPath
-    | CloseTab TabPath
+    | CloseTab
+    | CloneTab
     | Move Direction
     | SetWindowTitle String
     | ReceivedGlobalConfig E.Value
@@ -525,8 +529,26 @@ update msg model =
             , setWindowTitle ("Menkayonta: " ++ title)
             )
 
-        CloseTab tp ->
+        CloseTab ->
+            let
+                tp =
+                    Maybe.withDefault (tabpath -1 -1 -1) <| model.focused
+            in
             ( closeTab tp model, Cmd.none )
+
+        CloneTab ->
+            let
+                ventana =
+                    model.focused
+                        |> Maybe.andThen
+                           (\tp -> Dict.get tp model.ventanas)
+            in
+            case ventana of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just v ->
+                    update (NewTab v) model
 
         Move dir ->
             {- If there is more than one tab, and one is focused,
@@ -1112,11 +1134,12 @@ subscriptions model =
         , newProject NewProjectMenu
         , importOptions ImportOptionsFileMenu
         , globalSettings GlobalSettingsMenu
-        , moveLeft (\_ -> Move Left)
-        , moveRight (\_ -> Move Right)
-        , moveUp (\_ -> Move Up)
-        , moveDown (\_ -> Move Down)
-        , closeTab_ (\_ -> CloseTab (Maybe.withDefault (tabpath -1 -1 -1) <| model.focused))
+        , moveLeft_ (\_ -> Move Left)
+        , moveRight_ (\_ -> Move Right)
+        , moveUp_ (\_ -> Move Up)
+        , moveDown_ (\_ -> Move Down)
+        , closeTab_ (\_ -> CloseTab)
+        , cloneTab_ (\_ -> CloneTab)
         ]
 
 
@@ -1276,7 +1299,7 @@ viewVista model tp vista =
                         [ Field.toHtml (ProjectInfoFormChange tp) f.fields
                         , Html.button [ Event.onClick (FormSubmit tp) ]
                             [ Html.text "Save" ]
-                        , Html.button [ Event.onClick (CloseTab tp) ]
+                        , Html.button [ Event.onClick CloseTab ]
                             [ Html.text "Cancel" ]
                         ]
 
@@ -1290,7 +1313,7 @@ viewVista model tp vista =
                         [ Field.toHtml ImportOptionsFormChange f.fields
                         , Html.button [ Event.onClick (FormSubmit tp) ]
                             [ Html.text "Save" ]
-                        , Html.button [ Event.onClick (CloseTab tp) ]
+                        , Html.button [ Event.onClick CloseTab ]
                             [ Html.text "Cancel" ]
                         ]
 
@@ -1309,7 +1332,7 @@ viewVista model tp vista =
                             [ Field.toHtml GlobalSettingsFormChange f.fields
                             , Html.button [ Event.onClick (FormSubmit tp) ]
                                 [ Html.text "Save" ]
-                            , Html.button [ Event.onClick (CloseTab tp) ]
+                            , Html.button [ Event.onClick CloseTab ]
                                 [ Html.text "Cancel" ]
                             ]
                         ]
