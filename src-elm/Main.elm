@@ -216,6 +216,7 @@ type alias Model =
     , windowHeight : Int
     , error : Maybe Error
     , forms : Dict String FormData
+    , loading : Set String
     }
 
 
@@ -464,6 +465,7 @@ init flags =
       , windowHeight = flags.windowHeight
       , error = Nothing
       , forms = forms
+      , loading = Set.empty
       }
     , requestGlobalConfig ()
     )
@@ -661,10 +663,14 @@ update msg model =
                     cmd
 
         RequestProjectIndex id ->
-            ( model, requestProjectIndex id )
+            ( { model | loading = Set.insert id model.loading }
+            , requestProjectIndex id
+            )
 
         RequestInterlinearIndex id ->
-            ( model, requestInterlinearIndex id )
+            ( { model | loading = Set.insert id model.loading }
+            , requestInterlinearIndex id
+            )
 
         ReceivedProjectIndex pi ->
             handleReceivedVista pi "Index" model
@@ -981,8 +987,13 @@ handleReceivedVista val st model =
                         vistas =
                             Dict.insert v.identifier v model.vistas
 
+                        loading =
+                            Set.remove v.project model.loading
+
                         newmodel =
-                            { model | vistas = vistas }
+                            { model | vistas = vistas
+                            , loading = loading
+                            }
                     in
                     case getByVista v.identifier model.ventanas of
                         Nothing ->
@@ -1220,6 +1231,11 @@ roleAttr role =
     Attr.attribute "role" role
 
 
+viewUnknownProgress : List (Html.Attribute Msg) -> List (Html.Html Msg) -> Html.Html Msg
+viewUnknownProgress attrs children =
+    Html.node "progress" attrs children
+
+
 view : Model -> Html.Html Msg
 view model =
     let
@@ -1236,7 +1252,13 @@ view model =
         , if Dict.isEmpty tabtree then
             Html.div
                 [ Attr.class "container-fluid" ]
-                [ Html.h1 [ Attr.class "title" ] [ Html.text "rrrrroar" ] ]
+                [ if Set.isEmpty model.loading then
+                      Html.h1 [ ]
+                      [ Html.text "Welcome to Your Menkayonta" ]
+
+                  else
+                      viewUnknownProgress [] []
+                ]
 
           else
             Html.div
@@ -1335,17 +1357,29 @@ viewProjects model =
 
         Just gconfig ->
             Html.ul [] <|
-                List.map viewProject gconfig.projects
+                List.map (viewProject model) gconfig.projects
 
 
-viewProject : ProjectInfo -> Html.Html Msg
-viewProject p =
+viewLoadingProject : Model -> ProjectInfo -> Html.Html Msg
+viewLoadingProject model p =
+    Html.span [ Attr.attribute "aria-busy"
+                    ( if Set.member p.identifier model.loading then
+                          "true"
+                      else
+                          "false"
+                    )
+              ]
+        [ Html.text p.title ]
+
+
+viewProject : Model -> ProjectInfo -> Html.Html Msg
+viewProject model p =
     Html.li []
         [ Html.a
             [ Attr.href "#"
             , Event.onClick <| RequestProjectIndex p.identifier
             ]
-            [ Html.text p.title ]
+            [ viewLoadingProject model p ]
         , Html.ul []
             [ Html.li []
                 [ Html.a
