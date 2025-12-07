@@ -547,7 +547,7 @@ update msg model =
                 tp =
                     Maybe.withDefault (tabpath -1 -1 -1) <| model.focused
             in
-            ( closeTab tp model, Cmd.none )
+            ( closeTab True tp model, Cmd.none )
 
         CloneTab ->
             let
@@ -898,7 +898,7 @@ update msg model =
                             if fd.submitted then
                                 -- The form was already
                                 -- submitted. Just close the tab.
-                                ( closeTab tp model, Cmd.none )
+                                ( closeTab True tp model, Cmd.none )
 
                             else
                                 let
@@ -908,7 +908,7 @@ update msg model =
                                     ( nm, cmd ) =
                                         handleSubmit divid fd model
                                 in
-                                ( closeTab tp model, cmd )
+                                ( closeTab True tp model, cmd )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -1621,8 +1621,8 @@ nearest tp model =
 
 {-| This will close a tab and set the nearest tab to focused.
 -}
-closeTab : TabPath -> Model -> Model
-closeTab tp model =
+closeTab : Bool -> TabPath -> Model -> Model
+closeTab closevista tp model =
     let
         gvistas =
             Dict.keys globalVistas
@@ -1641,7 +1641,7 @@ closeTab tp model =
             not <| List.member vista gvistas
 
         vistas =
-            if nonglobal && not multiref then
+            if nonglobal && not multiref && closevista then
                 Dict.remove vista model.vistas
 
             else
@@ -1672,7 +1672,7 @@ reassign : TabPath -> TabPath -> Model -> Model
 reassign old new model =
     let
         closed =
-            closeTab old model
+            closeTab False old model
 
         ventanas =
             Dict.get old model.ventanas
