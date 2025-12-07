@@ -53,6 +53,9 @@ const handleProjectMessage = (m) => {
     case 'received-interlinear-index':
       gvs.webContents.send(m.command, m)
       break
+    case 'received-doc':
+      gvs.webContents.send(m.command, m)
+      break
     default:
       console.log(`${m.identifier} command: ${m.command}`)
   }
@@ -474,6 +477,10 @@ const requestInterlinearIndex = (_event, identifier) => {
   })
 }
 
+const requestDocId = (_event, message) => {
+  gvs.active[message.identifier].postMessage(message)
+}
+
 const init = async () => {
   try {
     await app.whenReady()
@@ -481,6 +488,7 @@ const init = async () => {
     ipcMain.handle('request-gconfig', openGlobalConf)
     ipcMain.handle('request-trans-index', requestTransIndex)
     ipcMain.handle('request-interlinear-index', requestInterlinearIndex)
+    ipcMain.handle('request-docid', requestDocId)
     ipcMain.handle('create-project', createProject)
     ipcMain.handle('update-project', updateProject)
     ipcMain.handle('import-file', importFile)

@@ -36,6 +36,9 @@ port requestProjectIndex : String -> Cmd msg
 port requestInterlinearIndex : String -> Cmd msg
 
 
+port requestDocId : E.Value -> Cmd msg
+
+
 {-| The global configuration lists projects and whether they are
 enabled. It may also include other configuration information. This
 port is used to request the global configuration.
@@ -58,6 +61,9 @@ port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
 
 port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
+
+
+port receivedDoc : (E.Value -> msg) -> Sub msg
 
 
 {-| The "New Project" menu item was clicked.
@@ -129,6 +135,7 @@ type alias Ventana =
 type alias VentanaParams =
     { length : Int
     , searchString : String
+    , edit : Bool
     }
 
 
@@ -200,6 +207,49 @@ type alias Error =
     { message : String }
 
 
+type alias DocReq =
+    { command : String
+    , identifier : String
+    , docid : String
+    }
+
+
+type alias DocRec =
+    { command : String
+    , identifier : String
+    , doc : Content
+    }
+
+
+docReqEncode : DocReq -> E.Value
+docReqEncode dr =
+    E.object
+        [ ( "command", E.string dr.command )
+        , ( "identifier", E.string dr.identifier )
+        , ( "docid", E.string dr.docid )
+        ]
+
+
+docRecDecode : D.Decoder DocRec
+docRecDecode =
+    D.map3 DocRec
+        ( D.field "command" D.string )
+        ( D.field "identifier" D.string )
+        ( D.at ["doc", "_id"] D.string
+              |> D.andThen
+              (\id_ ->
+                   case (String.split "/" id_ |> List.head) of
+                       Just "interlinear" ->
+                           D.map InterlinearContent
+                               ( D.field "doc" ST.interlinearDecoder )
+
+                       _ ->
+                           D.fail (id_ ++ " is not a recognized doc type.")
+              )
+        )
+                       
+
+
 type alias FormData =
     { fields : Field FieldKind
     , submitted : Bool
@@ -250,8 +300,10 @@ type Msg
     | ReceivedGlobalConfig E.Value
     | ReceivedProjectIndex E.Value
     | ReceivedInterlinearIndex E.Value
+    | ReceivedDoc E.Value
     | RequestProjectIndex String
     | RequestInterlinearIndex String
+    | RequestDocId String String
     | NewProjectMenu String
     | ImportOptionsFileMenu String
     | GlobalSettingsMenu E.Value
@@ -262,6 +314,7 @@ type Msg
     | FormSubmit TabPath
     | ChangeLengthParam TabPath String
     | ChangeSearchParam TabPath String
+    | ChangeEditParam TabPath
 
 
 type alias Flags =
@@ -271,7 +324,8 @@ type alias Flags =
 type Content
     = TranslationContent Translation
     | TranslationsContent (List Translation)
-    | InterlinearsContent (List ST.Interlinear)
+    | InterlinearsContent (List ST.SimpleInterlinear)
+    | InterlinearContent ST.Interlinear
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
     | GlobalSettingsContent GlobalSettings
@@ -430,6 +484,13 @@ main =
         , subscriptions = subscriptions
         , view = view
         }
+
+
+defVParams =
+    { length = 0
+    , searchString = ""
+    , edit = False
+    }
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -672,11 +733,53 @@ update msg model =
             , requestInterlinearIndex id
             )
 
+        RequestDocId project id ->
+            let
+                payload =
+                    docReqEncode { command = "request-docid"
+                                 , identifier = project
+                                 , docid = id
+                                 }
+            in
+            ( model, requestDocId payload )
+
         ReceivedProjectIndex pi ->
             handleReceivedVista pi "Index" model
 
         ReceivedInterlinearIndex ii ->
             handleReceivedVista ii "Glosses" model
+
+        ReceivedDoc val ->
+            let
+                docRec =
+                    D.decodeValue docRecDecode val
+
+                data =
+                    Result.map (\dr -> (dr.identifier, dr.doc)) docRec
+            in
+            case data of
+                Ok (project, InterlinearContent i) ->
+                    let
+                        st =
+                            if String.length i.transcription > 5 then
+                                "Gloss: " ++
+                                    (String.left 5 i.transcription) ++
+                                        "..."
+
+                            else
+                                "Gloss: " ++ i.transcription
+
+                        vista =
+                            { project = project
+                            , kind = "interlinear"
+                            , identifier = i.id
+                            , content = InterlinearContent i
+                            }
+                    in
+                    handleVista vista st model
+
+                _ ->
+                    ( model, Cmd.none )
 
         -- Open or focus the New Project form.
         NewProjectMenu ident ->
@@ -691,7 +794,7 @@ update msg model =
                     Dict.insert "new-project" pif model.forms
 
                 newVentana =
-                    Ventana "New Project" "new-project" (VentanaParams 0 "")
+                    Ventana "New Project" "new-project" defVParams
 
                 newmodel =
                     { model | forms = forms }
@@ -715,7 +818,7 @@ update msg model =
                     pi.title ++ " Settings"
 
                 newVentana =
-                    Ventana tabtitle piid (VentanaParams 0 "")
+                    Ventana tabtitle piid defVParams
 
                 newVista =
                     { project = pi.identifier
@@ -764,15 +867,10 @@ update msg model =
             case getByVista "import-options" model.ventanas of
                 Nothing ->
                     let
-                        params =
-                            { length = 0
-                            , searchString = ""
-                            }
-
                         newVentana =
                             { title = "Import Options"
                             , vista = "import-options"
-                            , params = params
+                            , params = defVParams
                             }
                     in
                     update (NewTab newVentana) newmodel
@@ -813,15 +911,10 @@ update msg model =
                     case getByVista "global-settings" model.ventanas of
                         Nothing ->
                             let
-                                params =
-                                    { length = 0
-                                    , searchString = ""
-                                    }
-
                                 newVentana =
                                     { title = "Settings"
                                     , vista = "global-settings"
-                                    , params = params
+                                    , params = defVParams
                                     }
                             in
                             update (NewTab newVentana) newmodel
@@ -966,6 +1059,27 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+        ChangeEditParam tp ->
+            case Dict.get tp model.ventanas of
+                Just ventana ->
+                    let
+                        params =
+                            ventana.params
+
+                        nv =
+                            { ventana | params =
+                                  { params | edit = not params.edit }
+                            }
+
+                        nvs =
+                            Dict.insert tp nv model.ventanas
+                    in
+                    ( { model | ventanas = nvs }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+                            
+
 
 handleReceivedVista : E.Value -> String -> Model -> ( Model, Cmd Msg )
 handleReceivedVista val st model =
@@ -976,38 +1090,47 @@ handleReceivedVista val st model =
             )
 
         Ok v ->
-            case getProjectTitle v.project model of
+            handleVista v st model
+
+
+handleVista : Vista -> String -> Model -> ( Model, Cmd Msg )
+handleVista vista st model =
+    case getProjectTitle vista.project model of
+        Nothing ->
+            ( { model | error = Just (Error "No such project") }
+            , Cmd.none
+            )
+
+        Just title ->
+            let
+                vistas =
+                    Dict.insert vista.identifier vista model.vistas
+
+                loading =
+                    if vista.kind /= "interlinear" then
+                        Set.remove vista.project model.loading
+
+                    else
+                        model.loading
+
+                newmodel =
+                    { model | vistas = vistas
+                    , loading = loading
+                    }
+            in
+            case getByVista vista.identifier model.ventanas of
                 Nothing ->
-                    ( { model | error = Just (Error "No such project") }
-                    , Cmd.none
-                    )
-
-                Just title ->
                     let
-                        vistas =
-                            Dict.insert v.identifier v model.vistas
-
-                        loading =
-                            Set.remove v.project model.loading
-
-                        newmodel =
-                            { model | vistas = vistas
-                            , loading = loading
+                        vt =
+                            { title = title ++ ": " ++ st
+                            , vista = vista.identifier
+                            , params = { defVParams | length = 20 }
                             }
                     in
-                    case getByVista v.identifier model.ventanas of
-                        Nothing ->
-                            let
-                                vt =
-                                    { title = title ++ ": " ++ st
-                                    , vista = v.identifier
-                                    , params = VentanaParams 20 ""
-                                    }
-                            in
-                            update (NewTab vt) newmodel
+                    update (NewTab vt) newmodel
 
-                        Just tp ->
-                            update (FocusTab tp) newmodel
+                Just tp ->
+                    update (FocusTab tp) newmodel
 
 
 handleSubmit : List String -> FormData -> Model -> ( Model, Cmd Msg )
@@ -1212,6 +1335,7 @@ subscriptions model =
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedProjectIndex ReceivedProjectIndex
         , receivedInterlinearIndex ReceivedInterlinearIndex
+        , receivedDoc ReceivedDoc
         , newProject NewProjectMenu
         , importOptions ImportOptionsFileMenu
         , globalSettings GlobalSettingsMenu
@@ -1306,7 +1430,7 @@ viewTabHeader model tp =
                 |> Maybe.withDefault
                     { title = "Error"
                     , vista = "Vista not found"
-                    , params = VentanaParams 0 ""
+                    , params = defVParams
                     }
 
         focused =
@@ -1460,7 +1584,7 @@ viewVista model tp vista =
                 params =
                     Dict.get tp model.ventanas
                         |> Maybe.map .params
-                        |> Maybe.withDefault (VentanaParams 20 "")
+                        |> Maybe.withDefault { defVParams | length = 20 }
 
                 ss =
                     params.searchString
@@ -1503,7 +1627,7 @@ viewVista model tp vista =
                 params =
                     Dict.get tp model.ventanas
                         |> Maybe.map .params
-                        |> Maybe.withDefault (VentanaParams 20 "")
+                        |> Maybe.withDefault { defVParams | length = 20 }
 
                 ss =
                     params.searchString
@@ -1511,10 +1635,10 @@ viewVista model tp vista =
                 searched =
                     List.filter
                         (\i ->
-                            String.contains ss i.transcription
-                                || String.contains ss i.morpheme_gloss
+                            String.contains ss i.source
+                                || String.contains ss i.glosses
                                 || List.any
-                                    (\t -> String.contains ss t.transcription)
+                                    (\t -> String.contains ss t)
                                     i.translations
                         )
                         ints
@@ -1543,9 +1667,34 @@ viewVista model tp vista =
                         []
                     ]
                 , Html.ol [ Attr.class "all-glosses" ]
-                    (List.map (viewInterlinearItem model) is)
+                    (List.map (viewInterlinearItem vista.project) is)
                 ]
 
+        InterlinearContent i ->
+            let
+                params =
+                    Dict.get tp model.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.withDefault defVParams
+            in
+            Html.div []
+                [ Html.a [ Attr.href "#"
+                         , Event.onClick (ChangeEditParam tp)
+                         ] [ Html.text (if params.edit then
+                                            "Revert to View"
+                                        else
+                                            "Edit"
+                                       )
+                           ]
+                , if params.edit then
+                      --viewOldInterlinear vista.project i
+                      Html.text "fix me"
+
+                  else
+                      --viewOldInterlinearForm vista.project i
+                      Html.text "fix me"
+                ]
+                
         ErrorContent err ->
             viewError model err
 
@@ -1555,20 +1704,24 @@ viewError _ err =
     Html.text err.message
 
 
-viewInterlinearItem : Model -> ST.Interlinear -> Html.Html Msg
-viewInterlinearItem model int =
+viewInterlinearItem : String -> ST.SimpleInterlinear -> Html.Html Msg
+viewInterlinearItem proj int =
     let
         srcLine =
-            if int.morpheme_break /= "" then
-                viewGlosses int.transcription int.morpheme_break int.morpheme_gloss
+            if int.breaks /= "" then
+                viewGlosses int.source int.breaks int.glosses
 
             else
-                Html.p [] [ Html.text int.transcription ]
+                Html.p [] [ Html.text int.source ]
 
         transLines =
-            List.map (\t -> Html.p [] [ Html.text t.transcription ]) int.translations
+            List.map (\t -> Html.p [] [ Html.text t ]) int.translations
     in
-    Html.li [] (srcLine :: transLines)
+    Html.li [] [ Html.div [] (srcLine :: transLines)
+               , Html.a [ Attr.href "#"
+                        , Event.onClick (RequestDocId proj int.id)
+                        ] [ Html.text "Open" ]
+               ]
 
 
 viewGlosses : String -> String -> String -> Html.Html Msg
@@ -1918,7 +2071,7 @@ contentDecoder kind =
 
         "all-interlinears" ->
             D.map InterlinearsContent
-                (D.field "content" (D.list ST.interlinearDecoder))
+                (D.field "content" (D.list ST.simpleInterlinearDecoder))
 
         _ ->
             D.fail ("Unsupported content kind " ++ kind)

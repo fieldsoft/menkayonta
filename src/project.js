@@ -148,6 +148,20 @@ const handleRequestTranslations = async () => {
   }
 }
 
+const handleRequestDocId = async (docid) => {
+  try {
+    const doc = await gvs.db.get(docid)
+
+    process.parentPort.postMessage({
+      command: 'received-doc',
+      doc: doc,
+      identifier: gvs.identifier,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleMainMessage = (m) => {
   switch (m.data.command) {
     case 'init': {
@@ -167,6 +181,11 @@ const handleMainMessage = (m) => {
 
     case 'request-interlinear-index': {
       handleRequestInterlinears()
+      break
+    }
+
+    case 'request-docid': {
+      handleRequestDocId(m.data.docid)
       break
     }
     default: {

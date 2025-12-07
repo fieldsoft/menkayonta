@@ -23,11 +23,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('received-interlinear-index', (_event, data) =>
       callback(data),
     ),
+  onReceivedDoc: (callback) =>
+    ipcRenderer.on('received-doc', (_event, data) => callback(data)),
   requestGlobalConfig: () => ipcRenderer.invoke('request-gconfig'),
   requestProjectIndex: (identifier) =>
     ipcRenderer.invoke('request-trans-index', identifier),
   requestInterlinearIndex: (identifier) =>
     ipcRenderer.invoke('request-interlinear-index', identifier),
+  requestDocId: (message) => ipcRenderer.invoke('request-docid', message),
   createProject: (projectInfo) =>
     ipcRenderer.invoke('create-project', projectInfo),
   updateProject: (projectInfo) =>

@@ -47,6 +47,16 @@ type alias Translation =
     }
 
 
+type alias SimpleInterlinear =
+    { id : String
+    , source : String
+    , breaks : String
+    , glosses : String
+    , judgement : String
+    , translations : List String
+    }
+
+
 type alias Interlinear =
     { id : String
     , version : Int
@@ -178,6 +188,26 @@ translationEncoder tr =
         , ( "transcription", E.string tr.transcription )
         , ( "grammaticality", E.string tr.grammaticality )
         ]
+
+
+simpleInterlinearDecoder : D.Decoder SimpleInterlinear
+simpleInterlinearDecoder =
+    D.map6 SimpleInterlinear
+        (D.field "_id" D.string)
+        (D.field "transcription" D.string)
+        (D.field "morpheme_break" D.string)
+        (D.field "morpheme_gloss" D.string)
+        (D.field "grammaticality" D.string)
+        (D.field "translations" (D.list simpleTranslationsDecoder))
+
+
+simpleTranslationsDecoder : D.Decoder String
+simpleTranslationsDecoder =
+    D.field "grammaticality" D.string
+        |> D.andThen
+           (\j -> D.field "transcription" D.string
+                |> D.andThen (\t -> D.succeed (j ++ " " ++ t) )
+           )
 
 
 interlinearDecoder : D.Decoder Interlinear

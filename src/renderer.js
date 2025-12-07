@@ -22,6 +22,10 @@ app.ports.requestInterlinearIndex.subscribe((identifier) => {
   window.electronAPI.requestInterlinearIndex(identifier)
 })
 
+app.ports.requestDocId.subscribe((message) => {
+  window.electronAPI.requestDocId(message)
+})
+
 window.electronAPI.onReceivedTransIndex((data) => {
   const vista = {
     project: data.identifier,
@@ -42,6 +46,10 @@ window.electronAPI.onReceivedInterlinearIndex((data) => {
   }
 
   app.ports.receivedInterlinearIndex.send(vista)
+})
+
+window.electronAPI.onReceivedDoc((data) => {
+  app.ports.receivedDoc.send(data)
 })
 
 app.ports.createProject.subscribe(async (projectInfo) => {
