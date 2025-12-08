@@ -6,10 +6,6 @@ import Json.Encode as E
 import Json.Encode.Extra as EE
 import Maybe.Extra as ME
 import Dict exposing (Dict)
-import Url exposing (Url)
-import Url.Parser as U exposing ((</>), (<?>))
-import Url.Parser.Query as Q
-import Url.Builder as B
 import UUID exposing (UUID)
 import Time
 import SharedTypes as ST
@@ -63,8 +59,7 @@ type alias Interlinear =
 
 type alias DescriptionId =
     { kind : String
-    , docid : Identifier
-    , fragment : Maybe String
+    , docid : String
     }
 
 
@@ -79,14 +74,13 @@ type alias Description =
 type alias TagId =
     { kind : String
     , docid : String
-    , fragment : Maybe String
     }
     
 
 type alias Tag =
     { id : TagId
     , rev : Maybe String
-    , version : String
+    , version : Int
     }
 
 
@@ -94,37 +88,30 @@ type alias PropertyId =
     { kind : String
     , value : String
     , docid : String
-    , fragment : Maybe String
     }
     
 
 type alias Property =
     { id : PropertyId
     , rev : Maybe String
-    , version : String
+    , version : Int
     }
 
 
 type alias Person =
     { id : UUID
-    , rev : String
+    , rev : Maybe String
     , version : Int
     , email : String
     , names : Dict Int String
-    }
-
-
-type alias ModInfo =
-    { docid : String
-    , time : Time.Posix
-    , personid : String
     }
     
     
 type alias ModificationId =
     { kind : String
-    , info : ModInfo
-    , fragment : Maybe String
+    , docid : String
+    , time : Time.Posix
+    , person : String
     }
 
     
@@ -160,68 +147,6 @@ type alias DativeUtilityValue =
     }
 
 
-uUUID : U.Parser (UUID -> UUID) UUID
-uUUID =
-    U.custom "UUID" (\s -> UUID.fromString s |> Result.toMaybe)
-
-
-qTime : String -> Q.Parser (Maybe (Time.Posix))
-qTime query =
-    Q.custom query (\s -> List.head s
-                   |> Maybe.andThen String.toInt
-                   |> Maybe.map Time.millisToPosix
-                   )
-
-
-personIdParser : U.Parser (UUID -> UUID) UUID
-personIdParser =
-    U.s "person" </> uUUID
-
-
-interlinearIdParser : U.Parser (UUID -> UUID) UUID
-interlinearIdParser =
-    U.s "interlinear" </> uUUID
-
-
--- tagIdParser : U.Parser (TagId -> a) a
--- tagIdParser =
---     U.s "tag" </> U.string <?> Q.string "id" </> U.fragment
-
-
--- descriptionIdParser : U.Parser (DescriptionId -> a) a
--- descriptionIdParser =
---     U.map DescriptionId (U.s "description" </> U.string <?> Q.string "id" </> U.fragment)
-
-
--- propertyIdParser : U.Parser (PropertyId -> a) a
--- propertyIdParser =
---     U.s "property" </> U.string </> U.string <?> Q.string "id" </> U.fragment
-
-
--- utilityIdParser : U.Parser (UtilityId -> a) a
--- utilityIdParser =
---     U.s "utility" </> U.string <?> Q.string "id"
-
-
--- modificationIdParser : U.Parser (ModificationId -> a) a
--- modificationIdParser =
---     U.s "modification" </> U.string <?> Q.map3 ModInfo (Q.string "id") (qTime "time") (Q.string "person") </> U.fragment
-
-        
--- identifierParser : U.Parser (Identifier -> a) a
--- identifierParser =
---     U.oneOf
---         [ U.map MyPersonId personIdParser
---         , U.map MyInterlinearId interlinearIdParser
---         , U.map MyTagId tagIdParser
---         , U.map MyDescriptionId descriptionIdParser
---         , U.map MyPropertyId propertyIdParser
---         , U.map MyUtilityId utilityIdParser
---         , U.map MyModificationId modificationIdParser
--- --        , U.map MyDativeInterlinearId (U.s "dativeLegacy" </> uUUID)
---         ]
-
-
 -- valueDecoder_ : Identifier -> D.Decoder Value
 -- valueDecoder_ id =
 --     case id of
@@ -250,31 +175,87 @@ interlinearIdParser =
 --             interlinearDecoder_ id_
         
 
--- valueDecoder : D.Decoder Value
--- valueDecoder =
---     parserDecoder identifierParser valueDecoder_
-
-
-parserDecoder : (U.Parser (UUID -> UUID) UUID) -> (UUID -> D.Decoder Interlinear) -> D.Decoder Interlinear
-parserDecoder parser decoder =
+valueDecoder : D.Decoder Value
+valueDecoder =
     D.field "_id" D.string
-        |> D.map ((++) "http://example.com/")
-        |> D.map Url.fromString
-        |> D.andThen (ME.unwrap (D.fail "Cannot Convert to Url") D.succeed) 
-        |> D.map (U.parse parser)
-        |> D.andThen (ME.unwrap (D.fail "Bad Identifier") decoder)
+        |> D.andThen valueDecoder_
+
+
+valueDecoder_ : String -> D.Decoder Value
+valueDecoder_ id =
+    case String.split "/" id of
+        "interlinear" :: uuid :: [] ->
+            case UUID.fromString uuid of
+                Ok uuid_ ->
+                    D.map MyInterlinear <| interlinearDecoder_ uuid_
+
+                Err _ ->
+                    D.fail "Invalid UUID in Interlinear ID"
+
+        "person" :: uuid :: [] ->
+            case UUID.fromString uuid of
+                Ok uuid_ ->
+                    D.map MyPerson <| personDecoder_ uuid_
+
+                Err _ ->
+                    D.fail "Invalid UUID in Person ID"
+
+        "tag" :: kind :: docid ->
+            String.join "/" docid
+                |> TagId kind
+                |> tagDecoder_
+                |> D.map MyTag
+
+        "description" :: kind :: docid ->
+            String.join "/" docid
+                |> DescriptionId kind
+                |> descriptionDecoder_
+                |> D.map MyDescription
+
+        "utility" :: kind :: docid ->
+            String.join "/" docid
+                |> UtilityId kind
+                |> utilityDecoder_
+                |> D.map MyUtility
+                
+        "property" :: kind :: value :: docid ->
+            String.join "/" docid
+                |> PropertyId kind value
+                |> propertyDecoder_
+                |> D.map MyProperty
+
+        "modification" :: kind :: d1 :: d2 :: time :: person :: [] ->
+            
+            D.map MyModification <|
+                modificationDecoder_ { kind = kind
+                                     , docid = d1 ++ "/" ++ d2
+                                     , time = String.toInt time
+                                     |> Maybe.withDefault 0
+                                     |> Time.millisToPosix
+                                     , person = person
+                                     }
+
+        _ ->
+            D.fail "Unrecognized ID Type"
     
 
 interlinearDecoder : D.Decoder Interlinear
 interlinearDecoder =
-    parserDecoder interlinearIdParser interlinearDecoder_
+    valueDecoder
+        |> D.andThen (\i -> case i of
+                                MyInterlinear i_ ->
+                                    D.succeed i_
+
+                                _ ->
+                                    D.fail "Who could guess?"
+                     )
        
 
 interlinearDecoder_ : UUID -> D.Decoder Interlinear
 interlinearDecoder_ id =
     D.map6 Interlinear
         (D.succeed id)
-        (D.field "_rev" <| D.nullable D.string)
+        (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
         (D.field "text" D.string)
         (D.field "annotations" annotationsDecoder)
@@ -299,86 +280,120 @@ translationDecoder =
 
 -- personDecoder : D.Decoder Person
 -- personDecoder =
---     parserDecoder personIdParser personDecoder_
+--     parserDecoder personIdParser Just personDecoder_
        
 
--- personDecoder_ : UUID -> D.Decoder Interlinear
--- personDecoder_ id =
---     D.map5 Person
---         (D.succeed id)
---         (D.field "_rev" <| D.nullable D.string)
---         (D.field "version" D.int)
---         (D.field "email" D.string)
---         (D.field "names" (D.dict D.string))
+personDecoder_ : UUID -> D.Decoder Person
+personDecoder_ id =
+    D.map5 Person
+        (D.succeed id)
+        (D.maybe <| D.field "_rev" D.string)
+        (D.field "version" D.int)
+        (D.field "email" D.string)
+        (D.field "names" (DE.dict2 D.int D.string))
 
 
 -- descriptionDecoder : D.Decoder Description
 -- descriptionDecoder =
---     parserDecoder descriptionIdParser descriptionDecoder_
+--     let
+--         converter id_ =
+--             id_.docid
+--                 |> Maybe.map (\d -> TagId id_.kind d id_.fragment)
+--     in
+--     parserDecoder descriptionIdParser converter descriptionDecoder_
 
 
--- descriptionDecoder_ : DescriptionId -> D.Decoder Description
--- descriptionDecoder_ id =
---     D.map4 Description
---         (D.succeed id)
---         (D.field "_rev" <| D.nullable D.string)
---         (D.field "version" D.int)
---         (D.field "value" D.value)
+descriptionDecoder_ : DescriptionId -> D.Decoder Description
+descriptionDecoder_ id =
+    D.map4 Description
+        (D.succeed id)
+        (D.field "_rev" <| D.nullable D.string)
+        (D.field "version" D.int)
+        (D.field "value" D.value)
 
 
 -- tagDecoder : D.Decoder Tag
 -- tagDecoder =
---     parserDecoder tagIdParser tagDecoder_
+--     let
+--         converter id_ =
+--             id_.docid
+--                 |> Maybe.map (\d -> TagId id_.kind d id_.fragment)
+--     in
+--     parserDecoder tagIdParser converter tagDecoder_
 
 
--- tagDecoder_ : TagId -> D.Decoder Tag
--- tagDecoder_ id =
---     D.map3 Tag
---         (D.succeed id)
---         (D.field "_rev" <| D.nullable D.string)
---         (D.field "version" D.int)
+tagDecoder_ : TagId -> D.Decoder Tag
+tagDecoder_ id =
+    D.map3 Tag
+        (D.succeed id)
+        (D.maybe <| D.field "_rev" D.string)
+        (D.field "version" D.int)
 
             
 -- propertyDecoder : D.Decoder Property
 -- propertyDecoder =
---     parserDecoder propertyIdParser propertyDecoder_
+--     let
+--         converter id_ =
+--             id_.docid
+--                 |> Maybe.map
+--                    (\d -> PropertyId id_.kind id_.value d id_.fragment)
+--     in
+--     parserDecoder propertyIdParser converter propertyDecoder_
 
 
--- propertyDecoder_ : PropertyId -> D.Decoder Property
--- propertyDecoder_ id =
---     D.map3 Property
---         (D.succeed id)
---         (D.field "_rev" <| D.nullable D.string)
---         (D.field "version" D.int)
+propertyDecoder_ : PropertyId -> D.Decoder Property
+propertyDecoder_ id =
+    D.map3 Property
+        (D.succeed id)
+        (D.field "_rev" <| D.nullable D.string)
+        (D.field "version" D.int)
 
 
 -- modificationDecoder : D.Decoder Modification
 -- modificationDecoder =
---     parserDecoder modificationIdParser modificationDecoder_
+--     let
+--         converter m =
+--             case (m.info.docid, m.info.time, m.info.personid) of
+--                 (Just d, Just t, Just p) ->
+--                     Just { kind = m.kind
+--                          , docid = d
+--                          , time = t
+--                          , personid = p
+--                          , fragment = m.fragment
+--                          }
+
+--                 _ ->
+--                     Nothing
+--     in
+--     parserDecoder modificationIdParser converter modificationDecoder_
 
 
--- modificationDecoder_ : ModificationId -> D.Decoder Modification
--- modificationDecoder_ id =
---     D.map5 Modification
---         (D.succeed id)
---         (D.field "_rev" D.string)
---         (D.field "version" D.int)
---         (D.field "docversion" D.int)
---         (D.field "docstate" D.value)
+modificationDecoder_ : ModificationId -> D.Decoder Modification
+modificationDecoder_ id =
+    D.map5 Modification
+        (D.succeed id)
+        (D.field "_rev" D.string)
+        (D.field "version" D.int)
+        (D.field "docversion" D.int)
+        (D.field "docstate" D.value)
 
 
 -- utilityDecoder : D.Decoder Utility
 -- utilityDecoder =
---     parserDecoder utilityIdParser utilityDecoder_
+--     let
+--         converter id_ =
+--             id_.docid |> Maybe.map (UtilityId id_.kind)
+--     in
+--     parserDecoder utilityIdParser converter utilityDecoder_
 
 
--- utilityDecoder_ : UtilityId -> D.Decoder Utility
--- utilityDecoder_ id =
---     D.map4 Utility
---         (D.succeed id)
---         (D.field "_rev" D.string)
---         (D.field "version" D.int)
---         (D.field "value" D.value)
+utilityDecoder_ : UtilityId -> D.Decoder Utility
+utilityDecoder_ id =
+    D.map4 Utility
+        (D.succeed id)
+        (D.field "_rev" D.string)
+        (D.field "version" D.int)
+        (D.field "value" D.value)
 
 
 -- valueEncoder : Value -> E.Value
@@ -421,15 +436,3 @@ translationDecoder =
 -- tagEncoder tag =
 --     E.object
 --         [ ("_id", E.string (tagIdBuilder tag))
-
-
--- identifierBuilder : List String -> List B.QueryParameter -> String -> String
--- identifierBuilder path query fragment =
---     (B.relative path query) ++ "#" ++ fragment
- 
--- tagIdBuilder : Tag -> String
--- tagIdBuilder tag =
---     identifierBuilder
---     [ "tag", tag.kind ]
---     [ B.string "id" tag.docid ]
---     tag.fragment
