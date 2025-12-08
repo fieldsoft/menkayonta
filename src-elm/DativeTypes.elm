@@ -12,14 +12,14 @@ import SharedTypes as ST
 
 
 
-tokenDecoder : D.Decoder ST.Token
+tokenDecoder : D.Decoder ST.DativeToken
 tokenDecoder =
     D.list subTokenDecoder
 
 
-subTokenDecoder : D.Decoder ST.SubToken
+subTokenDecoder : D.Decoder ST.DativeSubToken
 subTokenDecoder =
-    D.map3 ST.SubToken
+    D.map3 ST.DativeSubToken
         (D.maybe (D.index 0 D.int))
         (D.maybe (D.index 1 D.string))
         (D.maybe (D.index 2 D.string))
@@ -43,22 +43,22 @@ dativeToInterlinear1Encoder df =
         , ( "datetime_entered", Iso.encode df.datetime_entered )
         , ( "datetime_modified", Iso.encode df.datetime_modified )
         , ( "syntactic_category_string", EE.maybe E.string df.syntactic_category_string )
-        , ( "morpheme_break_ids", EE.maybe (E.list ST.tokenEncoder) df.morpheme_break_ids )
-        , ( "morpheme_gloss_ids", EE.maybe (E.list ST.tokenEncoder) df.morpheme_gloss_ids )
+        , ( "morpheme_break_ids", EE.maybe (E.list ST.dativeTokenEncoder) df.morpheme_break_ids )
+        , ( "morpheme_gloss_ids", EE.maybe (E.list ST.dativeTokenEncoder) df.morpheme_gloss_ids )
         , ( "break_gloss_category", EE.maybe E.string df.break_gloss_category )
         , ( "syntax", E.string df.syntax )
         , ( "semantics", E.string df.semantics )
         , ( "status", E.string df.status )
-        , ( "elicitor", EE.maybe ST.personEncoder df.elicitor )
-        , ( "enterer", EE.maybe ST.personEncoder df.enterer )
-        , ( "modifier", EE.maybe ST.personEncoder df.modifier )
-        , ( "verifier", EE.maybe ST.personEncoder df.verifier )
-        , ( "speaker", EE.maybe ST.speakerEncoder df.speaker )
-        , ( "elicitation_method", EE.maybe ST.namedEncoder df.elicitation_method )
-        , ( "syntactic_category", EE.maybe ST.namedEncoder df.syntactic_category )
+        , ( "elicitor", EE.maybe ST.dativePersonEncoder df.elicitor )
+        , ( "enterer", EE.maybe ST.dativePersonEncoder df.enterer )
+        , ( "modifier", EE.maybe ST.dativePersonEncoder df.modifier )
+        , ( "verifier", EE.maybe ST.dativePersonEncoder df.verifier )
+        , ( "speaker", EE.maybe ST.dativeSpeakerEncoder df.speaker )
+        , ( "elicitation_method", EE.maybe ST.dativeNamedEncoder df.elicitation_method )
+        , ( "syntactic_category", EE.maybe ST.dativeNamedEncoder df.syntactic_category )
         , ( "source", EE.maybe E.string df.source )
-        , ( "translations", E.list ST.translationEncoder df.translations )
-        , ( "tags", E.list ST.namedEncoder df.tags )
+        , ( "translations", E.list ST.dativeTranslationEncoder df.translations )
+        , ( "tags", E.list ST.dativeNamedEncoder df.tags )
         , ( "files", E.list E.string df.files )
         ]
 
@@ -78,22 +78,22 @@ type alias DativeForm =
     , datetime_entered : Time.Posix
     , datetime_modified : Time.Posix
     , syntactic_category_string : Maybe String
-    , morpheme_break_ids : Maybe (List ST.Token)
-    , morpheme_gloss_ids : Maybe (List ST.Token)
+    , morpheme_break_ids : Maybe (List ST.DativeToken)
+    , morpheme_gloss_ids : Maybe (List ST.DativeToken)
     , break_gloss_category : Maybe String
     , syntax : String
     , semantics : String
     , status : String
-    , elicitor : Maybe ST.Person
-    , enterer : Maybe ST.Person
-    , modifier : Maybe ST.Person
-    , verifier : Maybe ST.Person
-    , speaker : Maybe ST.Speaker
-    , elicitation_method : Maybe ST.Named
-    , syntactic_category : Maybe ST.Named
+    , elicitor : Maybe ST.DativePerson
+    , enterer : Maybe ST.DativePerson
+    , modifier : Maybe ST.DativePerson
+    , verifier : Maybe ST.DativePerson
+    , speaker : Maybe ST.DativeSpeaker
+    , elicitation_method : Maybe ST.DativeNamed
+    , syntactic_category : Maybe ST.DativeNamed
     , source : Maybe String
-    , translations : List ST.Translation
-    , tags : List ST.Named
+    , translations : List ST.DativeTranslation
+    , tags : List ST.DativeNamed
     , files : List String
     }
 
@@ -121,16 +121,16 @@ dativeFormDecoder =
         |> DE.andMap (D.field "syntax" D.string)
         |> DE.andMap (D.field "semantics" D.string)
         |> DE.andMap (D.field "status" D.string)
-        |> DE.andMap (D.field "elicitor" (D.nullable ST.personDecoder))
-        |> DE.andMap (D.field "enterer" (D.nullable ST.personDecoder))
-        |> DE.andMap (D.field "modifier" (D.nullable ST.personDecoder))
-        |> DE.andMap (D.field "verifier" (D.nullable ST.personDecoder))
-        |> DE.andMap (D.field "speaker" (D.nullable ST.speakerDecoder))
-        |> DE.andMap (D.field "elicitation_method" (D.nullable ST.namedDecoder))
-        |> DE.andMap (D.field "syntactic_category" (D.nullable ST.namedDecoder))
+        |> DE.andMap (D.field "elicitor" (D.nullable ST.dativePersonDecoder))
+        |> DE.andMap (D.field "enterer" (D.nullable ST.dativePersonDecoder))
+        |> DE.andMap (D.field "modifier" (D.nullable ST.dativePersonDecoder))
+        |> DE.andMap (D.field "verifier" (D.nullable ST.dativePersonDecoder))
+        |> DE.andMap (D.field "speaker" (D.nullable ST.dativeSpeakerDecoder))
+        |> DE.andMap (D.field "elicitation_method" (D.nullable ST.dativeNamedDecoder))
+        |> DE.andMap (D.field "syntactic_category" (D.nullable ST.dativeNamedDecoder))
         |> DE.andMap (D.field "source" (D.nullable D.string))
-        |> DE.andMap (D.field "translations" (D.list ST.translationDecoder))
-        |> DE.andMap (D.field "tags" (D.list ST.namedDecoder))
+        |> DE.andMap (D.field "translations" (D.list ST.dativeTranslationDecoder))
+        |> DE.andMap (D.field "tags" (D.list ST.dativeNamedDecoder))
         |> DE.andMap (D.field "files" (D.list D.string))
 
 

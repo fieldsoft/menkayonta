@@ -17,7 +17,9 @@ import Maybe.Extra as ME
 import Result
 import Set exposing (Set)
 import SharedTypes as ST
+import Menkayonta as M exposing (Interlinear)
 import Task
+import UUID exposing (UUID)
 
 
 {-| The window title changes depending on the focused tab. This sends
@@ -119,7 +121,7 @@ port closeTab_ : (() -> msg) -> Sub msg
 
 port cloneTab_ : (() -> msg) -> Sub msg
 
-
+                 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
 an identifier for some viewable content. I use Spanish when there are
 already commonly referred to object or concepts such as "window" or
@@ -233,21 +235,10 @@ docReqEncode dr =
 docRecDecode : D.Decoder DocRec
 docRecDecode =
     D.map3 DocRec
-        ( D.field "command" D.string )
-        ( D.field "identifier" D.string )
-        ( D.at ["doc", "_id"] D.string
-              |> D.andThen
-              (\id_ ->
-                   case (String.split "/" id_ |> List.head) of
-                       Just "interlinear" ->
-                           D.map InterlinearContent
-                               ( D.field "doc" ST.interlinearDecoder )
-
-                       _ ->
-                           D.fail (id_ ++ " is not a recognized doc type.")
-              )
-        )
-                       
+        (D.field "command" D.string)
+        (D.field "identifier" D.string)
+        (D.field "doc" M.interlinearDecoder
+        |> D.map InterlinearContent)
 
 
 type alias FormData =
@@ -324,8 +315,8 @@ type alias Flags =
 type Content
     = TranslationContent Translation
     | TranslationsContent (List Translation)
-    | InterlinearsContent (List ST.SimpleInterlinear)
-    | InterlinearContent ST.Interlinear
+    | InterlinearsContent (List Interlinear)
+    | InterlinearContent M.Interlinear
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
     | GlobalSettingsContent GlobalSettings
@@ -736,10 +727,11 @@ update msg model =
         RequestDocId project id ->
             let
                 payload =
-                    docReqEncode { command = "request-docid"
-                                 , identifier = project
-                                 , docid = id
-                                 }
+                    docReqEncode
+                        { command = "request-docid"
+                        , identifier = project
+                        , docid = id
+                        }
             in
             ( model, requestDocId payload )
 
@@ -755,24 +747,24 @@ update msg model =
                     D.decodeValue docRecDecode val
 
                 data =
-                    Result.map (\dr -> (dr.identifier, dr.doc)) docRec
+                    Result.map (\dr -> ( dr.identifier, dr.doc )) docRec
             in
             case data of
-                Ok (project, InterlinearContent i) ->
+                Ok ( project, InterlinearContent i ) ->
                     let
                         st =
-                            if String.length i.transcription > 5 then
-                                "Gloss: " ++
-                                    (String.left 5 i.transcription) ++
-                                        "..."
+                            if String.length i.text > 5 then
+                                "Gloss: "
+                                    ++ String.left 5 i.text
+                                    ++ "..."
 
                             else
-                                "Gloss: " ++ i.transcription
+                                "Gloss: " ++ i.text
 
                         vista =
                             { project = project
                             , kind = "interlinear"
-                            , identifier = i.id
+                            , identifier = UUID.toString i.id
                             , content = InterlinearContent i
                             }
                     in
@@ -1067,8 +1059,9 @@ update msg model =
                             ventana.params
 
                         nv =
-                            { ventana | params =
-                                  { params | edit = not params.edit }
+                            { ventana
+                                | params =
+                                    { params | edit = not params.edit }
                             }
 
                         nvs =
@@ -1078,7 +1071,6 @@ update msg model =
 
                 Nothing ->
                     ( model, Cmd.none )
-                            
 
 
 handleReceivedVista : E.Value -> String -> Model -> ( Model, Cmd Msg )
@@ -1114,8 +1106,9 @@ handleVista vista st model =
                         model.loading
 
                 newmodel =
-                    { model | vistas = vistas
-                    , loading = loading
+                    { model
+                        | vistas = vistas
+                        , loading = loading
                     }
             in
             case getByVista vista.identifier model.ventanas of
@@ -1377,11 +1370,11 @@ view model =
             Html.div
                 [ Attr.class "container-fluid" ]
                 [ if Set.isEmpty model.loading then
-                      Html.h1 [ ]
-                      [ Html.text "Welcome to Your Menkayonta" ]
+                    Html.h1 []
+                        [ Html.text "Welcome to Your Menkayonta" ]
 
                   else
-                      viewUnknownProgress [] []
+                    viewUnknownProgress [] []
                 ]
 
           else
@@ -1486,13 +1479,15 @@ viewProjects model =
 
 viewLoadingProject : Model -> ProjectInfo -> Html.Html Msg
 viewLoadingProject model p =
-    Html.span [ Attr.attribute "aria-busy"
-                    ( if Set.member p.identifier model.loading then
-                          "true"
-                      else
-                          "false"
-                    )
-              ]
+    Html.span
+        [ Attr.attribute "aria-busy"
+            (if Set.member p.identifier model.loading then
+                "true"
+
+             else
+                "false"
+            )
+        ]
         [ Html.text p.title ]
 
 
@@ -1635,11 +1630,11 @@ viewVista model tp vista =
                 searched =
                     List.filter
                         (\i ->
-                            String.contains ss i.source
-                                || String.contains ss i.glosses
+                            String.contains ss i.text
+                                || String.contains ss i.annotations.glosses
                                 || List.any
-                                    (\t -> String.contains ss t)
-                                    i.translations
+                                    (\t -> String.contains ss t.translation)
+                                    (Dict.values i.translations)
                         )
                         ints
 
@@ -1678,23 +1673,27 @@ viewVista model tp vista =
                         |> Maybe.withDefault defVParams
             in
             Html.div []
-                [ Html.a [ Attr.href "#"
-                         , Event.onClick (ChangeEditParam tp)
-                         ] [ Html.text (if params.edit then
-                                            "Revert to View"
-                                        else
-                                            "Edit"
-                                       )
-                           ]
+                [ Html.a
+                    [ Attr.href "#"
+                    , Event.onClick (ChangeEditParam tp)
+                    ]
+                    [ Html.text
+                        (if params.edit then
+                            "Revert to View"
+
+                         else
+                            "Edit"
+                        )
+                    ]
                 , if params.edit then
-                      --viewOldInterlinear vista.project i
-                      Html.text "fix me"
+                    --viewOldInterlinear vista.project i
+                    Html.text "fix me"
 
                   else
-                      --viewOldInterlinearForm vista.project i
-                      Html.text "fix me"
+                    --viewOldInterlinearForm vista.project i
+                    Html.text "fix me"
                 ]
-                
+
         ErrorContent err ->
             viewError model err
 
@@ -1704,24 +1703,27 @@ viewError _ err =
     Html.text err.message
 
 
-viewInterlinearItem : String -> ST.SimpleInterlinear -> Html.Html Msg
+viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearItem proj int =
     let
         srcLine =
-            if int.breaks /= "" then
-                viewGlosses int.source int.breaks int.glosses
+            if int.annotations.breaks /= "" then
+                viewGlosses int.text int.annotations.breaks int.annotations.glosses
 
             else
-                Html.p [] [ Html.text int.source ]
+                Html.p [] [ Html.text int.text ]
 
         transLines =
-            List.map (\t -> Html.p [] [ Html.text t ]) int.translations
+            List.map (\t -> Html.p [] [ Html.text t.translation ]) (Dict.values int.translations)
     in
-    Html.li [] [ Html.div [] (srcLine :: transLines)
-               , Html.a [ Attr.href "#"
-                        , Event.onClick (RequestDocId proj int.id)
-                        ] [ Html.text "Open" ]
-               ]
+    Html.li []
+        [ Html.div [] (srcLine :: transLines)
+        , Html.a
+            [ Attr.href "#"
+            , Event.onClick (RequestDocId proj (UUID.toString int.id))
+            ]
+            [ Html.text "Open" ]
+        ]
 
 
 viewGlosses : String -> String -> String -> Html.Html Msg
@@ -2071,7 +2073,7 @@ contentDecoder kind =
 
         "all-interlinears" ->
             D.map InterlinearsContent
-                (D.field "content" (D.list ST.simpleInterlinearDecoder))
+                (D.field "content" (D.list M.interlinearDecoder))
 
         _ ->
             D.fail ("Unsupported content kind " ++ kind)
