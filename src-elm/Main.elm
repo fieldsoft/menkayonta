@@ -237,7 +237,7 @@ docRecDecode =
     D.map3 DocRec
         (D.field "command" D.string)
         (D.field "identifier" D.string)
-        (D.field "doc" M.interlinearDecoder
+        (D.field "doc" interlinearDecoder
         |> D.map InterlinearContent)
 
 
@@ -1631,7 +1631,7 @@ viewVista model tp vista =
                     List.filter
                         (\i ->
                             String.contains ss i.text
-                                || String.contains ss i.annotations.glosses
+                                || String.contains ss i.glosses.glosses
                                 || List.any
                                     (\t -> String.contains ss t.translation)
                                     (Dict.values i.translations)
@@ -1707,8 +1707,8 @@ viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearItem proj int =
     let
         srcLine =
-            if int.annotations.breaks /= "" then
-                viewGlosses int.text int.annotations.breaks int.annotations.glosses
+            if int.glosses.breaks /= "" then
+                viewGlosses int.text int.glosses.breaks int.glosses.glosses
 
             else
                 Html.p [] [ Html.text int.text ]
@@ -2060,6 +2060,23 @@ vistaDecoder =
         (D.field "kind" D.string |> D.andThen contentDecoder)
 
 
+-- I'm doing a one off here, instead of adding it to the Menkayonta
+-- module because I want to eventually be able to handle all
+-- Menkayonta Values in the UI.
+interlinearDecoder : D.Decoder Interlinear
+interlinearDecoder =
+    let
+        checkval value_ =
+            case value_ of
+                M.MyInterlinear inter ->
+                    D.succeed inter
+
+                _ ->
+                    D.fail "Non-Interlinear Value"
+    in
+    M.decoder |> D.andThen checkval
+
+                
 contentDecoder : String -> D.Decoder Content
 contentDecoder kind =
     case kind of
@@ -2073,7 +2090,7 @@ contentDecoder kind =
 
         "all-interlinears" ->
             D.map InterlinearsContent
-                (D.field "content" (D.list M.interlinearDecoder))
+                (D.field "content" <| D.list interlinearDecoder)
 
         _ ->
             D.fail ("Unsupported content kind " ++ kind)
