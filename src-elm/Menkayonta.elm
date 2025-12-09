@@ -1,7 +1,7 @@
 module Menkayonta exposing
     ( Description
     , DescriptionId
-    , Glosses
+    , Ann
     , Interlinear
     , Modification
     , ModificationId
@@ -42,17 +42,17 @@ type Value
 
 
 type Identifier
-    = MyPersonId UUID
+    = MyDocId DocId
     | MyTagId TagId
     | MyDescriptionId DescriptionId
     | MyPropertyId PropertyId
     | MyUtilityId UtilityId
     | MyModificationId ModificationId
-    | MyInterlinearId UUID
 
 
-
---    | MyDativeInterlinearId UUID
+type DocId
+    = PersonId UUID
+    | InterlinearId UUID
 
 
 type alias Translation =
@@ -61,7 +61,7 @@ type alias Translation =
     }
 
 
-type alias Glosses =
+type alias Ann =
     { breaks : String
     , glosses : String
     , phonemic : String
@@ -74,14 +74,14 @@ type alias Interlinear =
     , rev : Maybe String
     , version : Int
     , text : String
-    , glosses : Glosses
+    , ann : Ann
     , translations : Dict Int Translation
     }
 
 
 type alias DescriptionId =
     { kind : String
-    , docid : Identifier
+    , docid : DocId
     , fragment : List String
     }
 
@@ -96,7 +96,7 @@ type alias Description =
 
 type alias TagId =
     { kind : String
-    , docid : Identifier
+    , docid : DocId
     , fragment : List String
     }
 
@@ -111,7 +111,7 @@ type alias Tag =
 type alias PropertyId =
     { kind : String
     , value : String
-    , docid : Identifier
+    , docid : DocId
     , fragment : List String
     }
 
@@ -134,17 +134,18 @@ type alias Person =
 
 type alias ModificationId =
     { kind : String
-    , docid : Identifier
+    , docid : DocId
     , time : Time.Posix
-    , person : Identifier
+    , person : DocId
     , fragment : List String
     }
 
 
 type alias Modification =
     { id : ModificationId
-    , rev : String
+    , rev : Maybe String
     , version : Int
+    , comment : String
     , docversion : Int
     , docstate : E.Value
     }
@@ -152,14 +153,14 @@ type alias Modification =
 
 type alias UtilityId =
     { kind : String
-    , docid : Identifier
+    , docid : DocId
     , fragment : List String
     }
 
 
 type alias Utility =
     { id : UtilityId
-    , rev : String
+    , rev : Maybe String
     , version : Int
     , value : E.Value
     }
@@ -187,10 +188,10 @@ decoder_ idstr =
             stringToIdentifier idstr
     in
     case id of
-        Just (MyInterlinearId id_) ->
+        Just (MyDocId (InterlinearId id_)) ->
             D.map MyInterlinear <| interlinearDecoder_ id_
 
-        Just (MyPersonId id_) ->
+        Just (MyDocId (PersonId id_)) ->
             D.map MyPerson <| personDecoder_ id_
 
         Just (MyTagId id_) ->
@@ -212,18 +213,18 @@ decoder_ idstr =
             D.fail "Unrecognized Document Type"
 
 
-documentIdentifier : ( String, String ) -> Maybe Identifier
+documentIdentifier : ( String, String ) -> Maybe DocId
 documentIdentifier idpair =
     case idpair of
         ( "interlinear", uuidstr ) ->
             UUID.fromString uuidstr
                 |> Result.toMaybe
-                |> Maybe.map MyInterlinearId
+                |> Maybe.map InterlinearId
 
         ( "person", uuidstr ) ->
             UUID.fromString uuidstr
                 |> Result.toMaybe
-                |> Maybe.map MyPersonId
+                |> Maybe.map PersonId
 
         _ ->
             Nothing
@@ -246,7 +247,7 @@ stringToIdentifier idstring =
     in
     case idlists of
         ( d1 :: d2 :: [], [] ) ->
-            documentIdentifier ( d1, d2 )
+            documentIdentifier ( d1, d2 ) |> Maybe.map MyDocId
 
         ( "tag" :: kind :: d1 :: d2 :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
@@ -278,7 +279,7 @@ stringToIdentifier idstring =
                                     String.toInt time
                                         |> Maybe.map Time.millisToPosix
                                         |> Maybe.map
-                                            (\t -> { kinde = kind
+                                            (\t -> { kind = kind
                                                    , docid = d
                                                    , time = t
                                                    , person = p
@@ -300,13 +301,13 @@ interlinearDecoder_ id =
         (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
         (D.field "text" D.string)
-        (D.field "glosses" glossesDecoder)
+        (D.field "ann" annDecoder)
         (D.field "translations" (DE.dict2 D.int translationDecoder))
 
 
-glossesDecoder : D.Decoder Glosses
-glossesDecoder =
-    D.map4 Glosses
+annDecoder : D.Decoder Ann
+annDecoder =
+    D.map4 Ann
         (D.field "breaks" D.string)
         (D.field "glosses" D.string)
         (D.field "phonemic" D.string)
@@ -357,10 +358,11 @@ propertyDecoder_ id =
 
 modificationDecoder_ : ModificationId -> D.Decoder Modification
 modificationDecoder_ id =
-    D.map5 Modification
+    D.map6 Modification
         (D.succeed id)
-        (D.field "_rev" D.string)
+        (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
+        (D.field "comment" D.string)
         (D.field "docversion" D.int)
         (D.field "docstate" D.value)
 
@@ -369,39 +371,189 @@ utilityDecoder_ : UtilityId -> D.Decoder Utility
 utilityDecoder_ id =
     D.map4 Utility
         (D.succeed id)
-        (D.field "_rev" D.string)
+        (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
         (D.field "value" D.value)
 
 
+valueEncoder : Value -> E.Value
+valueEncoder value =
+    case value of
+        MyPerson person ->
+            personEncoder person
+        MyTag tag ->
+            tagEncoder tag
+        MyProperty property ->
+            propertyEncoder property
+        MyUtility utility ->
+            utilityEncoder utility
+        MyModification modification ->
+            modificationEncoder modification
+        MyDescription description ->
+            descriptionEncoder description
+        MyInterlinear interlinear ->
+            interlinearEncoder interlinear
 
--- valueEncoder : Value -> E.Value
--- valueEncoder value =
---     case value of
---         MyPerson person ->
---             personEncoder person
---         MyTag tag ->
---             tagEncoder tag
---         MyProperty property ->
---             propertyEncoder property
---         MyUtility utility ->
---             utilityEncoder utility
---         MyModification modification ->
---             modificationEncoder modification
---         MyDescription description ->
---             descriptionEncoder description
---         MyInterlinear interlinear ->
---             interlinearEncoder interlinear
--- personEncoder : Person -> E.Value
--- personEncoder person =
---     E.object
---         [ ("_id", E.string ("person/" ++ (UUID.toString person.id)))
---         , ("_rev", E.string person.rev)
---         , ("version", E.int person.version)
---         , ("email", E.string person.email)
---         , ("names", E.dict identity E.int perons.names)
---         ]
--- tagEncoder : Tag -> E.Value
--- tagEncoder tag =
---     E.object
---         [ ("_id", E.string (tagIdBuilder tag))
+                
+personEncoder : Person -> E.Value
+personEncoder person =
+    [ ("_id", E.string (docIdToString <| PersonId person.id))
+    , ("version", E.int person.version)
+    , ("email", E.string person.email)
+    , ("names", E.dict String.fromInt E.string person.names)
+    ] |> addRev person.rev
+
+                
+interlinearEncoder : Interlinear -> E.Value
+interlinearEncoder int =
+    [ ("_id", E.string (docIdToString <| InterlinearId int.id))
+    , ("version", E.int int.version)
+    , ("text", E.string int.text)
+    , ("ann", annEncoder int.ann) 
+    , ("translations", E.dict String.fromInt translationEncoder int.translations)
+    ] |> addRev int.rev
+
+
+annEncoder : Ann -> E.Value
+annEncoder ann =
+    E.object
+        [ ("breaks", E.string ann.breaks)
+        , ("glosses", E.string ann.glosses)
+        , ("phonemic", E.string ann.phonemic)
+        , ("judgment", E.string ann.judgment)
+        ]
+
+
+translationEncoder : Translation -> E.Value
+translationEncoder tr =
+    E.object
+        [ ("translation", E.string tr.translation)
+        , ("judgment", E.string tr.judgment)
+        ]
+    
+
+tagEncoder : Tag -> E.Value
+tagEncoder tag =
+    [ ("_id", E.string (tagIdToString tag.id))
+    , ("version", E.int tag.version)
+    ] |> addRev tag.rev
+    
+
+tagIdToString : TagId -> String
+tagIdToString tagid =
+    [ "tag"
+    , tagid.kind
+    , docIdToString tagid.docid
+    ] |> addFrag tagid.fragment
+
+
+propertyEncoder : Property -> E.Value
+propertyEncoder property =
+    [ ("_id", E.string (propertyIdToString property.id))
+    , ("version", E.int property.version)
+    ] |> addRev property.rev
+
+propertyIdToString : PropertyId -> String
+propertyIdToString propertyid =
+    [ "property"
+    , propertyid.kind
+    , propertyid.value
+    , docIdToString propertyid.docid
+    ] |> addFrag propertyid.fragment
+
+
+utilityEncoder : Utility -> E.Value
+utilityEncoder utility =
+    [ ("_id", E.string (utilityIdToString utility.id))
+    , ("version", E.int utility.version)
+    , ("value", utility.value)
+    ] |> addRev utility.rev
+    
+
+utilityIdToString : UtilityId -> String
+utilityIdToString utilityid =
+    [ "utility"
+    , utilityid.kind
+    , docIdToString utilityid.docid
+    ] |> addFrag utilityid.fragment
+
+
+descriptionEncoder : Description -> E.Value
+descriptionEncoder description =
+    [ ("_id", E.string (descriptionIdToString description.id))
+    , ("version", E.int description.version)
+    , ("value", description.value)
+    ] |> addRev description.rev
+    
+
+descriptionIdToString : DescriptionId -> String
+descriptionIdToString descriptionid =
+    [ "description"
+    , descriptionid.kind
+    , docIdToString descriptionid.docid
+    ] |> addFrag descriptionid.fragment
+
+
+modificationEncoder : Modification -> E.Value
+modificationEncoder modification =
+    [ ("_id", E.string (modificationIdToString modification.id))
+    , ("version", E.int modification.version)
+    , ("comment", E.string modification.comment)
+    , ("docversion", E.int modification.docversion)
+    , ("value", modification.docstate)
+    ] |> addRev modification.rev
+    
+
+modificationIdToString : ModificationId -> String
+modificationIdToString modid =
+    [ "modification"
+    , modid.kind
+    , docIdToString modid.docid
+    , Time.posixToMillis modid.time |> String.fromInt
+    , docUuidToString modid.person
+    ] |> addFrag modid.fragment
+
+
+addRev : Maybe String -> List ( String, E.Value ) -> E.Value
+addRev rev fields =
+    rev |> Maybe.map (\rev_ -> ("_rev", E.string rev_))
+        |> Maybe.map (\rev_ -> rev_ :: fields)
+        |> Maybe.map E.object
+        |> Maybe.withDefault (E.object fields)
+
+
+addFrag : List String -> List String -> String
+addFrag s1 s2 =
+    let
+        s1_ =
+            (String.join "/" s1)
+    in
+    if s1_ == "" then
+        String.join "/" s2
+
+    else
+        (String.join "/" s2) ++ "#" ++ s1_
+
+
+docIdToString : DocId -> String
+docIdToString docid =
+    let
+        appendUUID doctype uuid =
+            doctype ++ "/" ++ UUID.toString uuid
+    in
+    case docid of
+        PersonId uuid ->
+            appendUUID "person" uuid
+
+        InterlinearId uuid ->
+            appendUUID "interlinear" uuid
+
+
+docUuidToString : DocId -> String
+docUuidToString docid =
+    case docid of
+        PersonId uuid ->
+            UUID.toString uuid
+
+        InterlinearId uuid ->
+            UUID.toString uuid

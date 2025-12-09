@@ -1631,7 +1631,7 @@ viewVista model tp vista =
                     List.filter
                         (\i ->
                             String.contains ss i.text
-                                || String.contains ss i.glosses.glosses
+                                || String.contains ss i.ann.glosses
                                 || List.any
                                     (\t -> String.contains ss t.translation)
                                     (Dict.values i.translations)
@@ -1707,8 +1707,8 @@ viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearItem proj int =
     let
         srcLine =
-            if int.glosses.breaks /= "" then
-                viewGlosses int.text int.glosses.breaks int.glosses.glosses
+            if int.ann.breaks /= "" then
+                viewAnn int.text int.ann.breaks int.ann.glosses
 
             else
                 Html.p [] [ Html.text int.text ]
@@ -1726,8 +1726,8 @@ viewInterlinearItem proj int =
         ]
 
 
-viewGlosses : String -> String -> String -> Html.Html Msg
-viewGlosses src brk gls =
+viewAnn : String -> String -> String -> Html.Html Msg
+viewAnn src brk gls =
     let
         src_ =
             String.split " " src
