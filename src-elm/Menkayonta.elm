@@ -5,6 +5,7 @@ module Menkayonta exposing
     , Interlinear
     , Modification
     , ModificationId
+    , Person
     , Property
     , PropertyId
     , Tag
@@ -14,6 +15,7 @@ module Menkayonta exposing
     , UtilityId
     , Value(..)
     , decoder
+    , encoder
     )
 
 import Dict exposing (Dict)
@@ -376,8 +378,8 @@ utilityDecoder_ id =
         (D.field "value" D.value)
 
 
-valueEncoder : Value -> E.Value
-valueEncoder value =
+encoder : Value -> E.Value
+encoder value =
     case value of
         MyPerson person ->
             personEncoder person

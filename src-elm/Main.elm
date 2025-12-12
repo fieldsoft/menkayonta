@@ -3,6 +3,7 @@ port module Main exposing (main)
 import Browser
 import Browser.Dom exposing (Viewport)
 import Dict exposing (Dict)
+import FormToolkit.Error as FError
 import FormToolkit.Field as Field exposing (Field)
 import FormToolkit.Parse as FParse
 import FormToolkit.Value as Value
@@ -11,15 +12,17 @@ import Html.Attributes as Attr
 import Html.Events as Event
 import Json.Decode as D
 import Json.Encode as E
+import Json.Encode.Extra as EE
 import List.Extra as LE
 import Math.Vector3 as V3
 import Maybe.Extra as ME
+import Menkayonta as M exposing (Interlinear)
 import Result
 import Set exposing (Set)
 import SharedTypes as ST
-import Menkayonta as M exposing (Interlinear)
 import Task
 import UUID exposing (UUID)
+import Url
 
 
 {-| The window title changes depending on the focused tab. This sends
@@ -121,7 +124,7 @@ port closeTab_ : (() -> msg) -> Sub msg
 
 port cloneTab_ : (() -> msg) -> Sub msg
 
-                 
+
 {-| A Ventana supplies the title and a referrence to a Vista, which is
 an identifier for some viewable content. I use Spanish when there are
 already commonly referred to object or concepts such as "window" or
@@ -177,6 +180,7 @@ type alias GlobalConfig =
     { projects : List ProjectInfo
     , name : Maybe String
     , email : Maybe String
+    , identifier : Maybe String
     }
 
 
@@ -186,6 +190,7 @@ a project.
 type alias GlobalSettings =
     { name : String
     , email : String
+    , identifier : Maybe String
     }
 
 
@@ -238,17 +243,20 @@ docRecDecode =
         (D.field "command" D.string)
         (D.field "identifier" D.string)
         (D.field "doc" interlinearDecoder
-        |> D.map InterlinearContent)
+            |> D.map InterlinearContent
+        )
 
 
 type alias FormData =
     { fields : Field FieldKind
     , submitted : Bool
+    , result : Maybe (Result (FError.Error FieldKind) Content)
     }
 
 
 type alias Model =
     { gconfig : Maybe GlobalConfig
+    , me : Maybe M.Person
     , counter : Int
     , ventanas : Ventanas
     , focused : Maybe TabPath
@@ -279,6 +287,7 @@ type FieldKind
     | ImportContent
     | GlobalName
     | GlobalEmail
+    | GlobalUUID
 
 
 type Msg
@@ -353,7 +362,7 @@ globalVistas =
       , { project = "global"
         , kind = "global-settings"
         , identifier = "global-settings"
-        , content = GlobalSettingsContent (GlobalSettings "" "")
+        , content = GlobalSettingsContent (GlobalSettings "" "" Nothing)
         }
       )
     ]
@@ -464,6 +473,16 @@ globalSettingsFields gs =
             , Field.name "email"
             , Field.value (Value.string gs.email)
             ]
+        , Field.text
+            [ Field.label "Your Identifier (Leave blank to create)"
+            , Field.required False
+            , Field.identifier GlobalUUID
+            , Field.name "identifier"
+            , Field.value
+                (Value.string <|
+                    Maybe.withDefault "" gs.identifier
+                )
+            ]
         ]
 
 
@@ -490,16 +509,19 @@ init flags =
         newProjectForm =
             { fields = projectFields <| ProjectInfo "" "" True Nothing
             , submitted = False
+            , result = Nothing
             }
 
         importForm =
             { fields = importOptionsFields Nothing Nothing
             , submitted = False
+            , result = Nothing
             }
 
         globalForm =
-            { fields = globalSettingsFields <| GlobalSettings "" ""
+            { fields = globalSettingsFields <| GlobalSettings "" "" Nothing
             , submitted = False
+            , result = Nothing
             }
 
         forms =
@@ -509,6 +531,7 @@ init flags =
                 |> Dict.insert "global-settings" globalForm
     in
     ( { gconfig = Nothing
+      , me = Nothing
       , counter = 0
       , ventanas = Dict.empty
       , focused = Nothing
@@ -693,16 +716,36 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok gc1 ->
+                Ok gc_ ->
                     let
+                        person =
+                            gc_.identifier
+                               |> Maybe.map UUID.fromString
+                               |> Maybe.map Result.toMaybe
+                               |> ME.join
+                               |> \uuid -> (gc_.name, gc_.email, uuid)
+                               |> all3
+                               |> Maybe.map
+                                  (\(x, y, z) ->
+                                       { id = z
+                                       , rev = Nothing
+                                       , version = 1
+                                       , email = y
+                                       , names =
+                                           Dict.singleton 0 x
+                                       }
+                                  )
+                                
                         nm =
-                            { model | gconfig = Just gc1 }
+                            { model | gconfig = Just gc_
+                            , me = person
+                            }
 
                         openMenu =
                             update (GlobalSettingsMenu gc) nm
 
                         cmd =
-                            case ( gc1.name, gc1.email ) of
+                            case ( gc_.name, gc_.email ) of
                                 ( Nothing, _ ) ->
                                     openMenu
 
@@ -780,7 +823,10 @@ update msg model =
                     ProjectInfo "" ident True Nothing
 
                 pif =
-                    { fields = projectFields pi, submitted = False }
+                    { fields = projectFields pi
+                    , submitted = False
+                    , result = Just (Ok (ProjectInfoContent pi))
+                    }
 
                 forms =
                     Dict.insert "new-project" pif model.forms
@@ -804,7 +850,10 @@ update msg model =
                     "edit-project::" ++ pi.identifier
 
                 pif =
-                    { fields = projectFields pi, submitted = False }
+                    { fields = projectFields pi
+                    , submitted = False
+                    , result = Nothing
+                    }
 
                 tabtitle =
                     pi.title ++ " Settings"
@@ -848,6 +897,8 @@ update msg model =
                         importOptionsFields model.gconfig (Just filepath)
                     , submitted =
                         False
+                    , result =
+                        Nothing
                     }
 
                 forms =
@@ -883,10 +934,12 @@ update msg model =
                             GlobalSettings
                                 (Maybe.withDefault "" gf.name)
                                 (Maybe.withDefault "" gf.email)
+                                gf.identifier
 
                         gsForm =
                             { fields = globalSettingsFields gs
                             , submitted = False
+                            , result = Nothing
                             }
 
                         forms =
@@ -924,11 +977,22 @@ update msg model =
             case Dict.get ident model.forms of
                 Just fd ->
                     let
-                        ( fields, _ ) =
+                        ( fields, result ) =
                             FParse.parseUpdate projectParser mesg fd.fields
 
+                        result_ =
+                            case result of
+                                Ok r ->
+                                    Ok (ProjectInfoContent r)
+
+                                Err e ->
+                                    Err e
+
                         pif =
-                            { fd | fields = fields }
+                            { fd
+                                | fields = fields
+                                , result = Just result_
+                            }
 
                         forms =
                             Dict.insert ident pif model.forms
@@ -942,11 +1006,22 @@ update msg model =
             case Dict.get "import-options" model.forms of
                 Just fd ->
                     let
-                        ( fields, _ ) =
+                        ( fields, result ) =
                             FParse.parseUpdate importParser mesg fd.fields
 
+                        result_ =
+                            case result of
+                                Ok r ->
+                                    Ok (ImportOptionsContent r)
+
+                                Err e ->
+                                    Err e
+
                         ipf =
-                            { fd | fields = fields }
+                            { fd
+                                | fields = fields
+                                , result = Just result_
+                            }
 
                         forms =
                             Dict.insert "import-options" ipf model.forms
@@ -960,11 +1035,22 @@ update msg model =
             case Dict.get "global-settings" model.forms of
                 Just fd ->
                     let
-                        ( fields, _ ) =
+                        ( fields, result ) =
                             FParse.parseUpdate globalParser mesg fd.fields
 
+                        result_ =
+                            case result of
+                                Ok r ->
+                                    Ok (GlobalSettingsContent r)
+
+                                Err e ->
+                                    Err e
+
                         gsf =
-                            { fd | fields = fields }
+                            { fd
+                                | fields = fields
+                                , result = Just result_
+                            }
 
                         forms =
                             Dict.insert "global-settings" gsf model.forms
@@ -986,20 +1072,14 @@ update msg model =
                             ( model, Cmd.none )
 
                         Just fd ->
-                            if fd.submitted then
-                                -- The form was already
-                                -- submitted. Just close the tab.
-                                ( closeTab True tp model, Cmd.none )
+                            let
+                                divid =
+                                    String.split "::" ident
 
-                            else
-                                let
-                                    divid =
-                                        String.split "::" ident
-
-                                    ( nm, cmd ) =
-                                        handleSubmit divid fd model
-                                in
-                                ( closeTab True tp model, cmd )
+                                ( nm, cmd ) =
+                                    handleSubmit divid fd model
+                            in
+                            ( nm, cmd )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -1158,23 +1238,35 @@ handleProjectSubmit ident fd model =
                 forms =
                     Dict.remove ident model.forms
 
-                ( vistas, command ) =
+                jsonValue_ =
+                    model.me
+                        |> Maybe.map M.MyPerson
+                        |> Maybe.map M.encoder
+                        |> \p ->
+                                E.object
+                                [ ("project", jsonValue)
+                                , ("seed", E.list (EE.maybe identity) [p])
+                                ]
+
+                command =
                     if ident == "new-project" then
-                        ( model.vistas, createProject jsonValue )
+                        createProject jsonValue_
 
                     else
-                        ( Dict.remove ident model.vistas
-                        , updateProject jsonValue
-                        )
+                        updateProject jsonValue
             in
-            ( { model | forms = forms, vistas = vistas }
+            ( closeAll True ident { model | forms = forms }
             , command
             )
 
-        ( formFields, Err _ ) ->
+        ( fields, Err e ) ->
             let
                 pif =
-                    { fd | submitted = False }
+                    { fd
+                        | fields = fields
+                        , submitted = False
+                        , result = Just (Err e)
+                    }
 
                 forms =
                     Dict.insert ident pif model.forms
@@ -1215,7 +1307,7 @@ handleGlobalSubmit fd model =
         ( _, Ok jsonValue ) ->
             let
                 gs =
-                    GlobalSettings "" ""
+                    GlobalSettings "" "" Nothing
 
                 gsf =
                     { fd | fields = globalSettingsFields gs }
@@ -1223,12 +1315,18 @@ handleGlobalSubmit fd model =
                 forms =
                     Dict.insert "global-settings" gsf model.forms
             in
-            ( { model | forms = forms }, updateGlobalSettings jsonValue )
+            ( closeAll False "global-settings" { model | forms = forms }
+            , updateGlobalSettings jsonValue
+            )
 
-        ( _, Err _ ) ->
+        ( fields, Err e ) ->
             let
                 gsf =
-                    { fd | submitted = False }
+                    { fd
+                        | fields = fields
+                        , submitted = False
+                        , result = Just (Err e)
+                    }
 
                 forms =
                     Dict.insert "global-settings" gsf model.forms
@@ -1526,12 +1624,43 @@ viewVista model tp vista =
         ProjectInfoContent pi ->
             case Dict.get vista.identifier model.forms of
                 Just f ->
+                    let
+                        errorsExist =
+                            case f.result of
+                                Just (Err _) ->
+                                    True
+
+                                _ ->
+                                    False
+                    in
                     Html.form [ Event.onSubmit (FormSubmit tp) ]
                         [ Field.toHtml (ProjectInfoFormChange tp) f.fields
-                        , Html.button [ Event.onClick (FormSubmit tp) ]
+                        , Html.button
+                            [ Event.onClick (FormSubmit tp)
+                            , Attr.disabled errorsExist
+                            ]
                             [ Html.text "Save" ]
-                        , Html.button [ Event.onClick CloseTab ]
+                        , Html.button
+                            [ Event.onClick CloseTab
+                            , Attr.class "secondary"
+                            ]
                             [ Html.text "Cancel" ]
+                        , case f.result of
+                            Just (Err e) ->
+                                Html.div []
+                                    [ Html.text "There were errors"
+                                    , Html.ul []
+                                        (FError.toList e
+                                            |> List.map
+                                                (\e_ ->
+                                                    Html.li []
+                                                        [ Html.text (FError.toEnglish e_) ]
+                                                )
+                                        )
+                                    ]
+
+                            _ ->
+                                Html.text ""
                         ]
 
                 Nothing ->
@@ -1552,20 +1681,68 @@ viewVista model tp vista =
                     Html.text "No such form."
 
         GlobalSettingsContent gs ->
+            let
+                isV4 uuid =
+                    UUID.version uuid == 4
+
+                noUUID =
+                    model.gconfig
+                        |> Maybe.map .identifier
+                        |> ME.join
+                        |> Maybe.map UUID.fromString
+                        |> Maybe.map Result.toMaybe
+                        |> ME.join
+                        |> Maybe.andThen (maybeIf isV4)
+                        |> ME.isNothing
+            in
             case Dict.get "global-settings" model.forms of
                 Just f ->
+                    let
+                        errorsExist =
+                            case f.result of
+                                Just (Err _) ->
+                                    True
+
+                                _ ->
+                                    False
+                    in
                     Html.div []
                         [ Html.p []
                             [ Html.text
                                 "Name and email address required."
                             ]
                         , Html.form [ Event.onSubmit (FormSubmit tp) ]
-                            [ Field.toHtml GlobalSettingsFormChange f.fields
-                            , Html.button [ Event.onClick (FormSubmit tp) ]
+                            [ Field.toHtml
+                                GlobalSettingsFormChange
+                                f.fields
+                            , Html.button
+                                [ Event.onClick (FormSubmit tp)
+                                , Attr.disabled errorsExist
+                                ]
                                 [ Html.text "Save" ]
-                            , Html.button [ Event.onClick CloseTab ]
+                            , Html.button
+                                [ Event.onClick CloseTab
+                                , Attr.disabled noUUID
+                                , Attr.class "secondary"
+                                ]
                                 [ Html.text "Cancel" ]
                             ]
+                        , case f.result of
+                            Just (Err e) ->
+                                Html.div []
+                                    [ Html.text "There were errors"
+                                    , Html.ul []
+                                        (FError.toList e
+                                            |> List.map
+                                                (\e_ ->
+                                                    Html.li []
+                                                        [ Html.text (FError.toEnglish e_) ]
+                                                )
+                                        )
+                                    ]
+
+                            _ ->
+                                Html.text ""
                         ]
 
                 Nothing ->
@@ -1855,6 +2032,12 @@ closeTab closevista tp model =
     }
 
 
+closeAll : Bool -> String -> Model -> Model
+closeAll closevista vista model =
+    getAllByVista vista model.ventanas
+        |> List.foldl (closeTab False) model
+
+
 {-| Assign a ventana to a new tab.
 -}
 reassign : TabPath -> TabPath -> Model -> Model
@@ -2060,9 +2243,12 @@ vistaDecoder =
         (D.field "kind" D.string |> D.andThen contentDecoder)
 
 
+
 -- I'm doing a one off here, instead of adding it to the Menkayonta
 -- module because I want to eventually be able to handle all
 -- Menkayonta Values in the UI.
+
+
 interlinearDecoder : D.Decoder Interlinear
 interlinearDecoder =
     let
@@ -2076,7 +2262,7 @@ interlinearDecoder =
     in
     M.decoder |> D.andThen checkval
 
-                
+
 contentDecoder : String -> D.Decoder Content
 contentDecoder kind =
     case kind of
@@ -2098,10 +2284,11 @@ contentDecoder kind =
 
 globalConfigDecoder : D.Decoder GlobalConfig
 globalConfigDecoder =
-    D.map3 GlobalConfig
+    D.map4 GlobalConfig
         (D.field "projects" <| D.list projectInfoDecoder)
         (D.field "name" <| D.nullable D.string)
         (D.field "email" <| D.nullable D.string)
+        (D.field "identifier" <| D.nullable D.string)
 
 
 projectInfoDecoder : D.Decoder ProjectInfo
@@ -2129,10 +2316,10 @@ translationDecoder =
 projectParser : FParse.Parser FieldKind ProjectInfo
 projectParser =
     FParse.map4 ProjectInfo
-        (FParse.field ProjectIdentifier FParse.string)
+        (FParse.field ProjectIdentifier uuidStringParser)
         (FParse.field ProjectTitle FParse.string)
         (FParse.field ProjectEnabled FParse.bool)
-        (FParse.field ProjectUrl (FParse.maybe FParse.string))
+        (FParse.field ProjectUrl (FParse.maybe urlStringParser))
 
 
 importParser : FParse.Parser FieldKind ImportOptions
@@ -2146,9 +2333,40 @@ importParser =
 
 globalParser : FParse.Parser FieldKind GlobalSettings
 globalParser =
-    FParse.map2 GlobalSettings
+    FParse.map3 GlobalSettings
         (FParse.field GlobalName FParse.string)
         (FParse.field GlobalEmail FParse.email)
+        (FParse.field GlobalUUID (FParse.maybe uuidStringParser))
+
+
+urlStringParser : FParse.Parser FieldKind String
+urlStringParser =
+    FParse.string
+        |> FParse.andThen
+            (\str ->
+                case Url.fromString str of
+                    Nothing ->
+                        FParse.fail
+                            "Invalide URL Format"
+
+                    Just _ ->
+                        FParse.succeed str
+            )
+
+
+uuidStringParser : FParse.Parser FieldKind String
+uuidStringParser =
+    FParse.string
+        |> FParse.andThen
+            (\str ->
+                case UUID.fromString str of
+                    Err _ ->
+                        FParse.fail
+                            "Invalid Identifer Format"
+
+                    Ok _ ->
+                        FParse.succeed str
+            )
 
 
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
@@ -2168,3 +2386,32 @@ getProjectTitle projid model =
         |> Maybe.map .projects
         |> Maybe.andThen (LE.find (\x -> x.identifier == projid))
         |> Maybe.map .title
+
+
+maybeIf : (a -> Bool) -> a -> Maybe a
+maybeIf pred a =
+    if pred a then
+        Just a
+
+    else
+        Nothing
+
+
+both : ( Maybe a, Maybe b ) -> Maybe ( a, b )
+both pair =
+    case pair of
+        ( Just one, Just two ) ->
+            Just ( one, two )
+
+        _ ->
+            Nothing
+
+
+all3 : ( Maybe a, Maybe b, Maybe c ) -> Maybe ( a, b, c )
+all3 triple =
+    case triple of
+        ( Just one, Just two, Just three ) ->
+            Just ( one, two, three )
+
+        _ ->
+            Nothing

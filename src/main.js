@@ -326,7 +326,12 @@ const writeProjConf = async (identifier, configData) => {
 // exist. It returns a JSON object of the app's global configuration,
 // such as the projects that exist in the projects directory.
 const openGlobalConf = async () => {
-  const initialConf = { projects: [], name: null, email: null }
+  const initialConf = {
+    projects: [],
+    name: null,
+    email: null,
+    identifier: null,
+  }
 
   try {
     await fs.mkdir(gvs.projectsPath, { recursive: true })
@@ -355,7 +360,10 @@ const openGlobalConf = async () => {
 // 4. Create the new project config file
 // 5. Initialize a database
 // 6. Send the globabl config to the renderer
-const createProject = async (_event, projectInfo) => {
+const createProject = async (_event, data) => {
+  console.log(data)
+  const projectInfo = data.project
+  const seed = data.seed
   const projPath = path.join(gvs.projectsPath, projectInfo.identifier)
   const projSharePath = path.join(projPath, 'share')
   const equalsCurrent = (p) => p.identifier === projectInfo.identifier
@@ -375,6 +383,14 @@ const createProject = async (_event, projectInfo) => {
 
   // Start up the project if it was enabled.
   manageProjectProcesses()
+
+  const payload = {
+    command: 'bulk-write',
+    identifier: projectInfo.identifier,
+    bulkDocs: seed,
+  }
+
+  gvs.active[projectInfo.identifier].postMessage(payload)
 
   return gvs.globalConf
 }
@@ -415,6 +431,12 @@ const updateProject = async (_event, projectInfo) => {
 const updateGlobalSettings = async (_event, globalSettings) => {
   gvs.globalConf.name = globalSettings.name
   gvs.globalConf.email = globalSettings.email
+
+  if (globalSettings.identifier) {
+    gvs.globalConf.identifier = globalSettings.identifier
+  } else {
+    gvs.globalConf.identifier = v4()
+  }
 
   await writeGlobalConf(gvs.globalConf)
 
