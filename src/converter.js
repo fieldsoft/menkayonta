@@ -82,3 +82,7 @@ app.ports.sendBulkDocs.subscribe((job) => {
     error(Error(job.payload))
   }
 })
+
+app.ports.reportError.subscribe((error) => {
+  error(Error(error))
+})

@@ -24,7 +24,6 @@ import Json.Decode.Extra as DE
 import Json.Encode as E
 import Json.Encode.Extra as EE
 import Maybe.Extra as ME
-import SharedTypes as ST
 import Time
 import UUID exposing (UUID)
 
@@ -165,15 +164,6 @@ type alias Utility =
     , rev : Maybe String
     , version : Int
     , value : E.Value
-    }
-
-
-type alias DativeUtilityValue =
-    { version : Int
-    , syntactic_category_string : Maybe String
-    , morpheme_break_ids : Maybe (List ST.DativeToken)
-    , morpheme_gloss_ids : Maybe (List ST.DativeToken)
-    , break_gloss_category : Maybe String
     }
 
 

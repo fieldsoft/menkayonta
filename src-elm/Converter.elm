@@ -6,12 +6,16 @@ import Platform
 import Random
 import UUID
 import DativeTypes
+import Menkayonta
 
 
 port receivedDativeForms : (E.Value -> msg) -> Sub msg
 
 
 port sendBulkDocs : E.Value -> Cmd msg
+
+
+port reportError : String -> Cmd msg 
 
 
 type Msg
@@ -27,14 +31,6 @@ type alias Flags =
     , seed2 : Int
     , seed3 : Int
     , seed4 : Int
-    }
-
-
-type alias TestData =
-    { uuid : UUID.UUID
-    , doctype : String
-    , version : Int
-    , content : String
     }
 
 
@@ -61,24 +57,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ReceivedDativeForms job ->
-            -- let
-            --     ( uuid, seeds ) =
-            --         UUID.step model.seeds
-
-            --     td =
-            --         [ { uuid = uuid
-            --           , doctype = "test"
-            --           , version = 1
-            --           , content = "test content"
-            --           }
-            --         ]
-
-            --     tdval =
-            --         E.list testDataEncoder td
-            -- in
             case D.decodeValue jobDecoder job of
-                Err _ ->
-                    ( model, Cmd.none )
+                Err e ->
+                    let
+                        error =
+                            D.errorToString e
+                    in
+                    ( model, reportError e )
 
                 Ok j ->
                     let
