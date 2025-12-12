@@ -1,7 +1,7 @@
 module Menkayonta exposing
-    ( Description
+    ( Ann
+    , Description
     , DescriptionId
-    , Ann
     , Interlinear
     , Modification
     , ModificationId
@@ -22,8 +22,6 @@ import Dict exposing (Dict)
 import Json.Decode as D
 import Json.Decode.Extra as DE
 import Json.Encode as E
-import Json.Encode.Extra as EE
-import Maybe.Extra as ME
 import Time
 import UUID exposing (UUID)
 
@@ -271,12 +269,13 @@ stringToIdentifier idstring =
                                     String.toInt time
                                         |> Maybe.map Time.millisToPosix
                                         |> Maybe.map
-                                            (\t -> { kind = kind
-                                                   , docid = d
-                                                   , time = t
-                                                   , person = p
-                                                   , fragment = fragment
-                                                   }
+                                            (\t ->
+                                                { kind = kind
+                                                , docid = d
+                                                , time = t
+                                                , person = p
+                                                , fragment = fragment
+                                                }
                                             )
                                 )
                     )
@@ -373,77 +372,89 @@ encoder value =
     case value of
         MyPerson person ->
             personEncoder person
+
         MyTag tag ->
             tagEncoder tag
+
         MyProperty property ->
             propertyEncoder property
+
         MyUtility utility ->
             utilityEncoder utility
+
         MyModification modification ->
             modificationEncoder modification
+
         MyDescription description ->
             descriptionEncoder description
+
         MyInterlinear interlinear ->
             interlinearEncoder interlinear
 
-                
+
 personEncoder : Person -> E.Value
 personEncoder person =
-    [ ("_id", E.string (docIdToString <| PersonId person.id))
-    , ("version", E.int person.version)
-    , ("email", E.string person.email)
-    , ("names", E.dict String.fromInt E.string person.names)
-    ] |> addRev person.rev
+    [ ( "_id", E.string (docIdToString <| PersonId person.id) )
+    , ( "version", E.int person.version )
+    , ( "email", E.string person.email )
+    , ( "names", E.dict String.fromInt E.string person.names )
+    ]
+        |> addRev person.rev
 
-                
+
 interlinearEncoder : Interlinear -> E.Value
 interlinearEncoder int =
-    [ ("_id", E.string (docIdToString <| InterlinearId int.id))
-    , ("version", E.int int.version)
-    , ("text", E.string int.text)
-    , ("ann", annEncoder int.ann) 
-    , ("translations", E.dict String.fromInt translationEncoder int.translations)
-    ] |> addRev int.rev
+    [ ( "_id", E.string (docIdToString <| InterlinearId int.id) )
+    , ( "version", E.int int.version )
+    , ( "text", E.string int.text )
+    , ( "ann", annEncoder int.ann )
+    , ( "translations", E.dict String.fromInt translationEncoder int.translations )
+    ]
+        |> addRev int.rev
 
 
 annEncoder : Ann -> E.Value
 annEncoder ann =
     E.object
-        [ ("breaks", E.string ann.breaks)
-        , ("glosses", E.string ann.glosses)
-        , ("phonemic", E.string ann.phonemic)
-        , ("judgment", E.string ann.judgment)
+        [ ( "breaks", E.string ann.breaks )
+        , ( "glosses", E.string ann.glosses )
+        , ( "phonemic", E.string ann.phonemic )
+        , ( "judgment", E.string ann.judgment )
         ]
 
 
 translationEncoder : Translation -> E.Value
 translationEncoder tr =
     E.object
-        [ ("translation", E.string tr.translation)
-        , ("judgment", E.string tr.judgment)
+        [ ( "translation", E.string tr.translation )
+        , ( "judgment", E.string tr.judgment )
         ]
-    
+
 
 tagEncoder : Tag -> E.Value
 tagEncoder tag =
-    [ ("_id", E.string (tagIdToString tag.id))
-    , ("version", E.int tag.version)
-    ] |> addRev tag.rev
-    
+    [ ( "_id", E.string (tagIdToString tag.id) )
+    , ( "version", E.int tag.version )
+    ]
+        |> addRev tag.rev
+
 
 tagIdToString : TagId -> String
 tagIdToString tagid =
     [ "tag"
     , tagid.kind
     , docIdToString tagid.docid
-    ] |> addFrag tagid.fragment
+    ]
+        |> addFrag tagid.fragment
 
 
 propertyEncoder : Property -> E.Value
 propertyEncoder property =
-    [ ("_id", E.string (propertyIdToString property.id))
-    , ("version", E.int property.version)
-    ] |> addRev property.rev
+    [ ( "_id", E.string (propertyIdToString property.id) )
+    , ( "version", E.int property.version )
+    ]
+        |> addRev property.rev
+
 
 propertyIdToString : PropertyId -> String
 propertyIdToString propertyid =
@@ -451,50 +462,56 @@ propertyIdToString propertyid =
     , propertyid.kind
     , propertyid.value
     , docIdToString propertyid.docid
-    ] |> addFrag propertyid.fragment
+    ]
+        |> addFrag propertyid.fragment
 
 
 utilityEncoder : Utility -> E.Value
 utilityEncoder utility =
-    [ ("_id", E.string (utilityIdToString utility.id))
-    , ("version", E.int utility.version)
-    , ("value", utility.value)
-    ] |> addRev utility.rev
-    
+    [ ( "_id", E.string (utilityIdToString utility.id) )
+    , ( "version", E.int utility.version )
+    , ( "value", utility.value )
+    ]
+        |> addRev utility.rev
+
 
 utilityIdToString : UtilityId -> String
 utilityIdToString utilityid =
     [ "utility"
     , utilityid.kind
     , docIdToString utilityid.docid
-    ] |> addFrag utilityid.fragment
+    ]
+        |> addFrag utilityid.fragment
 
 
 descriptionEncoder : Description -> E.Value
 descriptionEncoder description =
-    [ ("_id", E.string (descriptionIdToString description.id))
-    , ("version", E.int description.version)
-    , ("value", description.value)
-    ] |> addRev description.rev
-    
+    [ ( "_id", E.string (descriptionIdToString description.id) )
+    , ( "version", E.int description.version )
+    , ( "value", description.value )
+    ]
+        |> addRev description.rev
+
 
 descriptionIdToString : DescriptionId -> String
 descriptionIdToString descriptionid =
     [ "description"
     , descriptionid.kind
     , docIdToString descriptionid.docid
-    ] |> addFrag descriptionid.fragment
+    ]
+        |> addFrag descriptionid.fragment
 
 
 modificationEncoder : Modification -> E.Value
 modificationEncoder modification =
-    [ ("_id", E.string (modificationIdToString modification.id))
-    , ("version", E.int modification.version)
-    , ("comment", E.string modification.comment)
-    , ("docversion", E.int modification.docversion)
-    , ("value", modification.docstate)
-    ] |> addRev modification.rev
-    
+    [ ( "_id", E.string (modificationIdToString modification.id) )
+    , ( "version", E.int modification.version )
+    , ( "comment", E.string modification.comment )
+    , ( "docversion", E.int modification.docversion )
+    , ( "value", modification.docstate )
+    ]
+        |> addRev modification.rev
+
 
 modificationIdToString : ModificationId -> String
 modificationIdToString modid =
@@ -503,12 +520,14 @@ modificationIdToString modid =
     , docIdToString modid.docid
     , Time.posixToMillis modid.time |> String.fromInt
     , docUuidToString modid.person
-    ] |> addFrag modid.fragment
+    ]
+        |> addFrag modid.fragment
 
 
 addRev : Maybe String -> List ( String, E.Value ) -> E.Value
 addRev rev fields =
-    rev |> Maybe.map (\rev_ -> ("_rev", E.string rev_))
+    rev
+        |> Maybe.map (\rev_ -> ( "_rev", E.string rev_ ))
         |> Maybe.map (\rev_ -> rev_ :: fields)
         |> Maybe.map E.object
         |> Maybe.withDefault (E.object fields)
@@ -518,13 +537,13 @@ addFrag : List String -> List String -> String
 addFrag s1 s2 =
     let
         s1_ =
-            (String.join "/" s1)
+            String.join "/" s1
     in
     if s1_ == "" then
         String.join "/" s2
 
     else
-        (String.join "/" s2) ++ "#" ++ s1_
+        String.join "/" s2 ++ "#" ++ s1_
 
 
 docIdToString : DocId -> String

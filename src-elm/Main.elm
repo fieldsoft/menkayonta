@@ -1,7 +1,6 @@
 port module Main exposing (main)
 
 import Browser
-import Browser.Dom exposing (Viewport)
 import Dict exposing (Dict)
 import FormToolkit.Error as FError
 import FormToolkit.Field as Field exposing (Field)
@@ -19,9 +18,7 @@ import Maybe.Extra as ME
 import Menkayonta as M exposing (Interlinear)
 import Result
 import Set exposing (Set)
-import SharedTypes as ST
-import Task
-import UUID exposing (UUID)
+import UUID
 import Url
 
 
@@ -496,6 +493,7 @@ main =
         }
 
 
+defVParams : VentanaParams
 defVParams =
     { length = 0
     , searchString = ""
@@ -581,10 +579,10 @@ update msg model =
                        the unlikely case of a bad state, the input model
                        is returned. Perhaps an error would be better.
                     -}
-                    ( newmodel, tp ) =
+                    newmodel =
                         case model.focused of
                             Nothing ->
-                                ( model, tabpath -1 -1 -1 )
+                                model
 
                             Just tp1 ->
                                 let
@@ -594,14 +592,12 @@ update msg model =
                                     tp2 =
                                         tabpath column row c
                                 in
-                                ( { model
+                                { model
                                     | counter = c + 1
                                     , ventanas = Dict.insert tp2 ventana model.ventanas
                                     , visVentanas = visInsert tp2 model.visVentanas
                                     , focused = Just tp2
-                                  }
-                                , tp2
-                                )
+                                }
                 in
                 ( newmodel, Cmd.none )
 
@@ -720,25 +716,28 @@ update msg model =
                     let
                         person =
                             gc_.identifier
-                               |> Maybe.map UUID.fromString
-                               |> Maybe.map Result.toMaybe
-                               |> ME.join
-                               |> \uuid -> (gc_.name, gc_.email, uuid)
-                               |> all3
-                               |> Maybe.map
-                                  (\(x, y, z) ->
-                                       { id = z
-                                       , rev = Nothing
-                                       , version = 1
-                                       , email = y
-                                       , names =
-                                           Dict.singleton 0 x
-                                       }
-                                  )
-                                
+                                |> Maybe.map UUID.fromString
+                                |> Maybe.map Result.toMaybe
+                                |> ME.join
+                                |> (\uuid ->
+                                        ( gc_.name, gc_.email, uuid )
+                                            |> all3
+                                            |> Maybe.map
+                                                (\( x, y, z ) ->
+                                                    { id = z
+                                                    , rev = Nothing
+                                                    , version = 1
+                                                    , email = y
+                                                    , names =
+                                                        Dict.singleton 0 x
+                                                    }
+                                                )
+                                   )
+
                         nm =
-                            { model | gconfig = Just gc_
-                            , me = person
+                            { model
+                                | gconfig = Just gc_
+                                , me = person
                             }
 
                         openMenu =
@@ -1242,11 +1241,12 @@ handleProjectSubmit ident fd model =
                     model.me
                         |> Maybe.map M.MyPerson
                         |> Maybe.map M.encoder
-                        |> \p ->
+                        |> (\p ->
                                 E.object
-                                [ ("project", jsonValue)
-                                , ("seed", E.list (EE.maybe identity) [p])
-                                ]
+                                    [ ( "project", jsonValue )
+                                    , ( "seed", E.list (EE.maybe identity) [ p ] )
+                                    ]
+                           )
 
                 command =
                     if ident == "new-project" then
@@ -1255,7 +1255,7 @@ handleProjectSubmit ident fd model =
                     else
                         updateProject jsonValue
             in
-            ( closeAll True ident { model | forms = forms }
+            ( closeAll ident { model | forms = forms }
             , command
             )
 
@@ -1315,7 +1315,7 @@ handleGlobalSubmit fd model =
                 forms =
                     Dict.insert "global-settings" gsf model.forms
             in
-            ( closeAll False "global-settings" { model | forms = forms }
+            ( closeAll "global-settings" { model | forms = forms }
             , updateGlobalSettings jsonValue
             )
 
@@ -1421,7 +1421,7 @@ createNecessary dir tp ( cols, rows ) =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedProjectIndex ReceivedProjectIndex
@@ -1497,7 +1497,7 @@ viewColumn model col rows =
 
 
 viewRow : Model -> Int -> Int -> Int -> Set Int -> Html.Html Msg
-viewRow model col rowcount row tabs =
+viewRow model col _ row tabs =
     Html.div []
         [ Html.nav
             [ roleAttr "group"
@@ -1621,7 +1621,7 @@ viewProject model p =
 viewVista : Model -> TabPath -> Vista -> Html Msg
 viewVista model tp vista =
     case vista.content of
-        ProjectInfoContent pi ->
+        ProjectInfoContent _ ->
             case Dict.get vista.identifier model.forms of
                 Just f ->
                     let
@@ -1666,7 +1666,7 @@ viewVista model tp vista =
                 Nothing ->
                     Html.text "No such form."
 
-        ImportOptionsContent io ->
+        ImportOptionsContent _ ->
             case Dict.get "import-options" model.forms of
                 Just f ->
                     Html.form [ Event.onSubmit (FormSubmit tp) ]
@@ -1680,7 +1680,7 @@ viewVista model tp vista =
                 Nothing ->
                     Html.text "No such form."
 
-        GlobalSettingsContent gs ->
+        GlobalSettingsContent _ ->
             let
                 isV4 uuid =
                     UUID.version uuid == 4
@@ -1842,7 +1842,7 @@ viewVista model tp vista =
                     (List.map (viewInterlinearItem vista.project) is)
                 ]
 
-        InterlinearContent i ->
+        InterlinearContent _ ->
             let
                 params =
                     Dict.get tp model.ventanas
@@ -1932,7 +1932,7 @@ viewGlossTriple ( a, b, c ) =
 
 
 viewTranslation : Model -> Translation -> Html.Html Msg
-viewTranslation model dc =
+viewTranslation _ dc =
     Html.tr []
         [ Html.td [] [ Html.text dc.key ]
         , Html.td [] [ Html.text dc.value ]
@@ -2032,8 +2032,8 @@ closeTab closevista tp model =
     }
 
 
-closeAll : Bool -> String -> Model -> Model
-closeAll closevista vista model =
+closeAll : String -> Model -> Model
+closeAll vista model =
     getAllByVista vista model.ventanas
         |> List.foldl (closeTab False) model
 
@@ -2140,24 +2140,6 @@ tpToS ( c, ( r, t ) ) =
         |> String.join ","
 
 
-listToTp : List Int -> Maybe TabPath
-listToTp is =
-    case is of
-        c :: r :: t :: [] ->
-            Just (tabpath c r t)
-
-        _ ->
-            Nothing
-
-
-sToTp : String -> Maybe TabPath
-sToTp s =
-    String.split "," s
-        |> List.map String.toInt
-        |> ME.values
-        |> listToTp
-
-
 tcolumn : TabPath -> Int
 tcolumn tp =
     Tuple.first tp
@@ -2204,18 +2186,6 @@ visInsert tp vv =
 visRemove : TabPath -> VisVentanas -> VisVentanas
 visRemove tp vv =
     Dict.remove ( tcolumn tp, trow tp ) vv
-
-
-{-| True when a tab is visible
--}
-isVisible : TabPath -> VisVentanas -> Bool
-isVisible ( col, ( row, tab ) ) vv =
-    case Dict.get ( col, row ) vv of
-        Just t ->
-            t == tab
-
-        Nothing ->
-            False
 
 
 visToList : VisVentanas -> List TabPath
@@ -2376,7 +2346,7 @@ getByVista vista ventanas =
 
 getAllByVista : String -> Dict TabPath Ventana -> List TabPath
 getAllByVista vista ventanas =
-    List.filter (\( k, v ) -> v.vista == vista) (Dict.toList ventanas)
+    List.filter (\( _, v ) -> v.vista == vista) (Dict.toList ventanas)
         |> List.map Tuple.first
 
 
@@ -2395,16 +2365,6 @@ maybeIf pred a =
 
     else
         Nothing
-
-
-both : ( Maybe a, Maybe b ) -> Maybe ( a, b )
-both pair =
-    case pair of
-        ( Just one, Just two ) ->
-            Just ( one, two )
-
-        _ ->
-            Nothing
 
 
 all3 : ( Maybe a, Maybe b, Maybe c ) -> Maybe ( a, b, c )
