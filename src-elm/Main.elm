@@ -1866,12 +1866,10 @@ viewVista model tp vista =
                         )
                     ]
                 , if params.edit then
-                    --viewOldInterlinear vista.project i
-                    Html.text "fix me"
+                    Debug.todo "implement edit of interlinear"
 
                   else
-                    --viewOldInterlinearForm vista.project i
-                    Html.text "fix me"
+                    Debug.todo "implement view of interlinear"
                 ]
 
         ErrorContent err ->
