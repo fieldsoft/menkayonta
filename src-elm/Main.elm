@@ -1900,7 +1900,7 @@ viewInterlinearItem proj int =
         [ Html.div [] (srcLine :: transLines)
         , Html.a
             [ Attr.href "#"
-            , Event.onClick (RequestDocId proj (UUID.toString int.id))
+            , Event.onClick (RequestDocId proj ("interlinear/" ++ (UUID.toString int.id)))
             ]
             [ Html.text "Open" ]
         ]
