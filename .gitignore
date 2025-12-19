@@ -25,3 +25,6 @@ elm-stuff/
 
 # A directory used locally
 scratch-data/
+
+# This file is created when I compile a buffer but I don't use it.
+elm.js
