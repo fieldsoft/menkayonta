@@ -1,4 +1,12 @@
-module DativeTypes exposing (convert)
+module DativeTypes exposing
+    ( DativeForm
+    , DativeSpeaker
+    , DativeToken
+    , DativePerson
+    , dativeTokenEncoder
+    , decoder
+    , encoder
+    )
 
 import Iso8601 as Iso
 import Json.Decode as D
@@ -9,31 +17,21 @@ import Time
 import UUID
 
 
-
-type alias DativeUtilityValue =
-    { version : Int
-    , syntactic_category_string : Maybe String
-    , morpheme_break_ids : Maybe (List ST.DativeToken)
-    , morpheme_gloss_ids : Maybe (List ST.DativeToken)
-    , break_gloss_category : Maybe String
-    }
-
-
-tokenDecoder : D.Decoder ST.DativeToken
+tokenDecoder : D.Decoder DativeToken
 tokenDecoder =
     D.list subTokenDecoder
 
 
-subTokenDecoder : D.Decoder ST.DativeSubToken
+subTokenDecoder : D.Decoder DativeSubToken
 subTokenDecoder =
-    D.map3 ST.DativeSubToken
+    D.map3 DativeSubToken
         (D.maybe (D.index 0 D.int))
         (D.maybe (D.index 1 D.string))
         (D.maybe (D.index 2 D.string))
 
 
-dativeToInterlinear1Encoder : DativeForm -> E.Value
-dativeToInterlinear1Encoder df =
+encoder : DativeForm -> E.Value
+encoder df =
     E.object
         [ ( "_id", E.string ("interlinear/" ++ UUID.toString df.uuid) )
         , ( "version", E.int 1 )
@@ -50,22 +48,22 @@ dativeToInterlinear1Encoder df =
         , ( "datetime_entered", Iso.encode df.datetime_entered )
         , ( "datetime_modified", Iso.encode df.datetime_modified )
         , ( "syntactic_category_string", EE.maybe E.string df.syntactic_category_string )
-        , ( "morpheme_break_ids", EE.maybe (E.list ST.dativeTokenEncoder) df.morpheme_break_ids )
-        , ( "morpheme_gloss_ids", EE.maybe (E.list ST.dativeTokenEncoder) df.morpheme_gloss_ids )
+        , ( "morpheme_break_ids", EE.maybe (E.list dativeTokenEncoder) df.morpheme_break_ids )
+        , ( "morpheme_gloss_ids", EE.maybe (E.list dativeTokenEncoder) df.morpheme_gloss_ids )
         , ( "break_gloss_category", EE.maybe E.string df.break_gloss_category )
         , ( "syntax", E.string df.syntax )
         , ( "semantics", E.string df.semantics )
         , ( "status", E.string df.status )
-        , ( "elicitor", EE.maybe ST.dativePersonEncoder df.elicitor )
-        , ( "enterer", EE.maybe ST.dativePersonEncoder df.enterer )
-        , ( "modifier", EE.maybe ST.dativePersonEncoder df.modifier )
-        , ( "verifier", EE.maybe ST.dativePersonEncoder df.verifier )
-        , ( "speaker", EE.maybe ST.dativeSpeakerEncoder df.speaker )
-        , ( "elicitation_method", EE.maybe ST.dativeNamedEncoder df.elicitation_method )
-        , ( "syntactic_category", EE.maybe ST.dativeNamedEncoder df.syntactic_category )
+        , ( "elicitor", EE.maybe dativePersonEncoder df.elicitor )
+        , ( "enterer", EE.maybe dativePersonEncoder df.enterer )
+        , ( "modifier", EE.maybe dativePersonEncoder df.modifier )
+        , ( "verifier", EE.maybe dativePersonEncoder df.verifier )
+        , ( "speaker", EE.maybe dativeSpeakerEncoder df.speaker )
+        , ( "elicitation_method", EE.maybe dativeNamedEncoder df.elicitation_method )
+        , ( "syntactic_category", EE.maybe dativeNamedEncoder df.syntactic_category )
         , ( "source", EE.maybe E.string df.source )
-        , ( "translations", E.list ST.dativeTranslationEncoder df.translations )
-        , ( "tags", E.list ST.dativeNamedEncoder df.tags )
+        , ( "translations", E.list dativeTranslationEncoder df.translations )
+        , ( "tags", E.list dativeNamedEncoder df.tags )
         , ( "files", E.list E.string df.files )
         ]
 
@@ -85,28 +83,31 @@ type alias DativeForm =
     , datetime_entered : Time.Posix
     , datetime_modified : Time.Posix
     , syntactic_category_string : Maybe String
-    , morpheme_break_ids : Maybe (List ST.DativeToken)
-    , morpheme_gloss_ids : Maybe (List ST.DativeToken)
+    , morpheme_break_ids : Maybe (List DativeToken)
+    , morpheme_gloss_ids : Maybe (List DativeToken)
     , break_gloss_category : Maybe String
     , syntax : String
     , semantics : String
     , status : String
-    , elicitor : Maybe ST.DativePerson
-    , enterer : Maybe ST.DativePerson
-    , modifier : Maybe ST.DativePerson
-    , verifier : Maybe ST.DativePerson
-    , speaker : Maybe ST.DativeSpeaker
-    , elicitation_method : Maybe ST.DativeNamed
-    , syntactic_category : Maybe ST.DativeNamed
+    , elicitor : Maybe DativePerson
+    , enterer : Maybe DativePerson
+    , modifier : Maybe DativePerson
+    , verifier : Maybe DativePerson
+    , speaker : Maybe DativeSpeaker
+    , elicitation_method : Maybe DativeNamed
+    , syntactic_category : Maybe DativeNamed
     , source : Maybe String
-    , translations : List ST.DativeTranslation
-    , tags : List ST.DativeNamed
+    , translations : List DativeTranslation
+    , tags : List DativeNamed
     , files : List String
     }
 
 
-dativeFormDecoder : D.Decoder DativeForm
-dativeFormDecoder =
+--     , tags : List DativeNamed
+
+
+decoder : D.Decoder DativeForm
+decoder =
     D.succeed DativeForm
         |> DE.andMap (D.field "id" D.int)
         |> DE.andMap (D.field "UUID" UUID.jsonDecoder)
@@ -128,27 +129,17 @@ dativeFormDecoder =
         |> DE.andMap (D.field "syntax" D.string)
         |> DE.andMap (D.field "semantics" D.string)
         |> DE.andMap (D.field "status" D.string)
-        |> DE.andMap (D.field "elicitor" (D.nullable ST.dativePersonDecoder))
-        |> DE.andMap (D.field "enterer" (D.nullable ST.dativePersonDecoder))
-        |> DE.andMap (D.field "modifier" (D.nullable ST.dativePersonDecoder))
-        |> DE.andMap (D.field "verifier" (D.nullable ST.dativePersonDecoder))
-        |> DE.andMap (D.field "speaker" (D.nullable ST.dativeSpeakerDecoder))
-        |> DE.andMap (D.field "elicitation_method" (D.nullable ST.dativeNamedDecoder))
-        |> DE.andMap (D.field "syntactic_category" (D.nullable ST.dativeNamedDecoder))
+        |> DE.andMap (D.field "elicitor" (D.nullable dativePersonDecoder))
+        |> DE.andMap (D.field "enterer" (D.nullable dativePersonDecoder))
+        |> DE.andMap (D.field "modifier" (D.nullable dativePersonDecoder))
+        |> DE.andMap (D.field "verifier" (D.nullable dativePersonDecoder))
+        |> DE.andMap (D.field "speaker" (D.nullable dativeSpeakerDecoder))
+        |> DE.andMap (D.field "elicitation_method" (D.nullable dativeNamedDecoder))
+        |> DE.andMap (D.field "syntactic_category" (D.nullable dativeNamedDecoder))
         |> DE.andMap (D.field "source" (D.nullable D.string))
-        |> DE.andMap (D.field "translations" (D.list ST.dativeTranslationDecoder))
-        |> DE.andMap (D.field "tags" (D.list ST.dativeNamedDecoder))
+        |> DE.andMap (D.field "translations" (D.list dativeTranslationDecoder))
+        |> DE.andMap (D.field "tags" (D.list dativeNamedDecoder))
         |> DE.andMap (D.field "files" (D.list D.string))
-
-
-convert : E.Value -> E.Value
-convert vals =
-    case D.decodeValue (D.list dativeFormDecoder) vals of
-        Err e ->
-            E.string <| D.errorToString e
-
-        Ok tfs ->
-            E.list dativeToInterlinear1Encoder tfs
 
 
 type alias DativeNamed =
@@ -190,42 +181,6 @@ type alias DativeTranslation =
     , grammaticality : String
     }
 
-    
-type alias DativeInterlinear =
-    { id : UUID
-    , version : Int
-    , oldid : Int
-    , transcription : String
-    , phonetic_transcription : String
-    , narrow_phonetic_transcription : String
-    , morpheme_break : String
-    , morpheme_gloss : String
-    , comments : String
-    , speaker_comments : String
-    , grammaticality : String
-    , date_elicited : Maybe Time.Posix
-    , datetime_entered : Time.Posix
-    , datetime_modified : Time.Posix
-    , syntactic_category_string : Maybe String
-    , morpheme_break_ids : Maybe (List DativeToken)
-    , morpheme_gloss_ids : Maybe (List DativeToken)
-    , break_gloss_category : Maybe String
-    , syntax : String
-    , semantics : String
-    , status : String
-    , elicitor : Maybe DativePerson
-    , enterer : Maybe DativePerson
-    , modifier : Maybe DativePerson
-    , verifier : Maybe DativePerson
-    , speaker : Maybe DativeSpeaker
-    , elicitation_method : Maybe DativeNamed
-    , syntactic_category : Maybe DativeNamed
-    , source : Maybe String
-    , translations : List DativeTranslation
-    , tags : List DativeNamed
-    , files : List String
-    }
-
 
 dativeNamedDecoder : D.Decoder DativeNamed
 dativeNamedDecoder =
@@ -242,11 +197,6 @@ dativeNamedEncoder named =
         ]
 
 
-dativeTokenDecoder : D.Decoder DativeToken
-dativeTokenDecoder =
-    D.list dativeSubTokenDecoder
-
-
 dativeTokenEncoder : List DativeSubToken -> E.Value
 dativeTokenEncoder sts =
     E.list dativeSubTokenEncoder sts
@@ -259,14 +209,6 @@ dativeSubTokenEncoder st =
         , ( "code1", EE.maybe E.string st.code1 )
         , ( "code2", EE.maybe E.string st.code2 )
         ]
-
-
-dativeSubTokenDecoder : D.Decoder DativeSubToken
-dativeSubTokenDecoder =
-    D.map3 DativeSubToken
-        (D.field "id" (D.nullable D.int))
-        (D.field "code1" (D.nullable D.string))
-        (D.field "code2" (D.nullable D.string))
 
 
 dativePersonDecoder : D.Decoder DativePerson
@@ -322,40 +264,3 @@ dativeTranslationEncoder tr =
         , ( "transcription", E.string tr.transcription )
         , ( "grammaticality", E.string tr.grammaticality )
         ]
-
-
--- dativeInterlinearDecoder : D.Decoder DativeInterlinear
--- dativeInterlinearDecoder =
---     D.succeed DativeInterlinear
---         |> DE.andMap (D.field "_id" UUID.decode)
---         |> DE.andMap (D.field "version" D.int)
---         |> DE.andMap (D.field "oldid" D.int)
---         |> DE.andMap (D.field "transcription" D.string)
---         |> DE.andMap (D.field "phonetic_transcription" D.string)
---         |> DE.andMap (D.field "narrow_phonetic_transcription" D.string)
---         |> DE.andMap (D.field "morpheme_break" D.string)
---         |> DE.andMap (D.field "morpheme_gloss" D.string)
---         |> DE.andMap (D.field "comments" D.string)
---         |> DE.andMap (D.field "speaker_comments" D.string)
---         |> DE.andMap (D.field "grammaticality" D.string)
---         |> DE.andMap (D.field "date_elicited" (D.nullable DE.datetime))
---         |> DE.andMap (D.field "datetime_entered" DE.datetime)
---         |> DE.andMap (D.field "datetime_modified" DE.datetime)
---         |> DE.andMap (D.field "syntactic_category_string" (D.nullable D.string))
---         |> DE.andMap (D.field "morpheme_break_ids" (D.nullable (D.list dativeTokenDecoder)))
---         |> DE.andMap (D.field "morpheme_gloss_ids" (D.nullable (D.list dativeTokenDecoder)))
---         |> DE.andMap (D.field "break_gloss_category" (D.nullable D.string))
---         |> DE.andMap (D.field "syntax" D.string)
---         |> DE.andMap (D.field "semantics" D.string)
---         |> DE.andMap (D.field "status" D.string)
---         |> DE.andMap (D.field "elicitor" (D.nullable dativePersonDecoder))
---         |> DE.andMap (D.field "enterer" (D.nullable dativePersonDecoder))
---         |> DE.andMap (D.field "modifier" (D.nullable dativePersonDecoder))
---         |> DE.andMap (D.field "verifier" (D.nullable dativePersonDecoder))
---         |> DE.andMap (D.field "speaker" (D.nullable dativeSpeakerDecoder))
---         |> DE.andMap (D.field "elicitation_method" (D.nullable dativeNamedDecoder))
---         |> DE.andMap (D.field "syntactic_category" (D.nullable dativeNamedDecoder))
---         |> DE.andMap (D.field "source" (D.nullable D.string))
---         |> DE.andMap (D.field "translations" (D.list dativeTranslationDecoder))
---         |> DE.andMap (D.field "tags" (D.list dativeNamedDecoder))
---         |> DE.andMap (D.field "files" (D.list D.string))

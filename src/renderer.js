@@ -42,7 +42,7 @@ window.electronAPI.onReceivedInterlinearIndex((data) => {
     project: data.identifier,
     kind: 'all-interlinears',
     identifier: `all-interlinears::${data.identifier}`,
-    content: data.payload.rows.map((elem) => elem.doc),
+    content: data.payload,
   }
 
   app.ports.receivedInterlinearIndex.send(vista)

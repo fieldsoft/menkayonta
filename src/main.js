@@ -461,6 +461,27 @@ const handleImportWrite = (data) => {
   }
 }
 
+const handleDativeJson = (importOptions) => {
+  const args = JSON.stringify({
+    project: importOptions.project,
+    me: gvs.globalConf.identifier,
+    time: Date.now(),
+  })
+  const converter = utilityProcess.fork(
+    path.join(__dirname, './converter.js'),
+    [args],
+  )
+
+  console.log(converter.pid)
+
+  importOptions.command = 'convert-to-batch'
+
+  converter.postMessage(importOptions)
+  converter.on('message', handleImportWrite)
+
+  return importOptions
+}
+
 // This event is triggered when the user has submitted a form
 // containing information about a file import. In most cases, this
 // event will be handled by spawning a converter process, which will
@@ -470,14 +491,7 @@ const handleImportWrite = (data) => {
 const importFile = async (_event, importOptions) => {
   switch (importOptions.kind) {
     case 'Dative Form Json': {
-      const converter = utilityProcess.fork(
-        path.join(__dirname, './converter.js'),
-      )
-
-      importOptions.command = 'convert-to-batch'
-
-      converter.postMessage(importOptions)
-      converter.on('message', handleImportWrite)
+      handleDativeJson(importOptions)
 
       return importOptions
     }

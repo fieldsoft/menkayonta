@@ -118,15 +118,23 @@ const handleBulk = async (docs) => {
 
 const handleRequestInterlinears = async () => {
   try {
-    const interlinearIndex = await gvs.db.allDocs({
+    const all = await gvs.db.allDocs({
       include_docs: true,
       startkey: 'interlinear/',
       endkey: 'interlinear/\ufff0',
     })
 
+    const onlyDocs = all.rows.reduce((acc, row) => {
+      if (row.key.length === 48) {
+        acc.push(row.doc)
+      }
+
+      return acc
+    }, [])
+
     process.parentPort.postMessage({
       command: 'received-interlinear-index',
-      payload: interlinearIndex,
+      payload: onlyDocs,
       identifier: gvs.identifier,
     })
   } catch (e) {

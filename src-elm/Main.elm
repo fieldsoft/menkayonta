@@ -1241,10 +1241,13 @@ handleProjectSubmit ident fd model =
                     model.me
                         |> Maybe.map M.MyPerson
                         |> Maybe.map M.encoder
+                        |> Maybe.andThen List.head
                         |> (\p ->
                                 E.object
                                     [ ( "project", jsonValue )
-                                    , ( "seed", E.list (EE.maybe identity) [ p ] )
+                                    , ( "seed"
+                                      , E.list (EE.maybe identity) [ p ]
+                                      )
                                     ]
                            )
 
