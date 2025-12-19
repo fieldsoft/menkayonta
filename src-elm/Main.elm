@@ -1818,6 +1818,9 @@ viewVista model tp vista =
                         )
                         ints
 
+                total =
+                    List.length searched |> String.fromInt
+
                 is =
                     List.take params.length searched
 
@@ -1826,7 +1829,7 @@ viewVista model tp vista =
             in
             Html.div []
                 [ Html.label []
-                    [ Html.text <| "Show (" ++ len ++ ")"
+                    [ Html.text <| "Show (" ++ len ++ " of " ++ total ++ ")"
                     , Html.input
                         [ Attr.type_ "text"
                         , Attr.value len
