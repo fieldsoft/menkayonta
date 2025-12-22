@@ -18,6 +18,7 @@ import Maybe.Extra as ME
 import Menkayonta as M exposing (Interlinear)
 import Result
 import Set exposing (Set)
+import Task
 import UUID
 import Url
 
@@ -38,7 +39,13 @@ port requestProjectIndex : String -> Cmd msg
 port requestInterlinearIndex : String -> Cmd msg
 
 
+port requestPersonIndex : String -> Cmd msg
+
+
 port requestDocId : E.Value -> Cmd msg
+
+
+port requestAllDocId : E.Value -> Cmd msg
 
 
 {-| The global configuration lists projects and whether they are
@@ -63,6 +70,12 @@ port receivedProjectIndex : (E.Value -> msg) -> Sub msg
 
 
 port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
+
+
+port receivedPersonIndex : (E.Value -> msg) -> Sub msg
+
+
+port receivedAllDoc : (E.Value -> msg) -> Sub msg
 
 
 port receivedDoc : (E.Value -> msg) -> Sub msg
@@ -211,6 +224,23 @@ type alias Error =
     { message : String }
 
 
+type alias Envelope =
+    { command : String
+    , project : String
+    , address : String
+    , content : E.Value
+    }
+
+
+envelopeDecoder : D.Decoder Envelope
+envelopeDecoder =
+    D.map4 Envelope
+        (D.field "command" D.string)
+        (D.field "identifier" D.string)
+        (D.field "address" D.string)
+        (D.field "content" D.value)
+
+
 type alias DocReq =
     { command : String
     , identifier : String
@@ -263,6 +293,7 @@ type alias Model =
     , error : Maybe Error
     , forms : Dict String FormData
     , loading : Set String
+    , people : Dict String (Dict String M.Person)
     }
 
 
@@ -297,10 +328,13 @@ type Msg
     | ReceivedGlobalConfig E.Value
     | ReceivedProjectIndex E.Value
     | ReceivedInterlinearIndex E.Value
+    | ReceivedPersonIndex E.Value
     | ReceivedDoc E.Value
+    | ReceivedAllDoc E.Value
     | RequestProjectIndex String
     | RequestInterlinearIndex String
     | RequestDocId String String
+    | RequestAllDocId String String
     | NewProjectMenu String
     | ImportOptionsFileMenu String
     | GlobalSettingsMenu E.Value
@@ -539,6 +573,7 @@ init flags =
       , error = Nothing
       , forms = forms
       , loading = Set.empty
+      , people = Dict.empty
       }
     , requestGlobalConfig ()
     )
@@ -734,16 +769,17 @@ update msg model =
                                                 )
                                    )
 
-                        nm =
+                        newmodel =
                             { model
                                 | gconfig = Just gc_
                                 , me = person
                             }
 
                         openMenu =
-                            update (GlobalSettingsMenu gc) nm
+                            Task.succeed (GlobalSettingsMenu gc)
+                                |> Task.perform identity
 
-                        cmd =
+                        command =
                             case ( gc_.name, gc_.email ) of
                                 ( Nothing, _ ) ->
                                     openMenu
@@ -752,18 +788,24 @@ update msg model =
                                     openMenu
 
                                 _ ->
-                                    ( nm, Cmd.none )
+                                    Cmd.none
                     in
-                    cmd
+                    ( newmodel, command )
 
         RequestProjectIndex id ->
             ( { model | loading = Set.insert id model.loading }
-            , requestProjectIndex id
+            , Cmd.batch
+                [ requestProjectIndex id
+                , requestPersonIndex id
+                ]
             )
 
         RequestInterlinearIndex id ->
             ( { model | loading = Set.insert id model.loading }
-            , requestInterlinearIndex id
+            , Cmd.batch
+                [ requestInterlinearIndex id
+                , requestPersonIndex id
+                ]
             )
 
         RequestDocId project id ->
@@ -777,11 +819,60 @@ update msg model =
             in
             ( model, requestDocId payload )
 
+        RequestAllDocId project id ->
+            let
+                payload =
+                    docReqEncode
+                        { command = "request-all-docid"
+                        , identifier = project
+                        , docid = id
+                        }
+            in
+            ( model, requestAllDocId payload )
+
         ReceivedProjectIndex pi ->
             handleReceivedVista pi "Index" model
 
         ReceivedInterlinearIndex ii ->
             handleReceivedVista ii "Glosses" model
+
+        ReceivedPersonIndex envelope ->
+            case D.decodeValue envelopeDecoder envelope of
+                Ok envelope_ ->
+                    case D.decodeValue M.listDecoder envelope_.content of
+                        Ok vals ->
+                            let
+                                project =
+                                    envelope_.project
+                                        
+                                pdict =
+                                    M.people vals
+                                        |> List.map
+                                            (\p ->
+                                                ( UUID.toString p.id, p )
+                                            )
+                                        |> Dict.fromList
+                            in
+                            ( { model
+                                | people =
+                                    Dict.insert project pdict model.people
+                              }
+                            , Cmd.none
+                            )
+
+                        Err e ->
+                            ( { model
+                                | error =
+                                    Just <| Error <| D.errorToString e
+                              }
+                            , Cmd.none
+                            )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        ReceivedAllDoc vals ->
+            ( model, Cmd.none )
 
         ReceivedDoc val ->
             let
@@ -1429,6 +1520,8 @@ subscriptions _ =
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedProjectIndex ReceivedProjectIndex
         , receivedInterlinearIndex ReceivedInterlinearIndex
+        , receivedPersonIndex ReceivedPersonIndex
+        , receivedAllDoc ReceivedAllDoc
         , receivedDoc ReceivedDoc
         , newProject NewProjectMenu
         , importOptions ImportOptionsFileMenu
@@ -1901,7 +1994,7 @@ viewInterlinearItem proj int =
         [ Html.div [] (srcLine :: transLines)
         , Html.a
             [ Attr.href "#"
-            , Event.onClick (RequestDocId proj ("interlinear/" ++ (UUID.toString int.id)))
+            , Event.onClick (RequestDocId proj ("interlinear/" ++ UUID.toString int.id))
             ]
             [ Html.text "Open" ]
         ]

@@ -142,6 +142,33 @@ const handleRequestInterlinears = async () => {
   }
 }
 
+const handleRequestPeople = async () => {
+  try {
+    const all = await gvs.db.allDocs({
+      include_docs: true,
+      startkey: 'person/',
+      endkey: 'person/\ufff0',
+    })
+
+    const onlyDocs = all.rows.reduce((acc, row) => {
+      if (row.key.length === 43) {
+        acc.push(row.doc)
+      }
+
+      return acc
+    }, [])
+
+    process.parentPort.postMessage({
+      command: 'received-person-index',
+      content: onlyDocs,
+      identifier: gvs.identifier,
+      address: 'person',
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleRequestTranslations = async () => {
   try {
     const transIndex = await gvs.db.query('trans/simple')
@@ -163,6 +190,30 @@ const handleRequestDocId = async (docid) => {
     process.parentPort.postMessage({
       command: 'received-doc',
       doc: doc,
+      identifier: gvs.identifier,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
+const handleRequestAllDocId = async (docid) => {
+  try {
+    const all = await gvs.db.allDocs({
+      include_docs: true,
+      startkey: docid,
+      endkey: `${docid}\ufff0`,
+    })
+
+    const onlyDocs = all.rows.reduce((acc, row) => {
+      acc.push(row.doc)
+      return acc
+    }, [])
+
+    process.parentPort.postMessage({
+      command: 'received-all-doc',
+      address: docid,
+      content: onlyDocs,
       identifier: gvs.identifier,
     })
   } catch (e) {
@@ -192,8 +243,18 @@ const handleMainMessage = (m) => {
       break
     }
 
+    case 'request-person-index': {
+      handleRequestPeople()
+      break
+    }
+
     case 'request-docid': {
       handleRequestDocId(m.data.docid)
+      break
+    }
+
+    case 'request-all-docid': {
+      handleRequestAllDocId(m.data.docid)
       break
     }
     default: {

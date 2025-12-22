@@ -19,14 +19,18 @@ module Menkayonta exposing
     , decoder
     , encoder
     , identifierToStrings
+    , listDecoder
+    , people
     )
 
 import Dict exposing (Dict)
 import Json.Decode as D
 import Json.Decode.Extra as DE
 import Json.Encode as E
+import Maybe.Extra as ME
 import Time
 import UUID exposing (UUID)
+import Dict exposing (values)
 
 
 type Value
@@ -373,9 +377,12 @@ utilityIdToString utilityid =
     ]
     
 
-{- JSON Encoder functions
+{- JSON Encoder/Decoder functions
 -}
 
+listDecoder : D.Decoder (List Value)
+listDecoder =
+    D.list decoder
 
 {-| Encode any Menkayonta Value to a JSON Value
 -}
@@ -633,8 +640,24 @@ modificationEncoder modification =
     , ( "docversion", E.int modification.docversion )
     , ( "value", modification.docstate )
     ] |> addIds (modificationIdToString modification.id) Nothing 
-    
-    
+
+
+people : List Value -> List Person
+people vals =
+    let
+        maybePerson val =
+            case val of
+                MyPerson p ->
+                    Just p
+
+                _ ->
+                    Nothing
+
+    in
+    List.map maybePerson vals
+        |> ME.values
+
+           
 {- Utility functions
  -}
 

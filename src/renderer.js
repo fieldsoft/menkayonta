@@ -22,8 +22,16 @@ app.ports.requestInterlinearIndex.subscribe((identifier) => {
   window.electronAPI.requestInterlinearIndex(identifier)
 })
 
+app.ports.requestPersonIndex.subscribe((identifier) => {
+  window.electronAPI.requestPersonIndex(identifier)
+})
+
 app.ports.requestDocId.subscribe((message) => {
   window.electronAPI.requestDocId(message)
+})
+
+app.ports.requestAllDocId.subscribe((message) => {
+  window.electronAPI.requestAllDocId(message)
 })
 
 window.electronAPI.onReceivedTransIndex((data) => {
@@ -35,6 +43,10 @@ window.electronAPI.onReceivedTransIndex((data) => {
   }
 
   app.ports.receivedProjectIndex.send(vista)
+})
+
+window.electronAPI.onReceivedPersonIndex((data) => {
+  app.ports.receivedPersonIndex.send(data)
 })
 
 window.electronAPI.onReceivedInterlinearIndex((data) => {
@@ -50,6 +62,10 @@ window.electronAPI.onReceivedInterlinearIndex((data) => {
 
 window.electronAPI.onReceivedDoc((data) => {
   app.ports.receivedDoc.send(data)
+})
+
+window.electronAPI.onReceivedAllDoc((data) => {
+  app.ports.receivedAllDoc.send(data)
 })
 
 app.ports.createProject.subscribe(async (projectInfo) => {
