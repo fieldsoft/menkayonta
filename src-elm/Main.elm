@@ -844,7 +844,7 @@ update msg model =
                             let
                                 project =
                                     envelope_.project
-                                        
+
                                 pdict =
                                     M.people vals
                                         |> List.map
