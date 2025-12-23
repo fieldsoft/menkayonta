@@ -35,7 +35,7 @@ type Msg
 type alias Model =
     { seeds : UUID.Seeds
     , project : UUID
-    , to : Dict (List String) M.Value
+    , to : Dict String M.Value
     , from : List DT.DativeForm
     , stage : Stage
     , time : Time.Posix
@@ -211,7 +211,6 @@ update msg model =
                             , payload =
                                 Dict.values model.to
                                     |> List.map M.encoder
-                                    |> List.concat
                                     |> E.list identity
                             }
 
@@ -255,7 +254,7 @@ resolveStage curr model =
                         }
 
                 newin =
-                    Dict.insert (M.identifierToStrings modid) mod model.to
+                    Dict.insert (M.identifierToString modid) mod model.to
             in
             ( { model | to = newin, stage = SpeakerS }
             , next "Completed OriginalS"
@@ -405,7 +404,7 @@ interlinearStage curr model =
             curr.uuid |> M.InterlinearId
 
         stringid =
-            docid |> M.MyDocId |> M.identifierToStrings
+            docid |> M.MyDocId |> M.identifierToString
 
         nptrans =
             constNonBlankDesc "narrow phonetic transription"
@@ -438,7 +437,7 @@ interlinearStage curr model =
                         List.foldl
                             (\( id, val ) indict_ ->
                                 Dict.insert
-                                    (M.identifierToStrings id)
+                                    (M.identifierToString id)
                                     val
                                     indict_
                             )
@@ -481,7 +480,7 @@ utilityStage { docid, utilityVal, model } =
             }
 
         stringid =
-            M.identifierToStrings (M.MyUtilityId utility.id)
+            M.identifierToString (M.MyUtilityId utility.id)
 
         newto =
             Dict.insert stringid (M.MyUtility utility) model.to
@@ -732,10 +731,10 @@ jobEncoder job =
         ]
 
 
-when : Maybe ( M.Identifier, M.Value ) -> Dict (List String) M.Value -> Dict (List String) M.Value
+when : Maybe ( M.Identifier, M.Value ) -> Dict String M.Value -> Dict String M.Value
 when input default =
     ME.unwrap default
-        (\( x, y ) -> Dict.insert (M.identifierToStrings x) y default)
+        (\( x, y ) -> Dict.insert (M.identifierToString x) y default)
         input
 
 
@@ -803,17 +802,17 @@ constNonBlankDesc kind c docid =
         Nothing
 
 
-personIdString : UUID -> List String
+personIdString : UUID -> String
 personIdString uuid =
     uuid
         |> M.PersonId
         |> M.MyDocId
-        |> M.identifierToStrings
+        |> M.identifierToString
 
 
 {-| The person will only be constructed if they haven't been already.
 -}
-perhapsMakePerson : DT.DativePerson -> Model -> ( List String, M.Person, UUID.Seeds )
+perhapsMakePerson : DT.DativePerson -> Model -> ( String, M.Person, UUID.Seeds )
 perhapsMakePerson dperson model =
     case Dict.get dperson.id model.people of
         Just person ->
@@ -831,7 +830,7 @@ perhapsMakePerson dperson model =
                 }
 
 
-constructPerson : { first : String, last : String, id : Int, seeds : UUID.Seeds } -> ( List String, M.Person, UUID.Seeds )
+constructPerson : { first : String, last : String, id : Int, seeds : UUID.Seeds } -> ( String, M.Person, UUID.Seeds )
 constructPerson pdata =
     let
         first_name =
