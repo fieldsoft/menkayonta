@@ -1332,7 +1332,6 @@ handleProjectSubmit ident fd model =
                     model.me
                         |> Maybe.map M.MyPerson
                         |> Maybe.map M.encoder
-                        |> Maybe.andThen List.head
                         |> (\p ->
                                 E.object
                                     [ ( "project", jsonValue )

@@ -18,7 +18,7 @@ module Menkayonta exposing
     , Value(..)
     , decoder
     , encoder
-    , identifierToStrings
+    , identifierToString
     , listDecoder
     , people
     )
@@ -267,11 +267,11 @@ stringToIdentifier idstring =
 
 {-| Convert and Identifier to a String.
 -}
-identifierToStrings : Identifier -> List String
-identifierToStrings ident =
+identifierToString : Identifier -> String
+identifierToString ident =
     case ident of
         MyDocId ident_ ->
-            [ docIdToString ident_ ]
+            docIdToString ident_
 
         MyTagId ident_ ->
             tagIdToString ident_
@@ -316,65 +316,47 @@ docUuidToString docid =
             UUID.toString uuid
 
 
-descriptionIdToString : DescriptionId -> List String
+descriptionIdToString : DescriptionId -> String
 descriptionIdToString descriptionid =
-    [ [ "description"
-      , descriptionid.kind
-      , docIdToString descriptionid.docid
-      ] |> addFrag descriptionid.fragment
-    , [ docIdToString descriptionid.docid
-      , "description"
-      , descriptionid.kind
-      ] |> addFrag descriptionid.fragment
-    ]
+    [ "description"
+    , descriptionid.kind
+    , docIdToString descriptionid.docid
+    ] |> addFrag descriptionid.fragment
 
 
-modificationIdToString : ModificationId -> List String
+modificationIdToString : ModificationId -> String
 modificationIdToString modid =
-    [ [ docIdToString modid.docid
-      , "modification"
-      , modid.kind
-      , Time.posixToMillis modid.time |> String.fromInt
-      , docUuidToString modid.person
-      ] |> addFrag modid.fragment
-    ]
-    
+    [ docIdToString modid.docid
+    , "modification"
+    , modid.kind
+    , Time.posixToMillis modid.time |> String.fromInt
+    , docUuidToString modid.person
+    ] |> addFrag modid.fragment
+        
 
-tagIdToString : TagId -> List String
+tagIdToString : TagId -> String
 tagIdToString tagid =
-    [ [ "tag"
-      , tagid.kind
-      , docIdToString tagid.docid
-      ] |> addFrag tagid.fragment
-    , [ docIdToString tagid.docid
-      , "tag"
-      , tagid.kind
-      ] |> addFrag tagid.fragment
-    ]
+    [ "tag"
+    , tagid.kind
+    , docIdToString tagid.docid
+    ] |> addFrag tagid.fragment
 
 
-propertyIdToString : PropertyId -> List String
+propertyIdToString : PropertyId -> String
 propertyIdToString propertyid =
-    [ [ "property"
-      , propertyid.kind
-      , propertyid.value
-      , docIdToString propertyid.docid
-      ] |> addFrag propertyid.fragment
-    , [ docIdToString propertyid.docid
-      , "property"
-      , propertyid.kind
-      , propertyid.value
-      ] |> addFrag propertyid.fragment
-    ]
+    [ "property"
+    , propertyid.kind
+    , propertyid.value
+    , docIdToString propertyid.docid
+    ] |> addFrag propertyid.fragment
     
 
-utilityIdToString : UtilityId -> List String
+utilityIdToString : UtilityId -> String
 utilityIdToString utilityid =
-    [ [ "utility"
+    [ "utility"
       , utilityid.kind
       , docIdToString utilityid.docid
-      ] |> addFrag utilityid.fragment
-    ]
+    ] |> addFrag utilityid.fragment
     
 
 {- JSON Encoder/Decoder functions
@@ -512,14 +494,14 @@ utilityDecoder_ id =
 
 {-| Encode any Menkayonta Value to a JSON Value
 -}
-encoder : Value -> List E.Value
+encoder : Value -> E.Value
 encoder value =
     case value of
         MyPerson person ->
-            [ personEncoder person ]
+            personEncoder person
 
         MyInterlinear interlinear ->
-            [ interlinearEncoder interlinear ]
+            interlinearEncoder interlinear
 
         MyTag tag ->
             tagEncoder tag
@@ -587,10 +569,11 @@ kinds are not specific to a particular document, and have a forward
 and reverse id. The revision on encoding is always abscent, since
 writing the document to the database should result in creation. -}
 
-tagEncoder : Tag -> List E.Value
+tagEncoder : Tag -> E.Value
 tagEncoder tag =
-    [ ( "version", E.int tag.version ) ]
-        |> addIds (tagIdToString tag.id) Nothing
+    [ ( "_id", E.string (tagIdToString tag.id) )
+    , ( "version", E.int tag.version )
+    ] |> addRev tag.rev
 
 
 {-| Properties are only ever created. They are not updated. Their
@@ -598,10 +581,11 @@ kinds are not specific to a particular document, and have a forward
 and reverse id. The revision on encoding is always abscent, since
 writing the document to the database should result in creation. -}
 
-propertyEncoder : Property -> List E.Value
+propertyEncoder : Property -> E.Value
 propertyEncoder property =
-    [ ( "version", E.int property.version ) ]
-        |> addIds (propertyIdToString property.id) Nothing
+    [ ( "_id", E.string (propertyIdToString property.id) )
+    ,( "version", E.int property.version )
+    ] |> addRev property.rev
 
 
 {-| Utilities may be updated. Their kinds are not necessarily specific
@@ -609,11 +593,12 @@ to a particular document, but they do not have a forward and reverse
 id. The revision on encoding is not always abscent, since writing the
 document to the database may result in an update. -}
 
-utilityEncoder : Utility -> List E.Value
+utilityEncoder : Utility -> E.Value
 utilityEncoder utility =
-    [ ( "version", E.int utility.version )
+    [ ( "_id", E.string (utilityIdToString utility.id) )
+    , ( "version", E.int utility.version )
     , ( "value", utility.value )
-    ] |> addIds (utilityIdToString utility.id) utility.rev
+    ] |> addRev utility.rev
 
 
 {-| Descriptions are only ever created. They are not updated. Their
@@ -621,11 +606,12 @@ kinds are not specific to a particular document, and have a forward
 and reverse id. The revision on encoding is always abscent, since
 writing the document to the database should result in creation. -}
 
-descriptionEncoder : Description -> List E.Value
+descriptionEncoder : Description -> E.Value
 descriptionEncoder description =
-    [ ( "version", E.int description.version )
+    [ ( "_id", E.string (descriptionIdToString description.id) )
+    , ( "version", E.int description.version )
     , ( "value", description.value )
-    ] |> addIds (descriptionIdToString description.id) Nothing
+    ] |> addRev description.rev
 
 
 {-| Modifications are only ever created. They are not updated. They
@@ -633,13 +619,14 @@ are also specific to a particular document, and do not have a forward
 and reverse id. The revision on encoding is always abscent, since
 writing the document to the database should result in creation. -}
 
-modificationEncoder : Modification -> List E.Value
+modificationEncoder : Modification -> E.Value
 modificationEncoder modification =
-    [ ( "version", E.int modification.version )
-    , ( "comment", E.string modification.comment )
-    , ( "docversion", E.int modification.docversion )
-    , ( "value", modification.docstate )
-    ] |> addIds (modificationIdToString modification.id) Nothing 
+        [ ( "_id", E.string (modificationIdToString modification.id) )
+        , ( "version", E.int modification.version )
+        , ( "comment", E.string modification.comment )
+        , ( "docversion", E.int modification.docversion )
+        , ( "value", modification.docstate )
+        ] |> addRev modification.rev
 
 
 people : List Value -> List Person
