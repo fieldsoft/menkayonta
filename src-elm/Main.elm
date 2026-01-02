@@ -788,29 +788,40 @@ update msg model =
                        doc =
                            reduceDoc env
                     in
-                    case doc.doc of
-                        Just (M.MyInterlinear i) ->
-                            let
-                                st =
-                                    if String.length i.text > 5 then
-                                        "Gloss: "
-                                        ++ String.left 5 i.text
-                                        ++ "..."
+                    case doc of
+                        Ok doc_ ->
+                            case doc_.doc of
+                                Just (M.MyInterlinear i) ->
+                                    let
+                                        st =
+                                            if String.length i.text > 5 then
+                                                "Gloss: "
+                                                ++ String.left 5 i.text
+                                                ++ "..."
 
-                                    else
-                                        "Gloss: " ++ i.text
+                                            else
+                                                "Gloss: " ++ i.text
 
-                                vista =
-                                    { project = env.project
-                                    , kind = "interlinear"
-                                    , identifier = UUID.toString i.id
-                                    , content = DocContent doc
-                                    }
-                            in
-                            handleVista vista st model
+                                        vista =
+                                            { project = env.project
+                                            , kind = "interlinear"
+                                            , identifier = UUID.toString i.id
+                                            , content = DocContent doc_
+                                            }
+                                    in
+                                    handleVista vista st model
 
-                        _ -> 
-                            ( model, Cmd.none )
+                                _ ->
+                                    ( model, Cmd.none )
+
+                        Err e ->
+                            ( { model
+                                  | error = Just
+                                    <| Error
+                                    <| D.errorToString e
+                              }
+                            , Cmd.none
+                            )
 
         ReceivedDoc val ->
             -- This will have uses, eventually. There will be cases of
@@ -2401,17 +2412,22 @@ all3 triple =
             Nothing
 
 
-reduceDoc : Envelope -> M.OneDoc
+reduceDoc : Envelope -> Result D.Error M.OneDoc
 reduceDoc env =
     let
         content =
-            env.content |> D.decodeValue M.listDecoder |> resultToList
+            env.content |> D.decodeValue M.listDecoder
 
         initial =
             M.OneDoc Nothing [] [] [] []
 
     in
-    List.foldl oneBuilder initial content
+    case content of
+        Ok content_ ->
+            Ok <| List.foldl oneBuilder initial content_
+
+        Err e ->
+            Err e
 
 
 oneBuilder : M.Value -> M.OneDoc -> M.OneDoc

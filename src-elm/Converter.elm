@@ -894,7 +894,7 @@ constructModifier { kind, time, docid, pid, json } =
     , version = 1
     , comment = "bulk import"
     , docversion = 0
-    , docstate = json
+    , value = json
     }
         |> (\mod -> ( M.MyModificationId mod.id, M.MyModification mod ))
 

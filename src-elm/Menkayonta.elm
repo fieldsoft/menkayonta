@@ -179,7 +179,7 @@ type alias Modification =
     , version : Int
     , comment : String
     , docversion : Int
-    , docstate : E.Value
+    , value : E.Value
     }
 
 
@@ -240,17 +240,7 @@ stringToIdentifier idstring =
                 |> Maybe.map (\d -> TagId kind d fragment)
                 |> Maybe.map MyTagId
 
-        ( d1 :: d2 :: "tag" :: kind :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> TagId kind d fragment)
-                |> Maybe.map MyTagId
-
         ( "description" :: kind :: d1 :: d2 :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> DescriptionId kind d fragment)
-                |> Maybe.map MyDescriptionId
-
-        ( d1 :: d2 :: "description" :: kind :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
                 |> Maybe.map (\d -> DescriptionId kind d fragment)
                 |> Maybe.map MyDescriptionId
@@ -260,7 +250,7 @@ stringToIdentifier idstring =
                 |> Maybe.map (\d -> UtilityId kind d fragment)
                 |> Maybe.map MyUtilityId
 
-        ( d1 :: d2 :: "property" :: kind :: value :: [], fragment ) ->
+        ( "property" :: kind :: value :: d1 :: d2 :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
                 |> Maybe.map (\d -> PropertyId kind value d fragment)
                 |> Maybe.map MyPropertyId
@@ -513,7 +503,7 @@ modificationDecoder_ id =
         (D.field "version" D.int)
         (D.field "comment" D.string)
         (D.field "docversion" D.int)
-        (D.field "docstate" D.value)
+        (D.field "value" D.value)
 
 
 utilityDecoder_ : UtilityId -> D.Decoder Utility
@@ -643,7 +633,7 @@ modificationEncoder modification =
     , ( "version", E.int modification.version )
     , ( "comment", E.string modification.comment )
     , ( "docversion", E.int modification.docversion )
-    , ( "value", modification.docstate )
+    , ( "value", modification.value )
     ]
         |> addRev modification.rev
 
