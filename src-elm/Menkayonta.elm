@@ -1,5 +1,5 @@
 module Menkayonta exposing
-    ( Ann
+    ( Annotations
     , Description
     , DescriptionId
     , DocId(..)
@@ -7,6 +7,7 @@ module Menkayonta exposing
     , Interlinear
     , Modification
     , ModificationId
+    , OneDoc
     , Person
     , Property
     , PropertyId
@@ -32,6 +33,9 @@ import Time
 import UUID exposing (UUID)
 
 
+{-| These are the basic kinds of values that are used to represent
+application data in Menkayonta.
+-}
 type Value
     = MyPerson Person
     | MyTag Tag
@@ -42,6 +46,8 @@ type Value
     | MyInterlinear Interlinear
 
 
+{-| Identifers for data types are complex data types, themselves.
+-}
 type Identifier
     = MyDocId DocId
     | MyTagId TagId
@@ -51,9 +57,34 @@ type Identifier
     | MyModificationId ModificationId
 
 
+{-| Most identifiers are identifiers for metadata. These are for
+documents, data structures that contain non-metadata.
+-}
 type DocId
     = PersonId UUID
     | InterlinearId UUID
+
+
+{-| When working with documents in forms and other contexts, it is
+useful to have a single document with the core data and all
+metadata.
+-}
+type alias OneDoc =
+    { doc : Maybe Value
+    , tags : List Tag
+    , properties : List Property
+    , descriptions : List Description
+    , modifications : List Modification
+    }
+
+
+type alias OnePersonDoc =
+    { person : Person
+    , tags : List Tag
+    , properties : List Property
+    , descriptions : List Description
+    , modifications : List Modification
+    }
 
 
 type alias Translation =
@@ -62,7 +93,7 @@ type alias Translation =
     }
 
 
-type alias Ann =
+type alias Annotations =
     { breaks : String
     , glosses : String
     , phonemic : String
@@ -75,7 +106,7 @@ type alias Interlinear =
     , rev : Maybe String
     , version : Int
     , text : String
-    , ann : Ann
+    , ann : Annotations
     , translations : Dict Int Translation
     }
 
@@ -423,9 +454,9 @@ interlinearDecoder_ id =
         (D.field "translations" (DE.dict2 D.int translationDecoder))
 
 
-annDecoder : D.Decoder Ann
+annDecoder : D.Decoder Annotations
 annDecoder =
-    D.map4 Ann
+    D.map4 Annotations
         (D.field "breaks" D.string)
         (D.field "glosses" D.string)
         (D.field "phonemic" D.string)
@@ -554,7 +585,7 @@ interlinearEncoder int =
         |> addRev int.rev
 
 
-annEncoder : Ann -> E.Value
+annEncoder : Annotations -> E.Value
 annEncoder ann =
     E.object
         [ ( "breaks", E.string ann.breaks )

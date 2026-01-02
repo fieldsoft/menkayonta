@@ -23,116 +23,34 @@ import UUID
 import Url
 
 
-{-| The window title changes depending on the focused tab. This sends
-the signal to the backend to do so.
--}
-port setWindowTitle : String -> Cmd msg
-
-
-{-| The project index is a listing of all translated items with their
-translations, which serves as an entry point to a project. This port
-requests the index.
--}
-port requestProjectIndex : String -> Cmd msg
-
-
-port requestInterlinearIndex : String -> Cmd msg
-
-
-port requestPersonIndex : String -> Cmd msg
-
-
-port requestDocId : E.Value -> Cmd msg
-
-
-port requestAllDocId : E.Value -> Cmd msg
-
-
-{-| The global configuration lists projects and whether they are
-enabled. It may also include other configuration information. This
-port is used to request the global configuration.
--}
-port requestGlobalConfig : () -> Cmd msg
-
-
-{-| The global configuration lists projects and whether they are
-enabled. It may also include other configuration information. This
-port indicates that the global configuration was received.
--}
-port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
-
-
-{-| The project index is a listing of all translated items with their
-translations, which serves as an entry point to a project. This port
-indicates that the index was received.
--}
-port receivedProjectIndex : (E.Value -> msg) -> Sub msg
-
-
-port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
-
-
-port receivedPersonIndex : (E.Value -> msg) -> Sub msg
-
-
-port receivedAllDoc : (E.Value -> msg) -> Sub msg
-
-
-port receivedDoc : (E.Value -> msg) -> Sub msg
-
-
-{-| The "New Project" menu item was clicked.
--}
-port newProject : (String -> msg) -> Sub msg
-
-
-{-| The "New Project" menu item was clicked.
--}
-port globalSettings : (E.Value -> msg) -> Sub msg
-
-
-{-| The "Import File" menu item was clicked.
--}
-port importOptions : (String -> msg) -> Sub msg
-
-
-{-| Send ProjectInfo to the backend for creation.
--}
-port createProject : E.Value -> Cmd msg
-
-
-{-| Send ProjectInfo to the backend for update.
--}
-port updateProject : E.Value -> Cmd msg
-
-
-{-| Send ImportOptions to the backend for execution.
--}
-port importFile : E.Value -> Cmd msg
-
-
-{-| Send the portion of the global configuration that does not include
-project configuration to the backend.
--}
-port updateGlobalSettings : E.Value -> Cmd msg
-
-
-port moveLeft_ : (() -> msg) -> Sub msg
-
-
-port moveRight_ : (() -> msg) -> Sub msg
-
-
-port moveUp_ : (() -> msg) -> Sub msg
-
-
-port moveDown_ : (() -> msg) -> Sub msg
-
-
-port closeTab_ : (() -> msg) -> Sub msg
-
-
-port cloneTab_ : (() -> msg) -> Sub msg
+type Msg
+    = NewTab Ventana
+    | FocusTab TabPath
+    | CloseTab
+    | CloneTab
+    | Move Direction
+    | SetWindowTitle String
+    | ReceivedGlobalConfig E.Value
+    | ReceivedProjectIndex E.Value
+    | ReceivedInterlinearIndex E.Value
+    | ReceivedPersonIndex E.Value
+    | ReceivedDoc E.Value
+    | ReceivedAllDoc E.Value
+    | RequestProjectIndex String
+    | RequestInterlinearIndex String
+    | RequestDocId String String
+    | RequestAllDocId String String
+    | NewProjectMenu String
+    | ImportOptionsFileMenu String
+    | GlobalSettingsMenu E.Value
+    | ProjectInfoFormChange TabPath (Field.Msg FieldKind)
+    | ImportOptionsFormChange (Field.Msg FieldKind)
+    | GlobalSettingsFormChange (Field.Msg FieldKind)
+    | ProjectSettingsEdit ProjectInfo
+    | FormSubmit TabPath
+    | ChangeLengthParam TabPath String
+    | ChangeSearchParam TabPath String
+    | ChangeEditParam TabPath
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -241,6 +159,16 @@ envelopeDecoder =
         (D.field "content" D.value)
 
 
+envelopeEncoder : Envelope -> E.Value
+envelopeEncoder env =
+    E.object
+        [ ( "command", E.string env.command )
+        , ( "identifier", E.string env.project )
+        , ( "address", E.string env.address )
+        , ( "content", env.content )
+        ]
+        
+
 type alias DocReq =
     { command : String
     , identifier : String
@@ -262,16 +190,6 @@ docReqEncode dr =
         , ( "identifier", E.string dr.identifier )
         , ( "docid", E.string dr.docid )
         ]
-
-
-docRecDecode : D.Decoder DocRec
-docRecDecode =
-    D.map3 DocRec
-        (D.field "command" D.string)
-        (D.field "identifier" D.string)
-        (D.field "doc" interlinearDecoder
-            |> D.map InterlinearContent
-        )
 
 
 type alias FormData =
@@ -318,36 +236,6 @@ type FieldKind
     | GlobalUUID
 
 
-type Msg
-    = NewTab Ventana
-    | FocusTab TabPath
-    | CloseTab
-    | CloneTab
-    | Move Direction
-    | SetWindowTitle String
-    | ReceivedGlobalConfig E.Value
-    | ReceivedProjectIndex E.Value
-    | ReceivedInterlinearIndex E.Value
-    | ReceivedPersonIndex E.Value
-    | ReceivedDoc E.Value
-    | ReceivedAllDoc E.Value
-    | RequestProjectIndex String
-    | RequestInterlinearIndex String
-    | RequestDocId String String
-    | RequestAllDocId String String
-    | NewProjectMenu String
-    | ImportOptionsFileMenu String
-    | GlobalSettingsMenu E.Value
-    | ProjectInfoFormChange TabPath (Field.Msg FieldKind)
-    | ImportOptionsFormChange (Field.Msg FieldKind)
-    | GlobalSettingsFormChange (Field.Msg FieldKind)
-    | ProjectSettingsEdit ProjectInfo
-    | FormSubmit TabPath
-    | ChangeLengthParam TabPath String
-    | ChangeSearchParam TabPath String
-    | ChangeEditParam TabPath
-
-
 type alias Flags =
     { windowHeight : Int }
 
@@ -356,7 +244,7 @@ type Content
     = TranslationContent Translation
     | TranslationsContent (List Translation)
     | InterlinearsContent (List Interlinear)
-    | InterlinearContent M.Interlinear
+    | DocContent M.OneDoc
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
     | GlobalSettingsContent GlobalSettings
@@ -822,10 +710,11 @@ update msg model =
         RequestAllDocId project id ->
             let
                 payload =
-                    docReqEncode
+                    envelopeEncoder
                         { command = "request-all-docid"
-                        , identifier = project
-                        , docid = id
+                        , project = project
+                        , address = id
+                        , content = E.null
                         }
             in
             ( model, requestAllDocId payload )
@@ -845,11 +734,25 @@ update msg model =
                                 project =
                                     envelope_.project
 
+                                key p =
+                                    case (Dict.get 0 p.names, p.email) of
+                                        (Nothing, "") ->
+                                            "Anonymous " ++ UUID.toString p.id
+
+                                        (Nothing, email) ->
+                                            "(Blank Name) " ++ email
+
+                                        (Just name, "") ->
+                                            name ++ " (Blank Email)"
+
+                                        (Just name, email) ->
+                                            name ++ ", " ++ email
+
                                 pdict =
                                     M.people vals
                                         |> List.map
                                             (\p ->
-                                                ( UUID.toString p.id, p )
+                                                ( key p, p )
                                             )
                                         |> Dict.fromList
                             in
@@ -871,40 +774,50 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        ReceivedAllDoc vals ->
-            ( model, Cmd.none )
+        ReceivedAllDoc envelope ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model
+                          | error = Just <| Error <| D.errorToString e
+                      }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    let
+                       doc =
+                           reduceDoc env
+                    in
+                    case doc.doc of
+                        Just (M.MyInterlinear i) ->
+                            let
+                                st =
+                                    if String.length i.text > 5 then
+                                        "Gloss: "
+                                        ++ String.left 5 i.text
+                                        ++ "..."
+
+                                    else
+                                        "Gloss: " ++ i.text
+
+                                vista =
+                                    { project = env.project
+                                    , kind = "interlinear"
+                                    , identifier = UUID.toString i.id
+                                    , content = DocContent doc
+                                    }
+                            in
+                            handleVista vista st model
+
+                        _ -> 
+                            ( model, Cmd.none )
 
         ReceivedDoc val ->
-            let
-                docRec =
-                    D.decodeValue docRecDecode val
-
-                data =
-                    Result.map (\dr -> ( dr.identifier, dr.doc )) docRec
-            in
-            case data of
-                Ok ( project, InterlinearContent i ) ->
-                    let
-                        st =
-                            if String.length i.text > 5 then
-                                "Gloss: "
-                                    ++ String.left 5 i.text
-                                    ++ "..."
-
-                            else
-                                "Gloss: " ++ i.text
-
-                        vista =
-                            { project = project
-                            , kind = "interlinear"
-                            , identifier = UUID.toString i.id
-                            , content = InterlinearContent i
-                            }
-                    in
-                    handleVista vista st model
-
-                _ ->
-                    ( model, Cmd.none )
+            -- This will have uses, eventually. There will be cases of
+            -- having received a specific document, but for working
+            -- with interlinear glosses and people, the (currently
+            -- named) ReceivedAllDoc is used.
+            ( model, Cmd.none )
 
         -- Open or focus the New Project form.
         NewProjectMenu ident ->
@@ -1940,33 +1853,38 @@ viewVista model tp vista =
                     (List.map (viewInterlinearItem vista.project) is)
                 ]
 
-        InterlinearContent _ ->
+        DocContent od ->
             let
                 params =
                     Dict.get tp model.ventanas
                         |> Maybe.map .params
                         |> Maybe.withDefault defVParams
             in
-            Html.div []
-                [ Html.a
-                    [ Attr.href "#"
-                    , Event.onClick (ChangeEditParam tp)
-                    ]
-                    [ Html.text
-                        (if params.edit then
-                            "Revert to View"
+            case od.doc of
+                Just (M.MyInterlinear int) ->
+                    Html.div []
+                        [ Html.a
+                              [ Attr.href "#"
+                              , Event.onClick (ChangeEditParam tp)
+                              ]
+                              [ Html.text
+                                    (if params.edit then
+                                         "Revert to View"
 
-                         else
-                            "Edit"
-                        )
-                    ]
-                , if params.edit then
-                    Debug.todo "implement edit of interlinear"
+                                     else
+                                         "Edit"
+                                    )
+                              ]
+                        , if params.edit then
+                              Html.text "implement edit of interlinear"
 
-                  else
-                    Debug.todo "implement view of interlinear"
-                ]
+                          else
+                              Html.text "implement view of interlinear"
+                        ]
 
+                _ ->
+                    Html.div [] [ Html.text "doc not supported" ]
+                    
         ErrorContent err ->
             viewError model err
 
@@ -1993,7 +1911,7 @@ viewInterlinearItem proj int =
         [ Html.div [] (srcLine :: transLines)
         , Html.a
             [ Attr.href "#"
-            , Event.onClick (RequestDocId proj ("interlinear/" ++ UUID.toString int.id))
+            , Event.onClick (RequestAllDocId proj ("interlinear/" ++ UUID.toString int.id))
             ]
             [ Html.text "Open" ]
         ]
@@ -2463,6 +2381,16 @@ maybeIf pred a =
         Nothing
 
 
+resultToList : Result a (List b) -> List b
+resultToList res =
+    case res of
+        Ok l ->
+            l
+
+        Err _ ->
+            []
+
+
 all3 : ( Maybe a, Maybe b, Maybe c ) -> Maybe ( a, b, c )
 all3 triple =
     case triple of
@@ -2471,3 +2399,152 @@ all3 triple =
 
         _ ->
             Nothing
+
+
+reduceDoc : Envelope -> M.OneDoc
+reduceDoc env =
+    let
+        content =
+            env.content |> D.decodeValue M.listDecoder |> resultToList
+
+        initial =
+            M.OneDoc Nothing [] [] [] []
+
+    in
+    List.foldl oneBuilder initial content
+
+
+oneBuilder : M.Value -> M.OneDoc -> M.OneDoc
+oneBuilder v od =
+    case v of
+        M.MyTag t ->
+            { od | tags = t :: od.tags }
+
+        M.MyProperty p ->
+            { od | properties = p :: od.properties }
+
+        M.MyDescription d ->
+            { od | descriptions = d :: od.descriptions }
+
+        M.MyModification m ->
+            { od | modifications = m :: od.modifications }
+
+        M.MyUtility _ ->
+            od
+
+        other ->
+            { od | doc = Just other }
+
+    
+{- PORTS -}
+
+{-| The window title changes depending on the focused tab. This sends
+the signal to the backend to do so.
+-}
+port setWindowTitle : String -> Cmd msg
+
+
+{-| The project index is a listing of all translated items with their
+translations, which serves as an entry point to a project. This port
+requests the index.
+-}
+port requestProjectIndex : String -> Cmd msg
+
+
+port requestInterlinearIndex : String -> Cmd msg
+
+
+port requestPersonIndex : String -> Cmd msg
+
+
+port requestDocId : E.Value -> Cmd msg
+
+
+port requestAllDocId : E.Value -> Cmd msg
+
+
+{-| The global configuration lists projects and whether they are
+enabled. It may also include other configuration information. This
+port is used to request the global configuration.
+-}
+port requestGlobalConfig : () -> Cmd msg
+
+
+{-| The global configuration lists projects and whether they are
+enabled. It may also include other configuration information. This
+port indicates that the global configuration was received.
+-}
+port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
+
+
+{-| The project index is a listing of all translated items with their
+translations, which serves as an entry point to a project. This port
+indicates that the index was received.
+-}
+port receivedProjectIndex : (E.Value -> msg) -> Sub msg
+
+
+port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
+
+
+port receivedPersonIndex : (E.Value -> msg) -> Sub msg
+
+
+port receivedAllDoc : (E.Value -> msg) -> Sub msg
+
+
+port receivedDoc : (E.Value -> msg) -> Sub msg
+
+
+{-| The "New Project" menu item was clicked.
+-}
+port newProject : (String -> msg) -> Sub msg
+
+
+{-| The "New Project" menu item was clicked.
+-}
+port globalSettings : (E.Value -> msg) -> Sub msg
+
+
+{-| The "Import File" menu item was clicked.
+-}
+port importOptions : (String -> msg) -> Sub msg
+
+
+{-| Send ProjectInfo to the backend for creation.
+-}
+port createProject : E.Value -> Cmd msg
+
+
+{-| Send ProjectInfo to the backend for update.
+-}
+port updateProject : E.Value -> Cmd msg
+
+
+{-| Send ImportOptions to the backend for execution.
+-}
+port importFile : E.Value -> Cmd msg
+
+
+{-| Send the portion of the global configuration that does not include
+project configuration to the backend.
+-}
+port updateGlobalSettings : E.Value -> Cmd msg
+
+
+port moveLeft_ : (() -> msg) -> Sub msg
+
+
+port moveRight_ : (() -> msg) -> Sub msg
+
+
+port moveUp_ : (() -> msg) -> Sub msg
+
+
+port moveDown_ : (() -> msg) -> Sub msg
+
+
+port closeTab_ : (() -> msg) -> Sub msg
+
+
+port cloneTab_ : (() -> msg) -> Sub msg
