@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { trans_dd } from './design_docs/trans.js'
+import { menkayonta_dd } from './design_docs/menkayonta.js'
 
 // Load the pouchdb packages. The pouchdb packages need commonjs
 // imports.
@@ -16,7 +16,7 @@ PouchDB.plugin(HttpPouch)
   .plugin(sqliteAdapter)
 
 // Globals
-let gvs = { design_docs: [trans_dd] }
+let gvs = { design_docs: [menkayonta_dd] }
 
 const info = (msg) => {
   process.parentPort.postMessage({
@@ -199,7 +199,7 @@ const handleRequestDocId = async (docid) => {
 
 const handleRequestAllDocId = async (docid) => {
   try {
-    const all = await gvs.db.allDocs({
+    const all = await gvs.db.query('menkayonta/meta_reversals', {
       include_docs: true,
       startkey: docid,
       endkey: `${docid}\ufff0`,
