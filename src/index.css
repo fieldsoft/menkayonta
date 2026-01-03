@@ -1,7 +1,6 @@
 @import "pico.orange.min.css";
 
 :root {
-    --pico-border-radius: 0;
     --pico-spacing: 0.5rem;
     --pico-font-size: 100%;
     --pico-line-height: 1.3;
@@ -44,9 +43,9 @@ org-note img {
     padding: 0 0.25em;
 }
 
-h1, h2, h3, h4 {
-    font-size: 100%;
-}
+/* h1, h2, h3, h4 { */
+/*     font-size: 100%; */
+/* } */
 
 h2 button {
     margin-left: 1rem;
@@ -95,6 +94,7 @@ details {
     margin: 0.25rem;
     padding: 0.1rem;
     border-radius: 4px;
+    display: inline-block;
 }
 
 .quiet {
@@ -108,6 +108,7 @@ aside {
 div.focused {
     border: solid;
     border-width: 1px;
+    border-radius: 4px;
 }
 
 button.focused {
@@ -119,9 +120,14 @@ div.hidden {
     display: none;
 }
 
+.tabs-header {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
 .tabs-header button {
-    padding-left: 3px;
-    padding-right: 3px;
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 
 .tab-inner-header {
@@ -130,10 +136,12 @@ div.hidden {
 
 .wrapper {
     display: grid;
+    min-width: 45rem;
 }
 
 .tabview {
     overflow-y: scroll;
+    padding-left: 0.5rem;
 }
 
 .all-glosses {
@@ -143,4 +151,22 @@ div.hidden {
 .gloss-column {
     display: inline-table;
     padding: 0.25em;
+}
+
+.docview {
+    padding: 1rem;
+}
+
+.metaview {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+}
+
+.metaview > article {
+    width: 20rem;
+}
+
+#modification-view {
+    width: 40rem;
 }

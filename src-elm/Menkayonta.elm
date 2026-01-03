@@ -1,5 +1,5 @@
 module Menkayonta exposing
-    ( Ann
+    ( Annotations
     , Description
     , DescriptionId
     , DocId(..)
@@ -7,6 +7,7 @@ module Menkayonta exposing
     , Interlinear
     , Modification
     , ModificationId
+    , OneDoc
     , Person
     , Property
     , PropertyId
@@ -32,6 +33,9 @@ import Time
 import UUID exposing (UUID)
 
 
+{-| These are the basic kinds of values that are used to represent
+application data in Menkayonta.
+-}
 type Value
     = MyPerson Person
     | MyTag Tag
@@ -42,6 +46,8 @@ type Value
     | MyInterlinear Interlinear
 
 
+{-| Identifers for data types are complex data types, themselves.
+-}
 type Identifier
     = MyDocId DocId
     | MyTagId TagId
@@ -51,9 +57,34 @@ type Identifier
     | MyModificationId ModificationId
 
 
+{-| Most identifiers are identifiers for metadata. These are for
+documents, data structures that contain non-metadata.
+-}
 type DocId
     = PersonId UUID
     | InterlinearId UUID
+
+
+{-| When working with documents in forms and other contexts, it is
+useful to have a single document with the core data and all
+metadata.
+-}
+type alias OneDoc =
+    { doc : Maybe Value
+    , tags : List Tag
+    , properties : List Property
+    , descriptions : List Description
+    , modifications : List Modification
+    }
+
+
+type alias OnePersonDoc =
+    { person : Person
+    , tags : List Tag
+    , properties : List Property
+    , descriptions : List Description
+    , modifications : List Modification
+    }
 
 
 type alias Translation =
@@ -62,7 +93,7 @@ type alias Translation =
     }
 
 
-type alias Ann =
+type alias Annotations =
     { breaks : String
     , glosses : String
     , phonemic : String
@@ -75,7 +106,7 @@ type alias Interlinear =
     , rev : Maybe String
     , version : Int
     , text : String
-    , ann : Ann
+    , ann : Annotations
     , translations : Dict Int Translation
     }
 
@@ -91,7 +122,7 @@ type alias Description =
     { id : DescriptionId
     , rev : Maybe String
     , version : Int
-    , value : E.Value
+    , value : String
     }
 
 
@@ -148,7 +179,7 @@ type alias Modification =
     , version : Int
     , comment : String
     , docversion : Int
-    , docstate : E.Value
+    , value : E.Value
     }
 
 
@@ -209,17 +240,7 @@ stringToIdentifier idstring =
                 |> Maybe.map (\d -> TagId kind d fragment)
                 |> Maybe.map MyTagId
 
-        ( d1 :: d2 :: "tag" :: kind :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> TagId kind d fragment)
-                |> Maybe.map MyTagId
-
         ( "description" :: kind :: d1 :: d2 :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> DescriptionId kind d fragment)
-                |> Maybe.map MyDescriptionId
-
-        ( d1 :: d2 :: "description" :: kind :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
                 |> Maybe.map (\d -> DescriptionId kind d fragment)
                 |> Maybe.map MyDescriptionId
@@ -229,7 +250,7 @@ stringToIdentifier idstring =
                 |> Maybe.map (\d -> UtilityId kind d fragment)
                 |> Maybe.map MyUtilityId
 
-        ( d1 :: d2 :: "property" :: kind :: value :: [], fragment ) ->
+        ( "property" :: kind :: value :: d1 :: d2 :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
                 |> Maybe.map (\d -> PropertyId kind value d fragment)
                 |> Maybe.map MyPropertyId
@@ -423,9 +444,9 @@ interlinearDecoder_ id =
         (D.field "translations" (DE.dict2 D.int translationDecoder))
 
 
-annDecoder : D.Decoder Ann
+annDecoder : D.Decoder Annotations
 annDecoder =
-    D.map4 Ann
+    D.map4 Annotations
         (D.field "breaks" D.string)
         (D.field "glosses" D.string)
         (D.field "phonemic" D.string)
@@ -455,7 +476,7 @@ descriptionDecoder_ id =
         (D.succeed id)
         (D.field "_rev" <| D.nullable D.string)
         (D.field "version" D.int)
-        (D.field "value" D.value)
+        (D.field "value" D.string)
 
 
 tagDecoder_ : TagId -> D.Decoder Tag
@@ -482,7 +503,7 @@ modificationDecoder_ id =
         (D.field "version" D.int)
         (D.field "comment" D.string)
         (D.field "docversion" D.int)
-        (D.field "docstate" D.value)
+        (D.field "value" D.value)
 
 
 utilityDecoder_ : UtilityId -> D.Decoder Utility
@@ -554,7 +575,7 @@ interlinearEncoder int =
         |> addRev int.rev
 
 
-annEncoder : Ann -> E.Value
+annEncoder : Annotations -> E.Value
 annEncoder ann =
     E.object
         [ ( "breaks", E.string ann.breaks )
@@ -601,7 +622,7 @@ descriptionEncoder : Description -> E.Value
 descriptionEncoder description =
     [ ( "_id", E.string (descriptionIdToString description.id) )
     , ( "version", E.int description.version )
-    , ( "value", description.value )
+    , ( "value", E.string description.value )
     ]
         |> addRev description.rev
 
@@ -612,7 +633,7 @@ modificationEncoder modification =
     , ( "version", E.int modification.version )
     , ( "comment", E.string modification.comment )
     , ( "docversion", E.int modification.docversion )
-    , ( "value", modification.docstate )
+    , ( "value", modification.value )
     ]
         |> addRev modification.rev
 

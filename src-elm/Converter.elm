@@ -779,7 +779,7 @@ constNonBlankProp kind str docid =
         Just <| constructProperty kind str docid
 
 
-constructDescription : String -> E.Value -> M.DocId -> ( M.Identifier, M.Value )
+constructDescription : String -> String -> M.DocId -> ( M.Identifier, M.Value )
 constructDescription kind value docid =
     { id =
         { kind = kind
@@ -796,7 +796,7 @@ constructDescription kind value docid =
 constNonBlankDesc : String -> String -> M.DocId -> Maybe ( M.Identifier, M.Value )
 constNonBlankDesc kind c docid =
     if String.length c > 0 then
-        constructDescription kind (E.string c) docid |> Just
+        constructDescription kind c docid |> Just
 
     else
         Nothing
@@ -894,7 +894,7 @@ constructModifier { kind, time, docid, pid, json } =
     , version = 1
     , comment = "bulk import"
     , docversion = 0
-    , docstate = json
+    , value = json
     }
         |> (\mod -> ( M.MyModificationId mod.id, M.MyModification mod ))
 

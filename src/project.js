@@ -199,23 +199,27 @@ const handleRequestDocId = async (docid) => {
 
 const handleRequestAllDocId = async (docid) => {
   try {
-    const all = await gvs.db.query('menkayonta/meta_reversals', {
-      include_docs: true,
-      startkey: docid,
-      endkey: `${docid}\ufff0`,
-    })
+    if (typeof docid === 'string') {
+      const all = await gvs.db.query('menkayonta/meta_reversals', {
+        include_docs: true,
+        startkey: docid,
+        endkey: `${docid}\ufff0`,
+      })
 
-    const onlyDocs = all.rows.reduce((acc, row) => {
-      acc.push(row.doc)
-      return acc
-    }, [])
+      const onlyDocs = all.rows.reduce((acc, row) => {
+        acc.push(row.doc)
+        return acc
+      }, [])
 
-    process.parentPort.postMessage({
-      command: 'received-all-doc',
-      address: docid,
-      content: onlyDocs,
-      identifier: gvs.identifier,
-    })
+      process.parentPort.postMessage({
+        command: 'received-all-doc',
+        address: docid,
+        content: onlyDocs,
+        identifier: gvs.identifier,
+      })
+    } else {
+      throw Error('Invalid document id in doc all requrest')
+    }
   } catch (e) {
     error(e)
   }
@@ -254,7 +258,7 @@ const handleMainMessage = (m) => {
     }
 
     case 'request-all-docid': {
-      handleRequestAllDocId(m.data.docid)
+      handleRequestAllDocId(m.data.address)
       break
     }
     default: {
