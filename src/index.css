@@ -44,9 +44,9 @@ org-note img {
     padding: 0 0.25em;
 }
 
-h1, h2, h3, h4 {
-    font-size: 100%;
-}
+/* h1, h2, h3, h4 { */
+/*     font-size: 100%; */
+/* } */
 
 h2 button {
     margin-left: 1rem;
@@ -95,6 +95,7 @@ details {
     margin: 0.25rem;
     padding: 0.1rem;
     border-radius: 4px;
+    display: inline-block;
 }
 
 .quiet {
@@ -143,4 +144,13 @@ div.hidden {
 .gloss-column {
     display: inline-table;
     padding: 0.25em;
+}
+
+.interlinear-item {
+    display: flex;
+    justify-content: center;
+}
+
+.docview {
+    padding: 1rem;
 }

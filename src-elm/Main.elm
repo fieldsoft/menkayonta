@@ -1861,7 +1861,7 @@ viewVista model tp vista =
                         []
                     ]
                 , Html.ol [ Attr.class "all-glosses" ]
-                    (List.map (viewInterlinearItem vista.project) is)
+                    (List.map (viewInterlinearIndexItem vista.project) is)
                 ]
 
         DocContent od ->
@@ -1890,7 +1890,46 @@ viewVista model tp vista =
                               Html.text "implement edit of interlinear"
 
                           else
-                              Html.text "implement view of interlinear"
+                              Html.div [ Attr.class "docview" ]
+                                  [ Html.h2 []
+                                        [ Html.text "Interlinear Gloss" ]
+                                  , Html.article [ ]
+                                      [ viewInterlinearItem vista.project int
+                                      , Html.footer []
+                                          [ Html.text ("ID: " ++ (M.identifierToString <| M.MyDocId <| M.InterlinearId int.id)) ]
+                                      ]
+                                  , Html.div [ Attr.class "grid" ]
+                                      [ Html.article []
+                                            [ Html.header []
+                                                  [ Html.h3 []
+                                                        [ Html.text "Tags" ]
+                                                  ]
+                                           
+                                            , viewTags od.tags
+                                            ]
+                                      , Html.article []
+                                          [ Html.header []
+                                                [ Html.h3 []
+                                                      [ Html.text "Properties" ]
+                                                ]
+                                          ]
+                                      , Html.article []
+                                          [ Html.header []
+                                                [ Html.h3 []
+                                                      [ Html.text "Descriptions" ]
+                                                ]
+                                          ]
+                                      , Html.article []
+                                          [ Html.header []
+                                                [ Html.h3 []
+                                                      [ Html.text "Modifications" ]
+                                                ]
+                                          ]
+                                      ]
+                                  -- , viewProperties
+                                  -- , viewDescriptions
+                                  -- , viewModifications
+                                  ]
                         ]
 
                 _ ->
@@ -1905,6 +1944,37 @@ viewError _ err =
     Html.text err.message
 
 
+viewTags : List M.Tag -> Html.Html Msg
+viewTags tags =
+    Html.div [ ]
+        <| List.map viewTag tags
+
+
+viewTag : M.Tag -> Html.Html Msg
+viewTag tag =
+    let
+        doctype =
+            case tag.id.docid of
+                M.InterlinearId _ ->
+                    "interlinear"
+
+                M.PersonId _ ->
+                    "person"
+    in
+    Html.span [ Attr.class "tag" ] [ Html.text tag.id.kind ]
+            
+
+viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
+viewInterlinearIndexItem proj int =
+    Html.li [ ]
+        [ viewInterlinearItem proj int
+        , Html.a
+            [ Attr.href "#"
+            , Event.onClick (RequestAllDocId proj ("interlinear/" ++ UUID.toString int.id))
+            ]
+            [ Html.text "Open" ]
+        ]
+
 viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearItem proj int =
     let
@@ -1918,14 +1988,7 @@ viewInterlinearItem proj int =
         transLines =
             List.map (\t -> Html.p [] [ Html.text t.translation ]) (Dict.values int.translations)
     in
-    Html.li []
-        [ Html.div [] (srcLine :: transLines)
-        , Html.a
-            [ Attr.href "#"
-            , Event.onClick (RequestAllDocId proj ("interlinear/" ++ UUID.toString int.id))
-            ]
-            [ Html.text "Open" ]
-        ]
+    Html.div [] (srcLine :: transLines)
 
 
 viewAnn : String -> String -> String -> Html.Html Msg
