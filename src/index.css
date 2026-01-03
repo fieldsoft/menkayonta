@@ -131,7 +131,7 @@ div.hidden {
 }
 
 .wrapper {
-
+    max-width: 800px;
     min-width: 45rem;
 }
 
