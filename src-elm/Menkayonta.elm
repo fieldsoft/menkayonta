@@ -122,7 +122,7 @@ type alias Description =
     { id : DescriptionId
     , rev : Maybe String
     , version : Int
-    , value : E.Value
+    , value : String
     }
 
 
@@ -476,7 +476,7 @@ descriptionDecoder_ id =
         (D.succeed id)
         (D.field "_rev" <| D.nullable D.string)
         (D.field "version" D.int)
-        (D.field "value" D.value)
+        (D.field "value" D.string)
 
 
 tagDecoder_ : TagId -> D.Decoder Tag
@@ -622,7 +622,7 @@ descriptionEncoder : Description -> E.Value
 descriptionEncoder description =
     [ ( "_id", E.string (descriptionIdToString description.id) )
     , ( "version", E.int description.version )
-    , ( "value", description.value )
+    , ( "value", E.string description.value )
     ]
         |> addRev description.rev
 

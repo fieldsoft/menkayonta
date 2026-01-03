@@ -1963,6 +1963,7 @@ viewDocContentViewVista { vista, od, int } =
                     [ Html.h3 []
                         [ Html.text "Descriptions" ]
                     ]
+                , viewDescriptions od.descriptions
                 ]
             , Html.article []
                 [ Html.header []
@@ -2031,6 +2032,31 @@ viewTag tag =
                     "person"
     in
     Html.span [ Attr.class "tag" ] [ Html.text tag.id.kind ]
+
+
+viewDescriptions : List M.Description -> Html.Html Msg
+viewDescriptions descriptions =
+    Html.div [] <|
+        List.map viewDescription descriptions
+
+
+viewDescription : M.Description -> Html.Html Msg
+viewDescription description =
+    let
+        doctype =
+            case description.id.docid of
+                M.InterlinearId _ ->
+                    "interlinear"
+
+                M.PersonId _ ->
+                    "person"
+    in
+    Html.details []
+        [ Html.summary []
+              [ Html.text description.id.kind ]
+        , Html.p []
+            [ Html.text description.value ]
+        ]
 
 
 viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
