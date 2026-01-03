@@ -19,6 +19,8 @@ import Menkayonta as M exposing (Interlinear)
 import Result
 import Set exposing (Set)
 import Task
+import Time
+import Iso8601
 import UUID
 import Url
 
@@ -1520,9 +1522,7 @@ viewRow : Model -> Int -> Int -> Int -> Set Int -> Html.Html Msg
 viewRow model col _ row tabs =
     Html.div []
         [ Html.nav
-            [ roleAttr "group"
-            , Attr.class "tabs-header"
-            ]
+            [ Attr.class "tabs-header" ]
             (Set.toList tabs
                 |> List.map (\t -> viewTabHeader model (tabpath col row t))
             )
@@ -1894,17 +1894,23 @@ viewDocContentVista { vista, tp, od, model } =
     case od.doc of
         Just (M.MyInterlinear int) ->
             Html.div []
-                [ Html.a
-                    [ Attr.href "#"
-                    , Event.onClick (ChangeEditParam tp)
-                    ]
-                    [ Html.text
-                        (if params.edit then
-                            "Revert to View"
+                [ Html.nav []
+                    [ Html.ul []
+                        [ Html.li []
+                            [ Html.a
+                                [ Attr.href "#"
+                                , Event.onClick (ChangeEditParam tp)
+                                ]
+                                [ Html.text
+                                    (if params.edit then
+                                        "View"
 
-                         else
-                            "Edit"
-                        )
+                                     else
+                                        "Edit"
+                                    )
+                                ]
+                            ]
+                        ]
                     ]
                 , if params.edit then
                     Html.text "implement edit of interlinear"
@@ -1920,7 +1926,7 @@ viewDocContentVista { vista, tp, od, model } =
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
 
-                
+
 viewDocContentViewVista :
     { vista : Vista
     , od : M.OneDoc
@@ -1944,32 +1950,42 @@ viewDocContentViewVista { vista, od, int } =
         , Html.h2 []
             [ Html.text "Metadata" ]
         , Html.div [ Attr.class "metaview" ]
-            [ Html.article []
+            [ if List.length od.tags > 0 then
+                  Html.article []
+                  [ Html.header []
+                        [ Html.h3 []
+                              [ Html.text "Tags" ]
+                        ]
+                  , viewTags od.tags
+                  ]
+              else
+                  Html.text ""
+            , if List.length od.properties > 0 then
+                  Html.article []
+                      [ Html.header []
+                            [ Html.h3 []
+                                  [ Html.text "Properties" ]
+                            ]
+                      , viewProperties od.properties
+                      ]
+              else
+                  Html.text ""
+            , if List.length od.descriptions > 0 then
+                  Html.article []
+                      [ Html.header []
+                            [ Html.h3 []
+                                  [ Html.text "Descriptions" ]
+                            ]
+                      , viewDescriptions od.descriptions
+                      ]
+              else
+                  Html.text ""
+            , Html.article [ Attr.id "modification-view" ]
                 [ Html.header []
-                    [ Html.h3 []
-                        [ Html.text "Tags" ]
-                    ]
-                , viewTags od.tags
-                ]
-            , Html.article []
-                [ Html.header []
-                    [ Html.h3 []
-                        [ Html.text "Properties" ]
-                    ]
-                , viewProperties od.properties
-                ]
-            , Html.article []
-                [ Html.header []
-                    [ Html.h3 []
-                        [ Html.text "Descriptions" ]
-                    ]
-                , viewDescriptions od.descriptions
-                ]
-            , Html.article []
-                [ Html.header []
-                    [ Html.h3 []
-                        [ Html.text "Modifications" ]
-                    ]
+                      [ Html.h3 []
+                            [ Html.text "Modifications" ]
+                      ]
+                , viewModifications od.modifications
                 ]
             ]
         ]
@@ -1984,13 +2000,13 @@ viewProperties : List M.Property -> Html.Html Msg
 viewProperties props =
     Html.table [ Attr.class "striped" ]
         [ Html.thead []
-              [ Html.tr []
-                    [ Html.th [ Attr.attribute "scope" "col" ]
-                          [ Html.text "Attribute" ]
-                    , Html.th [ Attr.attribute "scope" "col" ]
-                          [ Html.text "Value" ]
-                    ]
-              ]
+            [ Html.tr []
+                [ Html.th [ Attr.attribute "scope" "col" ]
+                    [ Html.text "Attribute" ]
+                , Html.th [ Attr.attribute "scope" "col" ]
+                    [ Html.text "Value" ]
+                ]
+            ]
         , Html.tbody [] <| List.map viewProperty props
         ]
 
@@ -2008,9 +2024,46 @@ viewProperty property =
     in
     Html.tr []
         [ Html.td []
-              [ Html.text property.id.kind ]
+            [ Html.text property.id.kind ]
         , Html.td []
             [ Html.text property.id.value ]
+        ]
+
+
+viewModifications : List M.Modification -> Html.Html Msg
+viewModifications mods =
+    Html.table [ Attr.class "striped" ]
+        [ Html.thead []
+            [ Html.tr []
+                [ Html.th [ Attr.attribute "scope" "col" ]
+                    [ Html.text "Event" ]
+                , Html.th [ Attr.attribute "scope" "col" ]
+                    [ Html.text "Time" ]
+                ]
+            ]
+        , Html.tbody []
+            <| List.map viewModification
+            <| List.reverse
+            <| List.sortBy (\m -> Time.posixToMillis m.id.time) mods
+        ]
+
+
+viewModification : M.Modification -> Html.Html Msg
+viewModification modification =
+    let
+        doctype =
+            case modification.id.docid of
+                M.InterlinearId _ ->
+                    "interlinear"
+
+                M.PersonId _ ->
+                    "person"
+    in
+    Html.tr []
+        [ Html.td []
+            [ Html.text modification.id.kind ]
+        , Html.td []
+            [ Html.text <| Iso8601.fromTime modification.id.time ]
         ]
 
 
@@ -2053,7 +2106,7 @@ viewDescription description =
     in
     Html.details []
         [ Html.summary []
-              [ Html.text description.id.kind ]
+            [ Html.text description.id.kind ]
         , Html.p []
             [ Html.text description.value ]
         ]
