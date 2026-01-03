@@ -43,10 +43,6 @@ org-note img {
     padding: 0 0.25em;
 }
 
-/* h1, h2, h3, h4 { */
-/*     font-size: 100%; */
-/* } */
-
 h2 button {
     margin-left: 1rem;
 }
@@ -135,13 +131,14 @@ div.hidden {
 }
 
 .wrapper {
-    display: grid;
+
     min-width: 45rem;
 }
 
 .tabview {
     overflow-y: scroll;
     padding-left: 0.5rem;
+    resize: vertical;
 }
 
 .all-glosses {
@@ -169,4 +166,12 @@ div.hidden {
 
 #modification-view {
     width: 40rem;
+}
+
+.main-row {
+    display: flex;
+}
+
+.content-row {
+    display: flex;
 }

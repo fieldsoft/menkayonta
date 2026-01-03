@@ -1479,7 +1479,7 @@ view model =
         tabtree =
             treeifyTabs <| Dict.keys model.ventanas
     in
-    Html.main_ [ Attr.class "grid-with-side" ]
+    Html.main_ [ Attr.class "main-row" ]
         [ Html.aside [ Attr.class "side" ]
             [ Html.nav []
                 [ Html.h2 [] [ Html.text "Projects" ]
@@ -1499,7 +1499,7 @@ view model =
 
           else
             Html.div
-                [ Attr.class "cotainer-fluid grid"
+                [ Attr.class "content-row"
                 , Attr.style "height" (String.fromInt model.windowHeight ++ "px")
                 ]
                 (Dict.map (viewColumn model) tabtree
