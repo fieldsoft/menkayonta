@@ -154,3 +154,13 @@ div.hidden {
 .docview {
     padding: 1rem;
 }
+
+.metaview {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-evenly;
+}
+
+.metaview > article {
+    min-width: 20rem;
+}

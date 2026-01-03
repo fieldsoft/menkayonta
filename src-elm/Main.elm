@@ -167,7 +167,7 @@ envelopeEncoder env =
         , ( "address", E.string env.address )
         , ( "content", env.content )
         ]
-        
+
 
 type alias DocReq =
     { command : String
@@ -735,17 +735,17 @@ update msg model =
                                     envelope_.project
 
                                 key p =
-                                    case (Dict.get 0 p.names, p.email) of
-                                        (Nothing, "") ->
+                                    case ( Dict.get 0 p.names, p.email ) of
+                                        ( Nothing, "" ) ->
                                             "Anonymous " ++ UUID.toString p.id
 
-                                        (Nothing, email) ->
+                                        ( Nothing, email ) ->
                                             "(Blank Name) " ++ email
 
-                                        (Just name, "") ->
+                                        ( Just name, "" ) ->
                                             name ++ " (Blank Email)"
 
-                                        (Just name, email) ->
+                                        ( Just name, email ) ->
                                             name ++ ", " ++ email
 
                                 pdict =
@@ -778,15 +778,15 @@ update msg model =
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model
-                          | error = Just <| Error <| D.errorToString e
+                        | error = Just <| Error <| D.errorToString e
                       }
                     , Cmd.none
                     )
 
                 Ok env ->
                     let
-                       doc =
-                           reduceDoc env
+                        doc =
+                            reduceDoc env
                     in
                     case doc of
                         Ok doc_ ->
@@ -796,8 +796,8 @@ update msg model =
                                         st =
                                             if String.length i.text > 5 then
                                                 "Gloss: "
-                                                ++ String.left 5 i.text
-                                                ++ "..."
+                                                    ++ String.left 5 i.text
+                                                    ++ "..."
 
                                             else
                                                 "Gloss: " ++ i.text
@@ -816,9 +816,10 @@ update msg model =
 
                         Err e ->
                             ( { model
-                                  | error = Just
-                                    <| Error
-                                    <| D.errorToString e
+                                | error =
+                                    Just <|
+                                        Error <|
+                                            D.errorToString e
                               }
                             , Cmd.none
                             )
@@ -1865,78 +1866,112 @@ viewVista model tp vista =
                 ]
 
         DocContent od ->
-            let
-                params =
-                    Dict.get tp model.ventanas
-                        |> Maybe.map .params
-                        |> Maybe.withDefault defVParams
-            in
-            case od.doc of
-                Just (M.MyInterlinear int) ->
-                    Html.div []
-                        [ Html.a
-                              [ Attr.href "#"
-                              , Event.onClick (ChangeEditParam tp)
-                              ]
-                              [ Html.text
-                                    (if params.edit then
-                                         "Revert to View"
+            viewDocContentVista
+                { vista = vista
+                , tp = tp
+                , od = od
+                , model = model
+                }
 
-                                     else
-                                         "Edit"
-                                    )
-                              ]
-                        , if params.edit then
-                              Html.text "implement edit of interlinear"
-
-                          else
-                              Html.div [ Attr.class "docview" ]
-                                  [ Html.h2 []
-                                        [ Html.text "Interlinear Gloss" ]
-                                  , Html.article [ ]
-                                      [ viewInterlinearItem vista.project int
-                                      , Html.footer []
-                                          [ Html.text ("ID: " ++ (M.identifierToString <| M.MyDocId <| M.InterlinearId int.id)) ]
-                                      ]
-                                  , Html.div [ Attr.class "grid" ]
-                                      [ Html.article []
-                                            [ Html.header []
-                                                  [ Html.h3 []
-                                                        [ Html.text "Tags" ]
-                                                  ]
-                                           
-                                            , viewTags od.tags
-                                            ]
-                                      , Html.article []
-                                          [ Html.header []
-                                                [ Html.h3 []
-                                                      [ Html.text "Properties" ]
-                                                ]
-                                          ]
-                                      , Html.article []
-                                          [ Html.header []
-                                                [ Html.h3 []
-                                                      [ Html.text "Descriptions" ]
-                                                ]
-                                          ]
-                                      , Html.article []
-                                          [ Html.header []
-                                                [ Html.h3 []
-                                                      [ Html.text "Modifications" ]
-                                                ]
-                                          ]
-                                      ]
-                                  -- , viewProperties
-                                  -- , viewDescriptions
-                                  -- , viewModifications
-                                  ]
-                        ]
-
-                _ ->
-                    Html.div [] [ Html.text "doc not supported" ]
-                    
         ErrorContent err ->
             viewError model err
+
+
+viewDocContentVista :
+    { vista : Vista
+    , tp : TabPath
+    , od : M.OneDoc
+    , model : Model
+    }
+    -> Html.Html Msg
+viewDocContentVista { vista, tp, od, model } =
+    let
+        params =
+            Dict.get tp model.ventanas
+                |> Maybe.map .params
+                |> Maybe.withDefault defVParams
+    in
+    case od.doc of
+        Just (M.MyInterlinear int) ->
+            Html.div []
+                [ Html.a
+                    [ Attr.href "#"
+                    , Event.onClick (ChangeEditParam tp)
+                    ]
+                    [ Html.text
+                        (if params.edit then
+                            "Revert to View"
+
+                         else
+                            "Edit"
+                        )
+                    ]
+                , if params.edit then
+                    Html.text "implement edit of interlinear"
+
+                  else
+                    viewDocContentViewVista
+                        { vista = vista
+                        , od = od
+                        , int = int
+                        }
+                ]
+
+        _ ->
+            Html.div [] [ Html.text "doc not supported" ]
+
+                
+viewDocContentViewVista :
+    { vista : Vista
+    , od : M.OneDoc
+    , int : M.Interlinear
+    }
+    -> Html.Html Msg
+viewDocContentViewVista { vista, od, int } =
+    Html.div [ Attr.class "docview" ]
+        [ Html.h2 []
+            [ Html.text "Interlinear Gloss" ]
+        , Html.article []
+            [ viewInterlinearItem vista.project int
+            , Html.footer []
+                [ M.InterlinearId int.id
+                    |> M.MyDocId
+                    |> M.identifierToString
+                    |> (++) "ID: "
+                    |> Html.text
+                ]
+            ]
+        , Html.h2 []
+            [ Html.text "Metadata" ]
+        , Html.div [ Attr.class "metaview" ]
+            [ Html.article []
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Tags" ]
+                    ]
+                , viewTags od.tags
+                ]
+            , Html.article []
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Properties" ]
+                    ]
+                , viewProperties od.properties
+                ]
+            , Html.article []
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Descriptions" ]
+                    ]
+                ]
+            , Html.article []
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Modifications" ]
+                    ]
+                ]
+            ]
+        ]
 
 
 viewError : Model -> Error -> Html Msg
@@ -1944,10 +1979,44 @@ viewError _ err =
     Html.text err.message
 
 
+viewProperties : List M.Property -> Html.Html Msg
+viewProperties props =
+    Html.table [ Attr.class "striped" ]
+        [ Html.thead []
+              [ Html.tr []
+                    [ Html.th [ Attr.attribute "scope" "col" ]
+                          [ Html.text "Attribute" ]
+                    , Html.th [ Attr.attribute "scope" "col" ]
+                          [ Html.text "Value" ]
+                    ]
+              ]
+        , Html.tbody [] <| List.map viewProperty props
+        ]
+
+
+viewProperty : M.Property -> Html.Html Msg
+viewProperty property =
+    let
+        doctype =
+            case property.id.docid of
+                M.InterlinearId _ ->
+                    "interlinear"
+
+                M.PersonId _ ->
+                    "person"
+    in
+    Html.tr []
+        [ Html.td []
+              [ Html.text property.id.kind ]
+        , Html.td []
+            [ Html.text property.id.value ]
+        ]
+
+
 viewTags : List M.Tag -> Html.Html Msg
 viewTags tags =
-    Html.div [ ]
-        <| List.map viewTag tags
+    Html.div [] <|
+        List.map viewTag tags
 
 
 viewTag : M.Tag -> Html.Html Msg
@@ -1962,11 +2031,11 @@ viewTag tag =
                     "person"
     in
     Html.span [ Attr.class "tag" ] [ Html.text tag.id.kind ]
-            
+
 
 viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearIndexItem proj int =
-    Html.li [ ]
+    Html.li []
         [ viewInterlinearItem proj int
         , Html.a
             [ Attr.href "#"
@@ -1974,6 +2043,7 @@ viewInterlinearIndexItem proj int =
             ]
             [ Html.text "Open" ]
         ]
+
 
 viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearItem proj int =
@@ -2483,7 +2553,6 @@ reduceDoc env =
 
         initial =
             M.OneDoc Nothing [] [] [] []
-
     in
     case content of
         Ok content_ ->
@@ -2514,8 +2583,10 @@ oneBuilder v od =
         other ->
             { od | doc = Just other }
 
-    
+
+
 {- PORTS -}
+
 
 {-| The window title changes depending on the focused tab. This sends
 the signal to the backend to do so.
