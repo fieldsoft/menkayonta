@@ -147,6 +147,10 @@ div.hidden {
     resize: none;
 }
 
+.tab-view {
+    padding: 1rem;
+}
+
 .all-glosses {
     padding: 2em;
 }
