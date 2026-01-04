@@ -9,6 +9,7 @@ import FormToolkit.Value as Value
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
+import Iso8601
 import Json.Decode as D
 import Json.Encode as E
 import Json.Encode.Extra as EE
@@ -20,7 +21,6 @@ import Result
 import Set exposing (Set)
 import Task
 import Time
-import Iso8601
 import UUID
 import Url
 
@@ -53,6 +53,21 @@ type Msg
     | ChangeLengthParam TabPath String
     | ChangeSearchParam TabPath String
     | ChangeEditParam TabPath
+
+
+type alias Model =
+    { gconfig : Maybe GlobalConfig
+    , me : Maybe M.Person
+    , counter : Int
+    , ventanas : Ventanas
+    , focused : Maybe TabPath
+    , visVentanas : VisVentanas
+    , vistas : Vistas
+    , error : Maybe Error
+    , forms : Dict String FormData
+    , loading : Set String
+    , people : Dict String (Dict String M.Person)
+    }
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -201,22 +216,6 @@ type alias FormData =
     }
 
 
-type alias Model =
-    { gconfig : Maybe GlobalConfig
-    , me : Maybe M.Person
-    , counter : Int
-    , ventanas : Ventanas
-    , focused : Maybe TabPath
-    , visVentanas : VisVentanas
-    , vistas : Vistas
-    , windowHeight : Int
-    , error : Maybe Error
-    , forms : Dict String FormData
-    , loading : Set String
-    , people : Dict String (Dict String M.Person)
-    }
-
-
 type Direction
     = Left
     | Right
@@ -236,10 +235,6 @@ type FieldKind
     | GlobalName
     | GlobalEmail
     | GlobalUUID
-
-
-type alias Flags =
-    { windowHeight : Int }
 
 
 type Content
@@ -407,7 +402,7 @@ globalSettingsFields gs =
         ]
 
 
-main : Program Flags Model Msg
+main : Program () Model Msg
 main =
     Browser.element
         { init = init
@@ -425,8 +420,8 @@ defVParams =
     }
 
 
-init : Flags -> ( Model, Cmd Msg )
-init flags =
+init : () -> ( Model, Cmd Msg )
+init _ =
     let
         newProjectForm =
             { fields = projectFields <| ProjectInfo "" "" True Nothing
@@ -459,7 +454,6 @@ init flags =
       , focused = Nothing
       , visVentanas = Dict.empty
       , vistas = globalVistas
-      , windowHeight = flags.windowHeight
       , error = Nothing
       , forms = forms
       , loading = Set.empty
@@ -1479,7 +1473,7 @@ view model =
         tabtree =
             treeifyTabs <| Dict.keys model.ventanas
     in
-    Html.main_ [ Attr.class "main-row" ]
+    Html.main_ []
         [ Html.aside [ Attr.class "side" ]
             [ Html.nav []
                 [ Html.h2 [] [ Html.text "Projects" ]
@@ -1488,7 +1482,7 @@ view model =
             ]
         , if Dict.isEmpty tabtree then
             Html.div
-                [ Attr.class "container-fluid" ]
+                []
                 [ if Set.isEmpty model.loading then
                     Html.h1 []
                         [ Html.text "Welcome to Your Menkayonta" ]
@@ -1499,9 +1493,7 @@ view model =
 
           else
             Html.div
-                [ Attr.class "content-row"
-                , Attr.style "height" (String.fromInt model.windowHeight ++ "px")
-                ]
+                [ Attr.class "content" ]
                 (Dict.map (viewColumn model) tabtree
                     |> Dict.toList
                     |> List.map Tuple.second
@@ -1511,7 +1503,7 @@ view model =
 
 viewColumn : Model -> Int -> Dict Int (Set Int) -> Html.Html Msg
 viewColumn model col rows =
-    Html.div [ Attr.class "wrapper" ]
+    Html.div [ Attr.class "tab-column" ]
         (Dict.map (viewRow model col (Dict.size rows)) rows
             |> Dict.toList
             |> List.map Tuple.second
@@ -1520,13 +1512,13 @@ viewColumn model col rows =
 
 viewRow : Model -> Int -> Int -> Int -> Set Int -> Html.Html Msg
 viewRow model col _ row tabs =
-    Html.div []
+    Html.div [ Attr.class "tab-row" ]
         [ Html.nav
-            [ Attr.class "tabs-header" ]
+            [ Attr.class "tab-header" ]
             (Set.toList tabs
                 |> List.map (\t -> viewTabHeader model (tabpath col row t))
             )
-        , Html.div []
+        , Html.div [ Attr.class "tab-content" ]
             (Set.toList tabs
                 |> List.map (\t -> viewTab model (tabpath col row t))
             )
@@ -1552,12 +1544,11 @@ viewTabHeader model tp =
     in
     Html.button
         [ Event.onClick (FocusTab tp)
-        , Attr.id (tpToS tp)
         , Attr.classList
             [ ( "focused", focused )
             , ( "secondary", not focused && visible )
             , ( "secondary outline", not focused && not visible )
-            , ( "tabnav", True )
+            , ( "tab-nav", True )
             ]
         ]
         [ Html.text ventana.title ]
@@ -1569,11 +1560,8 @@ viewTab model tp =
         [ Attr.classList
             [ ( "focused", Just tp == model.focused )
             , ( "hidden", not (visMember tp model.visVentanas) )
-            , ( "tabview", True )
+            , ( "tab-view", True )
             ]
-        , Attr.style "max-height" (String.fromInt (model.windowHeight - 50) ++ "px")
-        , Attr.style "height" (String.fromInt (model.windowHeight - 50) ++ "px")
-        , Attr.height model.windowHeight
         ]
         [ Html.div []
             [ Dict.get tp model.ventanas
@@ -1951,40 +1939,43 @@ viewDocContentViewVista { vista, od, int } =
             [ Html.text "Metadata" ]
         , Html.div [ Attr.class "metaview" ]
             [ if List.length od.tags > 0 then
-                  Html.article []
-                  [ Html.header []
+                Html.article []
+                    [ Html.header []
                         [ Html.h3 []
-                              [ Html.text "Tags" ]
+                            [ Html.text "Tags" ]
                         ]
-                  , viewTags od.tags
-                  ]
+                    , viewTags od.tags
+                    ]
+
               else
-                  Html.text ""
+                Html.text ""
             , if List.length od.properties > 0 then
-                  Html.article []
-                      [ Html.header []
-                            [ Html.h3 []
-                                  [ Html.text "Properties" ]
-                            ]
-                      , viewProperties od.properties
-                      ]
+                Html.article []
+                    [ Html.header []
+                        [ Html.h3 []
+                            [ Html.text "Properties" ]
+                        ]
+                    , viewProperties od.properties
+                    ]
+
               else
-                  Html.text ""
+                Html.text ""
             , if List.length od.descriptions > 0 then
-                  Html.article []
-                      [ Html.header []
-                            [ Html.h3 []
-                                  [ Html.text "Descriptions" ]
-                            ]
-                      , viewDescriptions od.descriptions
-                      ]
+                Html.article []
+                    [ Html.header []
+                        [ Html.h3 []
+                            [ Html.text "Descriptions" ]
+                        ]
+                    , viewDescriptions od.descriptions
+                    ]
+
               else
-                  Html.text ""
+                Html.text ""
             , Html.article [ Attr.id "modification-view" ]
                 [ Html.header []
-                      [ Html.h3 []
-                            [ Html.text "Modifications" ]
-                      ]
+                    [ Html.h3 []
+                        [ Html.text "Modifications" ]
+                    ]
                 , viewModifications od.modifications
                 ]
             ]
@@ -2041,10 +2032,10 @@ viewModifications mods =
                     [ Html.text "Time" ]
                 ]
             ]
-        , Html.tbody []
-            <| List.map viewModification
-            <| List.reverse
-            <| List.sortBy (\m -> Time.posixToMillis m.id.time) mods
+        , Html.tbody [] <|
+            List.map viewModification <|
+                List.reverse <|
+                    List.sortBy (\m -> Time.posixToMillis m.id.time) mods
         ]
 
 

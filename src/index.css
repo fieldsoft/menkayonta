@@ -116,29 +116,35 @@ div.hidden {
     display: none;
 }
 
-.tabs-header {
+.tab-header {
     justify-content: flex-start;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    background-color: var(--pico-card-background-color);
 }
 
-.tabs-header button {
+.tab-nav {
     padding-left: 1rem;
     padding-right: 1rem;
 }
 
-.tab-inner-header {
-    text-align: right;
-}
-
-.wrapper {
+.tab-column {
     max-width: 800px;
     min-width: 45rem;
+    max-height: 100dvh;
+    display: flex;
+    flex-direction: column;
 }
 
-.tabview {
+.tab-row {
+    flex: 1 1 auto;
     overflow-y: scroll;
-    padding-left: 0.5rem;
     resize: vertical;
+}
+
+.tab-row:last-child {
+    resize: none;
 }
 
 .all-glosses {
@@ -168,10 +174,10 @@ div.hidden {
     width: 40rem;
 }
 
-.main-row {
+main {
     display: flex;
 }
 
-.content-row {
+.content {
     display: flex;
 }
