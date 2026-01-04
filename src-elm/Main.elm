@@ -65,6 +65,7 @@ type alias Model =
     , vistas : Vistas
     , error : Maybe Error
     , forms : Dict String FormData
+    , cforms : Dict String CFormData
     , loading : Set String
     , people : Dict String (Dict String M.Person)
     }
@@ -285,6 +286,72 @@ globalVistas =
         |> Dict.fromList
 
 
+type alias StringField =
+    { value : String
+    , valid : Bool
+    , error : String
+    }
+
+
+type alias InterlinearAnnotationsData =
+    { breaks : StringField
+    , glosses : StringField
+    , phonemic : StringField
+    , judgment : StringField
+    }
+
+
+type alias InterlinearTranslationData =
+    { id : Int
+    , deleted : Bool
+    , translation : StringField
+    , judgment : StringField
+    }
+
+
+type alias InterlinearFormData =
+    { id : Maybe String
+    , rev : Maybe String
+    , version : Int
+    , changed : Bool
+    , submitted : Bool
+    , error : String
+    , text : StringField
+    , annotations : InterlinearAnnotationsData
+    , translations : List InterlinearTranslationData
+    , counter : Int
+    }
+
+
+type CFormData =
+    InterlinearForm InterlinearFormData
+
+
+blankString =
+    { value = ""
+    , valid = True
+    , error = ""
+    }
+
+
+interlinearFormData =
+    { id = Nothing
+    , rev = Nothing
+    , version = 1
+    , changed = False
+    , submitted = False
+    , error = ""
+    , text = blankString
+    , annotations =
+        { breaks = blankString
+        , glosses = blankString
+        , phonemic = blankString
+        , judgment = blankString
+        }
+    , translations = []
+    }
+
+
 projectFields : ProjectInfo -> Field FieldKind
 projectFields pi =
     Field.group []
@@ -456,6 +523,7 @@ init _ =
       , vistas = globalVistas
       , error = Nothing
       , forms = forms
+      , cforms = Dict.empty
       , loading = Set.empty
       , people = Dict.empty
       }
