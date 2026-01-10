@@ -65,7 +65,6 @@ type alias Model =
     , vistas : Vistas
     , error : Maybe Error
     , forms : Dict String FormData
-    , cforms : Dict String CFormData
     , loading : Set String
     , people : Dict String (Dict String M.Person)
     }
@@ -242,7 +241,7 @@ type Content
     = TranslationContent Translation
     | TranslationsContent (List Translation)
     | InterlinearsContent (List Interlinear)
-    | DocContent M.OneDoc
+    | DocContent { view : M.OneDoc, edit : Maybe CForm }
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
     | GlobalSettingsContent GlobalSettings
@@ -323,7 +322,7 @@ type alias InterlinearFormData =
     }
 
 
-type CFormData =
+type CForm =
     InterlinearForm InterlinearFormData
 
 
@@ -523,7 +522,6 @@ init _ =
       , vistas = globalVistas
       , error = Nothing
       , forms = forms
-      , cforms = Dict.empty
       , loading = Set.empty
       , people = Dict.empty
       }
@@ -870,7 +868,11 @@ update msg model =
                                             { project = env.project
                                             , kind = "interlinear"
                                             , identifier = UUID.toString i.id
-                                            , content = DocContent doc_
+                                            , content =
+                                                DocContent
+                                                { view = doc_
+                                                , edit = Nothing
+                                                }
                                             }
                                     in
                                     handleVista vista st model
@@ -1921,11 +1923,11 @@ viewVista model tp vista =
                     (List.map (viewInterlinearIndexItem vista.project) is)
                 ]
 
-        DocContent od ->
+        DocContent d ->
             viewDocContentVista
                 { vista = vista
                 , tp = tp
-                , od = od
+                , od = d.view
                 , model = model
                 }
 
