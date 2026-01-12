@@ -50,6 +50,7 @@ type Msg
     | GlobalSettingsFormChange (Field.Msg FieldKind)
     | ProjectSettingsEdit ProjectInfo
     | FormSubmit TabPath
+    | FormChange TabPath FieldId String
     | ChangeLengthParam TabPath String
     | ChangeSearchParam TabPath String
     | ChangeEditParam TabPath
@@ -289,6 +290,7 @@ type alias StringField =
     { value : String
     , valid : Bool
     , error : String
+    , changed : Bool
     }
 
 
@@ -309,7 +311,7 @@ type alias InterlinearTranslationData =
 
 
 type alias InterlinearFormData =
-    { id : Maybe String
+    { id : Maybe UUID.UUID
     , rev : Maybe String
     , version : Int
     , changed : Bool
@@ -322,8 +324,23 @@ type alias InterlinearFormData =
     }
 
 
-type CForm =
-    InterlinearForm InterlinearFormData
+type CForm
+    = InterlinearCForm InterlinearFormData
+
+
+type FieldId
+    = InterlinearForm InterlinearField
+
+
+type InterlinearField
+    = IntTextF
+    | IntBreaksF
+    | IntGlossesF
+    | IntPhonemicF
+    | IntJudgmentF
+    | IntTransF
+    | IntTransTranslationF Int
+    | IntTransJudgmentF Int
 
 
 blankString =
@@ -870,9 +887,9 @@ update msg model =
                                             , identifier = UUID.toString i.id
                                             , content =
                                                 DocContent
-                                                { view = doc_
-                                                , edit = Nothing
-                                                }
+                                                    { view = doc_
+                                                    , edit = Nothing
+                                                    }
                                             }
                                     in
                                     handleVista vista st model
@@ -1219,19 +1236,149 @@ update msg model =
                         params =
                             ventana.params
 
+                        edit =
+                            not params.edit
+
+                        nvistas =
+                            if edit then
+                                maybeInitForm ventana.vista model.vistas
+
+                            else
+                                model.vistas
+
                         nv =
                             { ventana
-                                | params =
-                                    { params | edit = not params.edit }
+                                | params = { params | edit = edit }
                             }
 
                         nvs =
                             Dict.insert tp nv model.ventanas
                     in
-                    ( { model | ventanas = nvs }, Cmd.none )
+                    ( { model
+                        | ventanas = nvs
+                        , vistas = nvistas
+                      }
+                    , Cmd.none
+                    )
 
                 Nothing ->
                     ( model, Cmd.none )
+
+        FormChange tp fid str ->
+            ( model, Cmd.none ) 
+            
+
+
+maybeInitForm : String -> Vistas -> Vistas
+maybeInitForm vid oldvistas =
+    case Dict.get vid oldvistas of
+        Just vista ->
+            case vista.content of
+                DocContent dc ->
+                    case ( dc.view.doc, dc.edit ) of
+                        ( Just (M.MyInterlinear int), Nothing ) ->
+                            let
+                                ann : InterlinearAnnotationsData
+                                ann =
+                                    { breaks =
+                                        { value = int.ann.breaks
+                                        , valid = True
+                                        , error = ""
+                                        , changed = False
+                                        }
+                                    , glosses =
+                                        { value = int.ann.glosses
+                                        , valid = True
+                                        , error = ""
+                                        , changed = False
+                                        }
+                                    , phonemic =
+                                        { value = int.ann.phonemic
+                                        , valid = True
+                                        , error = ""
+                                        , changed = False
+                                        }
+                                    , judgment =
+                                        { value = int.ann.judgment
+                                        , valid = True
+                                        , error = ""
+                                        , changed = False
+                                        }
+                                    }
+
+                                trans_ :
+                                    ( Int, M.Translation )
+                                    -> InterlinearTranslationData
+                                trans_ ( k, v ) =
+                                    { id = k
+                                    , deleted = False
+                                    , translation =
+                                        { value = v.translation
+                                        , valid = True
+                                        , error = ""
+                                        , changed = False
+                                        }
+                                    , judgment =
+                                        { value = v.judgment
+                                        , valid = True
+                                        , error = ""
+                                        , changed = False
+                                        }
+                                    }
+
+                                trans : List InterlinearTranslationData
+                                trans =
+                                    Dict.toList int.translations
+                                        |> List.map trans_
+
+                                counter : Int
+                                counter =
+                                    Dict.keys int.translations
+                                        |> List.maximum
+                                        |> Maybe.withDefault 0
+
+                                formData : InterlinearFormData
+                                formData =
+                                    { id = Just int.id
+                                    , rev = int.rev
+                                    , version = int.version
+                                    , changed = False
+                                    , submitted = False
+                                    , error = ""
+                                    , text =
+                                        { value = int.text
+                                        , valid = True
+                                        , error = ""
+                                        , changed = False
+                                        }
+                                    , annotations = ann
+                                    , translations = trans
+                                    , counter = counter
+                                    }
+
+                                ndc =
+                                    { view =
+                                        dc.view
+                                    , edit =
+                                        Just (InterlinearCForm formData)
+                                    }
+
+                                newvista =
+                                    { vista | content = DocContent ndc }
+
+                                newvistas =
+                                    Dict.insert vid newvista oldvistas
+                            in
+                            newvistas
+
+                        _ ->
+                            oldvistas
+
+                _ ->
+                    oldvistas
+
+        Nothing ->
+            oldvistas
 
 
 handleReceivedVista : E.Value -> String -> Model -> ( Model, Cmd Msg )
@@ -1527,10 +1674,21 @@ subscriptions _ =
 
 {-| An HTML attibute that isn't included in the standard Elm library.
 -}
-roleAttr : String -> Html.Attribute msg
+roleAttr : String -> Html.Attribute Msg
 roleAttr role =
     Attr.attribute "role" role
 
+
+isInValidAttr : Bool -> Html.Attribute Msg
+isInValidAttr valid =
+    Attr.attribute "aria-invalid"
+        ( if valid then
+              "false"
+
+          else
+              "true"
+        )
+        
 
 viewUnknownProgress : List (Html.Attribute Msg) -> List (Html.Html Msg) -> Html.Html Msg
 viewUnknownProgress attrs children =
@@ -1923,11 +2081,11 @@ viewVista model tp vista =
                     (List.map (viewInterlinearIndexItem vista.project) is)
                 ]
 
-        DocContent d ->
+        DocContent od ->
             viewDocContentVista
                 { vista = vista
                 , tp = tp
-                , od = d.view
+                , od = od
                 , model = model
                 }
 
@@ -1938,7 +2096,7 @@ viewVista model tp vista =
 viewDocContentVista :
     { vista : Vista
     , tp : TabPath
-    , od : M.OneDoc
+    , od : { view : M.OneDoc, edit : Maybe CForm }
     , model : Model
     }
     -> Html.Html Msg
@@ -1949,7 +2107,7 @@ viewDocContentVista { vista, tp, od, model } =
                 |> Maybe.map .params
                 |> Maybe.withDefault defVParams
     in
-    case od.doc of
+    case od.view.doc of
         Just (M.MyInterlinear int) ->
             Html.div []
                 [ Html.nav []
@@ -1971,12 +2129,17 @@ viewDocContentVista { vista, tp, od, model } =
                         ]
                     ]
                 , if params.edit then
-                    Html.text "implement edit of interlinear"
+                      case od.edit of
+                          Just cform ->
+                              viewDocContentEditVista tp cform
+
+                          Nothing ->
+                              Html.text "Form not initialized"
 
                   else
                     viewDocContentViewVista
                         { vista = vista
-                        , od = od
+                        , od = od.view
                         , int = int
                         }
                 ]
@@ -1984,6 +2147,182 @@ viewDocContentVista { vista, tp, od, model } =
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
 
+
+viewDocContentEditVista : TabPath -> CForm -> Html.Html Msg
+viewDocContentEditVista tp cform =
+    case cform of
+        InterlinearCForm int ->
+            viewCFInterlinearVista tp int
+
+
+type alias FieldDescription =
+    { formname : String
+    , label : String
+    , kind : List (Html.Attribute Msg)
+    -> List (Html.Html Msg)
+    -> Html.Html Msg
+    , oninput : String -> Msg
+    , name : String
+    , value : String
+    , changed : Bool
+    , valid : Bool
+    , help : String
+    , error : String
+    , id : Maybe Int
+    }
+
+
+viewCFInterlinearField : FieldDescription -> Html.Html Msg
+viewCFInterlinearField fd =
+    let
+        id =
+            Maybe.withDefault -1 fd.id
+
+        name =
+            [ fd.formname
+            , fd.name
+            ] |> String.join "-"
+            
+        helper =
+            [ name
+            , String.fromInt id
+            , "helper"
+            ] |> String.join "-"
+    in
+    Html.label []
+        [ Html.text fd.label
+        , fd.kind
+              [ Event.onInput fd.oninput
+              , Attr.name name
+              , Attr.value fd.value
+              , Attr.attribute "aria-label" fd.label
+              , Attr.attribute "aria-describedby" helper
+              , if fd.changed then
+                    isInValidAttr fd.valid
+
+                else
+                    Attr.class "unchanged-field"
+              ] []
+        , Html.small
+            [ Attr.id helper ]
+            [ if fd.valid then
+                  Html.text fd.help
+              else
+                  Html.text fd.error
+            ]
+        ]
+
+
+viewCFInterlinearTrans : TabPath -> InterlinearTranslationData -> Html.Html Msg
+viewCFInterlinearTrans tp trans =
+    Html.article []
+        [ Html.header []
+              [ Html.text ( "Id: " ++ ( String.fromInt trans.id ) ) ]
+        , viewCFInterlinearField
+              { formname = "interlinear"
+              , label = "Translation"
+              , kind = Html.textarea
+              , oninput = FormChange tp (InterlinearForm <| IntTransTranslationF trans.id)
+              , name = "translation"
+              , value = trans.translation.value
+              , changed =  trans.translation.changed
+              , valid = trans.translation.valid
+              , help = "A translation of the text."
+              , error = trans.translation.error
+              , id = Just trans.id
+              }
+        , viewCFInterlinearField
+              { formname = "interlinear"
+              , label = "Translation Judgment"
+              , kind = Html.input
+              , oninput = FormChange tp (InterlinearForm <| IntTransJudgmentF trans.id)
+              , name = "judgment"
+              , value = trans.judgment.value
+              , changed =  trans.judgment.changed
+              , valid = trans.judgment.valid
+              , help = "Optional judgment, such as * or #."
+              , error = trans.judgment.error
+              , id = Just trans.id
+              }
+        ]
+
+        
+viewCFInterlinearVista : TabPath -> InterlinearFormData -> Html.Html Msg
+viewCFInterlinearVista tp int =
+    Html.form []
+        [ Html.fieldset []
+              [ viewCFInterlinearField
+                    { formname = "interlinear"
+                    , label = "Text"
+                    , kind = Html.textarea
+                    , oninput = FormChange tp (InterlinearForm IntTextF)
+                    , name = "text"
+                    , value = int.text.value
+                    , changed =  int.text.changed
+                    , valid = int.text.valid
+                    , help = "The text to be glossed."
+                    , error = int.text.error
+                    , id = Nothing
+                    }
+              ]
+        , Html.fieldset []
+              [ viewCFInterlinearField
+                    { formname = "interlinear"
+                    , label = "Text Judgment"
+                    , kind = Html.input
+                    , oninput = FormChange tp (InterlinearForm IntJudgmentF)
+                    , name = "judgement"
+                    , value = int.annotations.judgment.value
+                    , changed =  int.annotations.judgment.changed
+                    , valid = int.annotations.judgment.valid
+                    , help = "Optional judgment, such as * or #."
+                    , error = int.annotations.judgment.error
+                    , id = Nothing
+                    }
+              , viewCFInterlinearField
+                    { formname = "interlinear"
+                    , label = "Phonemic Transcription"
+                    , kind = Html.textarea
+                    , oninput = FormChange tp (InterlinearForm IntPhonemicF)
+                    , name = "phonemic"
+                    , value = int.annotations.phonemic.value
+                    , changed =  int.annotations.phonemic.changed
+                    , valid = int.annotations.phonemic.valid
+                    , help = "Optional phonemic transcription."
+                    , error = int.annotations.phonemic.error
+                    , id = Nothing
+                    }
+              , viewCFInterlinearField
+                    { formname = "interlinear"
+                    , label = "Morph Breaks"
+                    , kind = Html.textarea
+                    , oninput = FormChange tp (InterlinearForm IntBreaksF)
+                    , name = "breaks"
+                    , value = int.annotations.breaks.value
+                    , changed =  int.annotations.breaks.changed
+                    , valid = int.annotations.breaks.valid
+                    , help = "Optional morph break annotation. This is needed for glosses, below."
+                    , error = int.annotations.breaks.error
+                    , id = Nothing
+                    }
+              , viewCFInterlinearField
+                    { formname = "interlinear"
+                    , label = "Morph Glosses"
+                    , kind = Html.textarea
+                    , oninput = FormChange tp (InterlinearForm IntGlossesF)
+                    , name = "glosses"
+                    , value = int.annotations.glosses.value
+                    , changed =  int.annotations.glosses.changed
+                    , valid = int.annotations.glosses.valid
+                    , help = "Optional glosses."
+                    , error = int.annotations.glosses.error
+                    , id = Nothing
+                    }
+              ]
+        , Html.fieldset []
+            <| List.map (viewCFInterlinearTrans tp) int.translations
+        ]
+        
 
 viewDocContentViewVista :
     { vista : Vista
