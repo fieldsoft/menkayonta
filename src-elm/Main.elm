@@ -2320,7 +2320,11 @@ viewCFInterlinearVista tp int =
                     }
               ]
         , Html.fieldset []
-            <| List.map (viewCFInterlinearTrans tp) int.translations
+            ( [ Html.legend [] [ Html.text "Translations" ]
+              ] ++ (List.map (viewCFInterlinearTrans tp) int.translations)
+                ++ [ Html.button [] [ Html.text "Add Translation" ] ]
+
+            )
         ]
         
 
