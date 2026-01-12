@@ -291,6 +291,7 @@ type alias StringField =
     , valid : Bool
     , error : String
     , changed : Bool
+    , original : String
     }
 
 
@@ -1265,8 +1266,114 @@ update msg model =
                     ( model, Cmd.none )
 
         FormChange tp fid str ->
-            ( model, Cmd.none ) 
-            
+            case Dict.get tp model.ventanas of
+                Just ventana ->
+                    case Dict.get ventana.vista model.vistas of
+                        Just vista ->
+                            case vista.content of
+                                DocContent dc ->
+                                    case dc.edit of
+                                        Just ( InterlinearCForm int ) ->
+                                            let
+                                                nint =
+                                                    handleCFIntChange fid str int
+
+                                                nvista =
+                                                    { vista | content =
+                                                          DocContent { dc | edit =
+                                                                           Just ( InterlinearCForm nint ) } }
+                                            in
+                                            ( { model | vistas = Dict.insert ventana.vista nvista model.vistas }
+                                            , Cmd.none
+                                            )
+
+                                        Nothing ->
+                                            ( model, Cmd.none )
+
+                                _ ->
+                                    ( model, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+                                
+                Nothing ->
+                    ( model, Cmd.none )
+
+
+handleCFIntChange : FieldId -> String -> InterlinearFormData -> InterlinearFormData
+handleCFIntChange fid str int =
+    let
+        tokens s =
+            List.length <| String.words (String.trim s)
+
+        breax s =
+            String.words (String.trim s)
+                |> List.map (\x -> List.length <| String.split "-" x)
+
+        str_ =
+            String.trim str
+
+        text =
+            int.text
+
+        annotations =
+            int.annotations
+
+        judgment =
+            annotations.judgment
+
+        breaks =
+            annotations.breaks
+
+        glosses =
+            annotations.glosses
+
+        phonemic =
+            annotations.phonemic
+
+        int_ =
+            { int | changed = True }
+    in
+    case fid of
+        InterlinearForm IntTextF ->
+            if String.isEmpty str then
+                { int_ | text = { text
+                                    | value = str
+                                    , valid = False
+                                    , error = "The text can't be blank."
+                                    , changed = True
+                                }
+                }
+
+            else
+                { int_ | text = { text
+                                    | value = str
+                                    , valid = True
+                                    , error = ""
+                                    , changed = True
+                                }
+                }
+                
+        InterlinearForm IntBreaksF ->
+            int
+                
+        InterlinearForm IntGlossesF ->
+            int
+                
+        InterlinearForm IntPhonemicF ->
+            int
+                
+        InterlinearForm IntJudgmentF ->
+            int
+                
+        InterlinearForm IntTransF ->
+            int
+                
+        InterlinearForm (IntTransTranslationF id) ->
+            int
+                
+        InterlinearForm (IntTransJudgmentF id) ->
+            int
 
 
 maybeInitForm : String -> Vistas -> Vistas
@@ -1285,24 +1392,28 @@ maybeInitForm vid oldvistas =
                                         , valid = True
                                         , error = ""
                                         , changed = False
+                                        , original = int.ann.breaks
                                         }
                                     , glosses =
                                         { value = int.ann.glosses
                                         , valid = True
                                         , error = ""
                                         , changed = False
+                                        , original = int.ann.glosses
                                         }
                                     , phonemic =
                                         { value = int.ann.phonemic
                                         , valid = True
                                         , error = ""
                                         , changed = False
+                                        , original = int.ann.phonemic
                                         }
                                     , judgment =
                                         { value = int.ann.judgment
                                         , valid = True
                                         , error = ""
                                         , changed = False
+                                        , original = int.ann.judgment
                                         }
                                     }
 
@@ -1317,12 +1428,14 @@ maybeInitForm vid oldvistas =
                                         , valid = True
                                         , error = ""
                                         , changed = False
+                                        , original = v.translation
                                         }
                                     , judgment =
                                         { value = v.judgment
                                         , valid = True
                                         , error = ""
                                         , changed = False
+                                        , original = v.judgment
                                         }
                                     }
 
@@ -1350,6 +1463,7 @@ maybeInitForm vid oldvistas =
                                         , valid = True
                                         , error = ""
                                         , changed = False
+                                        , original = int.text
                                         }
                                     , annotations = ann
                                     , translations = trans
@@ -2021,7 +2135,10 @@ viewVista model tp vista =
                         ]
                         []
                     , Html.input
-                        [ Attr.type_ "text"
+                        [ Attr.type_ "search"
+                        , Attr.name "search"
+                        , Attr.placeholder "Search"
+                        , Attr.attribute "aria-label" "Search"
                         , Attr.value ss
                         , Event.onInput (ChangeSearchParam tp)
                         ]
@@ -2164,10 +2281,12 @@ type alias FieldDescription =
     , oninput : String -> Msg
     , name : String
     , value : String
+    , original : String
     , changed : Bool
     , valid : Bool
     , help : String
     , error : String
+    , spellcheck : Bool
     , id : Maybe Int
     }
 
@@ -2190,13 +2309,21 @@ viewCFInterlinearField fd =
             ] |> String.join "-"
     in
     Html.label []
-        [ Html.text fd.label
+        [ Html.a
+              [ Attr.class "secondary"
+              , Attr.attribute "data-tooltip" "Reload Field"
+              , Attr.href "#"
+              , Event.onClick (fd.oninput fd.original)
+              ]
+              [ Html.text "🗘 " ]
+        , Html.text fd.label
         , fd.kind
               [ Event.onInput fd.oninput
               , Attr.name name
               , Attr.value fd.value
               , Attr.attribute "aria-label" fd.label
               , Attr.attribute "aria-describedby" helper
+              , Attr.spellcheck fd.spellcheck
               , if fd.changed then
                     isInValidAttr fd.valid
 
@@ -2225,10 +2352,12 @@ viewCFInterlinearTrans tp trans =
               , oninput = FormChange tp (InterlinearForm <| IntTransTranslationF trans.id)
               , name = "translation"
               , value = trans.translation.value
+              , original = trans.translation.original
               , changed =  trans.translation.changed
               , valid = trans.translation.valid
               , help = "A translation of the text."
               , error = trans.translation.error
+              , spellcheck = True
               , id = Just trans.id
               }
         , viewCFInterlinearField
@@ -2238,10 +2367,12 @@ viewCFInterlinearTrans tp trans =
               , oninput = FormChange tp (InterlinearForm <| IntTransJudgmentF trans.id)
               , name = "judgment"
               , value = trans.judgment.value
+              , original = trans.judgment.original
               , changed =  trans.judgment.changed
               , valid = trans.judgment.valid
               , help = "Optional judgment, such as * or #."
               , error = trans.judgment.error
+              , spellcheck = False
               , id = Just trans.id
               }
         ]
@@ -2258,10 +2389,12 @@ viewCFInterlinearVista tp int =
                     , oninput = FormChange tp (InterlinearForm IntTextF)
                     , name = "text"
                     , value = int.text.value
+                    , original = int.text.original
                     , changed =  int.text.changed
                     , valid = int.text.valid
                     , help = "The text to be glossed."
                     , error = int.text.error
+                    , spellcheck = False
                     , id = Nothing
                     }
               ]
@@ -2273,10 +2406,12 @@ viewCFInterlinearVista tp int =
                     , oninput = FormChange tp (InterlinearForm IntJudgmentF)
                     , name = "judgement"
                     , value = int.annotations.judgment.value
+                    , original = int.annotations.judgment.original
                     , changed =  int.annotations.judgment.changed
                     , valid = int.annotations.judgment.valid
                     , help = "Optional judgment, such as * or #."
                     , error = int.annotations.judgment.error
+                    , spellcheck = False
                     , id = Nothing
                     }
               , viewCFInterlinearField
@@ -2286,10 +2421,12 @@ viewCFInterlinearVista tp int =
                     , oninput = FormChange tp (InterlinearForm IntPhonemicF)
                     , name = "phonemic"
                     , value = int.annotations.phonemic.value
+                    , original = int.annotations.phonemic.original
                     , changed =  int.annotations.phonemic.changed
                     , valid = int.annotations.phonemic.valid
                     , help = "Optional phonemic transcription."
                     , error = int.annotations.phonemic.error
+                    , spellcheck = False
                     , id = Nothing
                     }
               , viewCFInterlinearField
@@ -2299,10 +2436,12 @@ viewCFInterlinearVista tp int =
                     , oninput = FormChange tp (InterlinearForm IntBreaksF)
                     , name = "breaks"
                     , value = int.annotations.breaks.value
+                    , original = int.annotations.breaks.original
                     , changed =  int.annotations.breaks.changed
                     , valid = int.annotations.breaks.valid
                     , help = "Optional morph break annotation. This is needed for glosses, below."
                     , error = int.annotations.breaks.error
+                    , spellcheck = False
                     , id = Nothing
                     }
               , viewCFInterlinearField
@@ -2312,10 +2451,12 @@ viewCFInterlinearVista tp int =
                     , oninput = FormChange tp (InterlinearForm IntGlossesF)
                     , name = "glosses"
                     , value = int.annotations.glosses.value
+                    , original = int.annotations.glosses.original
                     , changed =  int.annotations.glosses.changed
                     , valid = int.annotations.glosses.valid
                     , help = "Optional glosses."
                     , error = int.annotations.glosses.error
+                    , spellcheck = False
                     , id = Nothing
                     }
               ]
