@@ -1273,15 +1273,20 @@ update msg model =
                             case vista.content of
                                 DocContent dc ->
                                     case dc.edit of
-                                        Just ( InterlinearCForm int ) ->
+                                        Just (InterlinearCForm int) ->
                                             let
                                                 nint =
                                                     handleCFIntChange fid str int
 
                                                 nvista =
-                                                    { vista | content =
-                                                          DocContent { dc | edit =
-                                                                           Just ( InterlinearCForm nint ) } }
+                                                    { vista
+                                                        | content =
+                                                            DocContent
+                                                                { dc
+                                                                    | edit =
+                                                                        Just (InterlinearCForm nint)
+                                                                }
+                                                    }
                                             in
                                             ( { model | vistas = Dict.insert ventana.vista nvista model.vistas }
                                             , Cmd.none
@@ -1295,7 +1300,7 @@ update msg model =
 
                         Nothing ->
                             ( model, Cmd.none )
-                                
+
                 Nothing ->
                     ( model, Cmd.none )
 
@@ -1319,6 +1324,9 @@ handleCFIntChange fid str int =
         annotations =
             int.annotations
 
+        translations =
+            int.translations
+
         judgment =
             annotations.judgment
 
@@ -1333,47 +1341,156 @@ handleCFIntChange fid str int =
 
         int_ =
             { int | changed = True }
+
+        -- The reason for dividing the list in this way is
+        -- ensuring that the user doesn't have the elements of
+        -- the user interface jump around while editing. It
+        -- will also preserve the order from the Dict the
+        -- items were derived from.
+        divided : Int -> Maybe
+                  ( List InterlinearTranslationData
+                  , InterlinearTranslationData
+                  , List InterlinearTranslationData
+                  )
+        divided id_ =
+            LE.splitWhen (\x -> x.id == id_) translations
+                |> Maybe.andThen
+                   (\( x, y ) ->
+                        List.head y
+                   |> Maybe.andThen
+                        (\h ->
+                             List.tail y
+                        |> Maybe.map
+                             (\z -> ( x, h, z ))
+                        )
+                   )
+
     in
     case fid of
         InterlinearForm IntTextF ->
             if String.isEmpty str then
-                { int_ | text = { text
-                                    | value = str
-                                    , valid = False
-                                    , error = "The text can't be blank."
-                                    , changed = True
-                                }
+                { int_
+                    | text =
+                        { text
+                            | value = str
+                            , valid = False
+                            , error = "The text can't be blank."
+                            , changed = True
+                        }
                 }
 
             else
-                { int_ | text = { text
-                                    | value = str
-                                    , valid = True
-                                    , error = ""
-                                    , changed = True
-                                }
+                { int_
+                    | text =
+                        { text
+                            | value = str
+                            , valid = True
+                            , error = ""
+                            , changed = True
+                        }
                 }
-                
+
         InterlinearForm IntBreaksF ->
             int
-                
+
         InterlinearForm IntGlossesF ->
             int
-                
+
         InterlinearForm IntPhonemicF ->
             int
-                
+
         InterlinearForm IntJudgmentF ->
-            int
-                
+            { int_
+                | annotations =
+                    { annotations
+                        | judgment =
+                            { judgment
+                                | value = str
+                                , valid = True
+                                , error = ""
+                                , changed = True
+                            }
+                    }
+            }
+
         InterlinearForm IntTransF ->
             int
-                
+
         InterlinearForm (IntTransTranslationF id) ->
-            int
-                
+            case divided id of
+                Just ( prefix, translation, suffix ) ->
+                    let
+                        ttranslation =
+                            translation.translation
+
+                        goodTranslation =
+                            { translation
+                                | translation =
+                                    { ttranslation
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+
+                        err =
+                            "The translation cannot be blank. "
+                                ++ "If you want to remove the translation, "
+                                    ++ "you must delete it."
+                                
+                        badTranslation =
+                            { translation
+                                | translation =
+                                    { ttranslation
+                                        | value = str
+                                        , valid = False
+                                        , error = err
+                                        , changed = True
+                                    }
+                            }
+
+                        ntranslation =
+                            if String.isEmpty (String.trim str) then
+                                badTranslation
+
+                            else
+                                goodTranslation
+                                    
+                        ntranslations =
+                            prefix ++ (ntranslation :: suffix)
+                    in
+                    { int_ | translations = ntranslations }
+
+                _ ->
+                    int
+
         InterlinearForm (IntTransJudgmentF id) ->
-            int
+            case divided id of
+                Just ( prefix, translation, suffix ) ->
+                    let
+                        tjudgment =
+                            translation.judgment
+
+                        ntranslation =
+                            { translation
+                                | judgment =
+                                    { tjudgment
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+
+                        ntranslations =
+                            prefix ++ (ntranslation :: suffix)
+                    in
+                    { int_ | translations = ntranslations }
+
+
+                _ ->
+                    int
 
 
 maybeInitForm : String -> Vistas -> Vistas
@@ -1796,13 +1913,13 @@ roleAttr role =
 isInValidAttr : Bool -> Html.Attribute Msg
 isInValidAttr valid =
     Attr.attribute "aria-invalid"
-        ( if valid then
-              "false"
+        (if valid then
+            "false"
 
-          else
-              "true"
+         else
+            "true"
         )
-        
+
 
 viewUnknownProgress : List (Html.Attribute Msg) -> List (Html.Html Msg) -> Html.Html Msg
 viewUnknownProgress attrs children =
@@ -2246,12 +2363,12 @@ viewDocContentVista { vista, tp, od, model } =
                         ]
                     ]
                 , if params.edit then
-                      case od.edit of
-                          Just cform ->
-                              viewDocContentEditVista tp cform
+                    case od.edit of
+                        Just cform ->
+                            viewDocContentEditVista tp cform
 
-                          Nothing ->
-                              Html.text "Form not initialized"
+                        Nothing ->
+                            Html.text "Form not initialized"
 
                   else
                     viewDocContentViewVista
@@ -2275,9 +2392,10 @@ viewDocContentEditVista tp cform =
 type alias FieldDescription =
     { formname : String
     , label : String
-    , kind : List (Html.Attribute Msg)
-    -> List (Html.Html Msg)
-    -> Html.Html Msg
+    , kind :
+        List (Html.Attribute Msg)
+        -> List (Html.Html Msg)
+        -> Html.Html Msg
     , oninput : String -> Msg
     , name : String
     , value : String
@@ -2300,42 +2418,46 @@ viewCFInterlinearField fd =
         name =
             [ fd.formname
             , fd.name
-            ] |> String.join "-"
-            
+            ]
+                |> String.join "-"
+
         helper =
             [ name
             , String.fromInt id
             , "helper"
-            ] |> String.join "-"
+            ]
+                |> String.join "-"
     in
     Html.label []
         [ Html.a
-              [ Attr.class "secondary"
-              , Attr.attribute "data-tooltip" "Reload Field"
-              , Attr.href "#"
-              , Event.onClick (fd.oninput fd.original)
-              ]
-              [ Html.text "🗘 " ]
+            [ Attr.class "secondary"
+            , Attr.attribute "data-tooltip" "Reload Field"
+            , Attr.href "#"
+            , Event.onClick (fd.oninput fd.original)
+            ]
+            [ Html.text "🗘 " ]
         , Html.text fd.label
         , fd.kind
-              [ Event.onInput fd.oninput
-              , Attr.name name
-              , Attr.value fd.value
-              , Attr.attribute "aria-label" fd.label
-              , Attr.attribute "aria-describedby" helper
-              , Attr.spellcheck fd.spellcheck
-              , if fd.changed then
-                    isInValidAttr fd.valid
+            [ Event.onInput fd.oninput
+            , Attr.name name
+            , Attr.value fd.value
+            , Attr.attribute "aria-label" fd.label
+            , Attr.attribute "aria-describedby" helper
+            , Attr.spellcheck fd.spellcheck
+            , if fd.changed then
+                isInValidAttr fd.valid
 
-                else
-                    Attr.class "unchanged-field"
-              ] []
+              else
+                Attr.class "unchanged-field"
+            ]
+            []
         , Html.small
             [ Attr.id helper ]
             [ if fd.valid then
-                  Html.text fd.help
+                Html.text fd.help
+
               else
-                  Html.text fd.error
+                Html.text fd.error
             ]
         ]
 
@@ -2344,130 +2466,130 @@ viewCFInterlinearTrans : TabPath -> InterlinearTranslationData -> Html.Html Msg
 viewCFInterlinearTrans tp trans =
     Html.article []
         [ Html.header []
-              [ Html.text ( "Id: " ++ ( String.fromInt trans.id ) ) ]
+            [ Html.text ("Id: " ++ String.fromInt trans.id) ]
         , viewCFInterlinearField
-              { formname = "interlinear"
-              , label = "Translation"
-              , kind = Html.textarea
-              , oninput = FormChange tp (InterlinearForm <| IntTransTranslationF trans.id)
-              , name = "translation"
-              , value = trans.translation.value
-              , original = trans.translation.original
-              , changed =  trans.translation.changed
-              , valid = trans.translation.valid
-              , help = "A translation of the text."
-              , error = trans.translation.error
-              , spellcheck = True
-              , id = Just trans.id
-              }
+            { formname = "interlinear"
+            , label = "Translation"
+            , kind = Html.textarea
+            , oninput = FormChange tp (InterlinearForm <| IntTransTranslationF trans.id)
+            , name = "translation"
+            , value = trans.translation.value
+            , original = trans.translation.original
+            , changed = trans.translation.changed
+            , valid = trans.translation.valid
+            , help = "A translation of the text."
+            , error = trans.translation.error
+            , spellcheck = True
+            , id = Just trans.id
+            }
         , viewCFInterlinearField
-              { formname = "interlinear"
-              , label = "Translation Judgment"
-              , kind = Html.input
-              , oninput = FormChange tp (InterlinearForm <| IntTransJudgmentF trans.id)
-              , name = "judgment"
-              , value = trans.judgment.value
-              , original = trans.judgment.original
-              , changed =  trans.judgment.changed
-              , valid = trans.judgment.valid
-              , help = "Optional judgment, such as * or #."
-              , error = trans.judgment.error
-              , spellcheck = False
-              , id = Just trans.id
-              }
+            { formname = "interlinear"
+            , label = "Translation Judgment"
+            , kind = Html.input
+            , oninput = FormChange tp (InterlinearForm <| IntTransJudgmentF trans.id)
+            , name = "judgment"
+            , value = trans.judgment.value
+            , original = trans.judgment.original
+            , changed = trans.judgment.changed
+            , valid = trans.judgment.valid
+            , help = "Optional judgment, such as * or #."
+            , error = trans.judgment.error
+            , spellcheck = False
+            , id = Just trans.id
+            }
         ]
 
-        
+
 viewCFInterlinearVista : TabPath -> InterlinearFormData -> Html.Html Msg
 viewCFInterlinearVista tp int =
     Html.form []
         [ Html.fieldset []
-              [ viewCFInterlinearField
-                    { formname = "interlinear"
-                    , label = "Text"
-                    , kind = Html.textarea
-                    , oninput = FormChange tp (InterlinearForm IntTextF)
-                    , name = "text"
-                    , value = int.text.value
-                    , original = int.text.original
-                    , changed =  int.text.changed
-                    , valid = int.text.valid
-                    , help = "The text to be glossed."
-                    , error = int.text.error
-                    , spellcheck = False
-                    , id = Nothing
-                    }
-              ]
+            [ viewCFInterlinearField
+                { formname = "interlinear"
+                , label = "Text"
+                , kind = Html.textarea
+                , oninput = FormChange tp (InterlinearForm IntTextF)
+                , name = "text"
+                , value = int.text.value
+                , original = int.text.original
+                , changed = int.text.changed
+                , valid = int.text.valid
+                , help = "The text to be glossed."
+                , error = int.text.error
+                , spellcheck = False
+                , id = Nothing
+                }
+            ]
         , Html.fieldset []
-              [ viewCFInterlinearField
-                    { formname = "interlinear"
-                    , label = "Text Judgment"
-                    , kind = Html.input
-                    , oninput = FormChange tp (InterlinearForm IntJudgmentF)
-                    , name = "judgement"
-                    , value = int.annotations.judgment.value
-                    , original = int.annotations.judgment.original
-                    , changed =  int.annotations.judgment.changed
-                    , valid = int.annotations.judgment.valid
-                    , help = "Optional judgment, such as * or #."
-                    , error = int.annotations.judgment.error
-                    , spellcheck = False
-                    , id = Nothing
-                    }
-              , viewCFInterlinearField
-                    { formname = "interlinear"
-                    , label = "Phonemic Transcription"
-                    , kind = Html.textarea
-                    , oninput = FormChange tp (InterlinearForm IntPhonemicF)
-                    , name = "phonemic"
-                    , value = int.annotations.phonemic.value
-                    , original = int.annotations.phonemic.original
-                    , changed =  int.annotations.phonemic.changed
-                    , valid = int.annotations.phonemic.valid
-                    , help = "Optional phonemic transcription."
-                    , error = int.annotations.phonemic.error
-                    , spellcheck = False
-                    , id = Nothing
-                    }
-              , viewCFInterlinearField
-                    { formname = "interlinear"
-                    , label = "Morph Breaks"
-                    , kind = Html.textarea
-                    , oninput = FormChange tp (InterlinearForm IntBreaksF)
-                    , name = "breaks"
-                    , value = int.annotations.breaks.value
-                    , original = int.annotations.breaks.original
-                    , changed =  int.annotations.breaks.changed
-                    , valid = int.annotations.breaks.valid
-                    , help = "Optional morph break annotation. This is needed for glosses, below."
-                    , error = int.annotations.breaks.error
-                    , spellcheck = False
-                    , id = Nothing
-                    }
-              , viewCFInterlinearField
-                    { formname = "interlinear"
-                    , label = "Morph Glosses"
-                    , kind = Html.textarea
-                    , oninput = FormChange tp (InterlinearForm IntGlossesF)
-                    , name = "glosses"
-                    , value = int.annotations.glosses.value
-                    , original = int.annotations.glosses.original
-                    , changed =  int.annotations.glosses.changed
-                    , valid = int.annotations.glosses.valid
-                    , help = "Optional glosses."
-                    , error = int.annotations.glosses.error
-                    , spellcheck = False
-                    , id = Nothing
-                    }
-              ]
+            [ viewCFInterlinearField
+                { formname = "interlinear"
+                , label = "Text Judgment"
+                , kind = Html.input
+                , oninput = FormChange tp (InterlinearForm IntJudgmentF)
+                , name = "judgement"
+                , value = int.annotations.judgment.value
+                , original = int.annotations.judgment.original
+                , changed = int.annotations.judgment.changed
+                , valid = int.annotations.judgment.valid
+                , help = "Optional judgment, such as * or #."
+                , error = int.annotations.judgment.error
+                , spellcheck = False
+                , id = Nothing
+                }
+            , viewCFInterlinearField
+                { formname = "interlinear"
+                , label = "Phonemic Transcription"
+                , kind = Html.textarea
+                , oninput = FormChange tp (InterlinearForm IntPhonemicF)
+                , name = "phonemic"
+                , value = int.annotations.phonemic.value
+                , original = int.annotations.phonemic.original
+                , changed = int.annotations.phonemic.changed
+                , valid = int.annotations.phonemic.valid
+                , help = "Optional phonemic transcription."
+                , error = int.annotations.phonemic.error
+                , spellcheck = False
+                , id = Nothing
+                }
+            , viewCFInterlinearField
+                { formname = "interlinear"
+                , label = "Affix Breaks"
+                , kind = Html.textarea
+                , oninput = FormChange tp (InterlinearForm IntBreaksF)
+                , name = "breaks"
+                , value = int.annotations.breaks.value
+                , original = int.annotations.breaks.original
+                , changed = int.annotations.breaks.changed
+                , valid = int.annotations.breaks.valid
+                , help = "Optional affix break annotation. This is needed for glosses, below."
+                , error = int.annotations.breaks.error
+                , spellcheck = False
+                , id = Nothing
+                }
+            , viewCFInterlinearField
+                { formname = "interlinear"
+                , label = "Affix Glosses"
+                , kind = Html.textarea
+                , oninput = FormChange tp (InterlinearForm IntGlossesF)
+                , name = "glosses"
+                , value = int.annotations.glosses.value
+                , original = int.annotations.glosses.original
+                , changed = int.annotations.glosses.changed
+                , valid = int.annotations.glosses.valid
+                , help = "Optional glosses."
+                , error = int.annotations.glosses.error
+                , spellcheck = False
+                , id = Nothing
+                }
+            ]
         , Html.fieldset []
-            ( [ Html.legend [] [ Html.text "Translations" ]
-              ] ++ (List.map (viewCFInterlinearTrans tp) int.translations)
+            ([ Html.legend [] [ Html.text "Translations" ]
+             ]
+                ++ List.map (viewCFInterlinearTrans tp) int.translations
                 ++ [ Html.button [] [ Html.text "Add Translation" ] ]
-
             )
         ]
-        
+
 
 viewDocContentViewVista :
     { vista : Vista
