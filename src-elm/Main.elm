@@ -318,6 +318,7 @@ type alias InterlinearFormData =
     , changed : Bool
     , submitted : Bool
     , error : String
+    , valid : Bool
     , text : StringField
     , annotations : InterlinearAnnotationsData
     , translations : List InterlinearTranslationData
@@ -357,7 +358,8 @@ interlinearFormData =
     , version = 1
     , changed = False
     , submitted = False
-    , error = ""
+    , error = "Please fill the empty form."
+    , valid = False
     , text = blankString
     , annotations =
         { breaks = blankString
@@ -1410,8 +1412,39 @@ handleCFIntChange fid str int =
         phonemic =
             annotations.phonemic
 
-        int_ =
-            { int | changed = True }
+        translationsValid translations_ =
+            translations_
+                |> List.map
+                   (\x -> [ x.translation.valid, x.judgment.valid ] )
+                |> List.concat
+                |> List.all identity
+                   
+        valid int_ =
+            List.all identity [ int_.text.valid
+                              , int_.annotations.judgment.valid
+                              , int_.annotations.breaks.valid
+                              , int_.annotations.glosses.valid
+                              , int_.annotations.phonemic.valid
+                              , translationsValid int_.translations
+                              ]
+
+        toperr =
+            "Correct errors before saving."
+
+        defInt int_ =
+            let
+                valid_ =
+                    valid int_
+            in
+            { int_
+                | changed = True
+                , valid = valid_
+                , error = if valid_ then
+                              toperr
+                          else
+                              ""
+            }
+            
 
         -- The reason for dividing the list in this way is
         -- ensuring that the user doesn't have the elements of
@@ -1440,23 +1473,23 @@ handleCFIntChange fid str int =
                     )
 
         textTokens =
-            tokens int_.text.value
+            tokens int.text.value
     in
     case fid of
         InterlinearForm IntTextF ->
             if String.isEmpty str then
-                { int_
+                { int
                     | text =
-                        { text
-                            | value = str
-                            , valid = False
-                            , error = "The text can't be blank."
-                            , changed = True
-                        }
-                }
+                      { text
+                          | value = str
+                          , valid = False
+                          , error = "The text can't be blank."
+                          , changed = True
+                      }
+                } |> defInt
 
             else
-                { int_
+                { int
                     | text =
                         { text
                             | value = str
@@ -1464,7 +1497,7 @@ handleCFIntChange fid str int =
                             , error = ""
                             , changed = True
                         }
-                }
+                } |> defInt
 
         InterlinearForm IntBreaksF ->
             let
@@ -1472,7 +1505,7 @@ handleCFIntChange fid str int =
                     tokens str
 
                 ok =
-                    { int_
+                    { int
                         | annotations =
                             { annotations
                                 | breaks =
@@ -1483,7 +1516,7 @@ handleCFIntChange fid str int =
                                         , changed = True
                                     }
                             }
-                    }
+                    } |> defInt
             in
             if String.isEmpty (String.trim str) then
                 ok
@@ -1502,7 +1535,7 @@ handleCFIntChange fid str int =
                         ]
                             |> String.join " "
                 in
-                { int_
+                { int
                     | annotations =
                         { annotations
                             | breaks =
@@ -1513,7 +1546,7 @@ handleCFIntChange fid str int =
                                     , changed = True
                                 }
                         }
-                }
+                } |> defInt
 
         InterlinearForm IntGlossesF ->
             let
@@ -1521,7 +1554,7 @@ handleCFIntChange fid str int =
                     tokens str
 
                 ok =
-                    { int_
+                    { int
                         | annotations =
                             { annotations
                                 | glosses =
@@ -1532,7 +1565,7 @@ handleCFIntChange fid str int =
                                         , changed = True
                                     }
                             }
-                    }
+                    } |> defInt
             in
             if String.isEmpty (String.trim str) then
                 ok
@@ -1554,7 +1587,7 @@ handleCFIntChange fid str int =
                                 ]
                                     |> String.join " "
                         in
-                        { int_
+                        { int
                             | annotations =
                                 { annotations
                                     | glosses =
@@ -1565,7 +1598,7 @@ handleCFIntChange fid str int =
                                             , changed = True
                                         }
                                 }
-                        }
+                        } |> defInt
 
                     ( True, Just mismatch ) ->
                         let
@@ -1578,7 +1611,7 @@ handleCFIntChange fid str int =
                                 ]
                                     |> String.join " "
                         in
-                        { int_
+                        { int
                             | annotations =
                                 { annotations
                                     | glosses =
@@ -1589,7 +1622,7 @@ handleCFIntChange fid str int =
                                             , changed = True
                                         }
                                 }
-                        }
+                        } |> defInt
 
                     ( True, Nothing ) ->
                         ok
@@ -1600,7 +1633,7 @@ handleCFIntChange fid str int =
                     tokens str
 
                 ok =
-                    { int_
+                    { int
                         | annotations =
                             { annotations
                                 | phonemic =
@@ -1611,7 +1644,7 @@ handleCFIntChange fid str int =
                                         , changed = True
                                     }
                             }
-                    }
+                    } |> defInt
             in
             if String.isEmpty (String.trim str) then
                 ok
@@ -1630,7 +1663,7 @@ handleCFIntChange fid str int =
                         ]
                             |> String.join " "
                 in
-                { int_
+                { int
                     | annotations =
                         { annotations
                             | phonemic =
@@ -1641,10 +1674,10 @@ handleCFIntChange fid str int =
                                     , changed = True
                                 }
                         }
-                }
+                } |> defInt
 
         InterlinearForm IntJudgmentF ->
-            { int_
+            { int
                 | annotations =
                     { annotations
                         | judgment =
@@ -1655,7 +1688,7 @@ handleCFIntChange fid str int =
                                 , changed = True
                             }
                     }
-            }
+            } |> defInt
 
         InterlinearForm IntTransF ->
             case String.toInt str of
@@ -1663,7 +1696,7 @@ handleCFIntChange fid str int =
                     if str == "add" then
                         let
                             counter =
-                                int_.counter + 1
+                                int.counter + 1
 
                             trans =
                                 { id = counter
@@ -1690,10 +1723,11 @@ handleCFIntChange fid str int =
                                     |> (::) trans
                                     |> List.reverse
                         in
-                        { int_ | translations = ntranslations }
+                        { int | translations = ntranslations }
+                            |> defInt
 
                     else
-                        int_
+                        int |> defInt
 
                 Just id ->
                     case divided id of
@@ -1707,10 +1741,11 @@ handleCFIntChange fid str int =
                                 ntranslations =
                                     prefix ++ (ntranslation :: suffix)
                             in
-                            { int_ | translations = ntranslations }
+                            { int | translations = ntranslations }
+                                |> defInt
 
                         Nothing ->
-                            int_
+                            int |> defInt
 
         InterlinearForm (IntTransTranslationF id) ->
             case divided id of
@@ -1758,10 +1793,12 @@ handleCFIntChange fid str int =
                         ntranslations =
                             prefix ++ (ntranslation :: suffix)
                     in
-                    { int_ | translations = ntranslations }
+                    { int | translations = ntranslations } |> defInt
 
-                _ ->
+                -- Unexpected, do nothing
+                Nothing ->
                     int
+
 
         InterlinearForm (IntTransJudgmentF id) ->
             case divided id of
@@ -1784,9 +1821,11 @@ handleCFIntChange fid str int =
                         ntranslations =
                             prefix ++ (ntranslation :: suffix)
                     in
-                    { int_ | translations = ntranslations }
+                    { int | translations = ntranslations }
+                        |> defInt
 
-                _ ->
+                -- Unexpected, do nothing
+                Nothing ->
                     int
 
 
@@ -1872,6 +1911,7 @@ maybeInitForm vid oldvistas =
                                     , changed = False
                                     , submitted = False
                                     , error = ""
+                                    , valid = True
                                     , text =
                                         { value = int.text
                                         , valid = True
@@ -2730,6 +2770,7 @@ viewCFInterlinearField fd =
         [ Html.a
             [ Attr.class "secondary"
             , Attr.attribute "data-tooltip" "Reload Field"
+            , Attr.attribute "data-placement" "right"
             , Attr.href "#"
             , Event.onClick (fd.oninput fd.original)
             ]
@@ -2915,6 +2956,16 @@ viewCFInterlinearVista tp int =
                         [ Html.text "Add Translation" ]
                   ]
                 ]
+        , Html.button
+              ( Attr.disabled (not int.valid) ::
+                    if int.valid then
+                        []
+                    else
+                        [ Attr.attribute "data-tooltip" int.error
+                        , Attr.attribute "data-placement" "right"
+                        ]
+              )
+              [ Html.text "Save" ]
         ]
 
 
