@@ -596,10 +596,14 @@ update msg model =
                                         tabpath column row c
                                 in
                                 { model
-                                    | counter = c + 1
-                                    , ventanas = Dict.insert tp2 ventana model.ventanas
-                                    , visVentanas = visInsert tp2 model.visVentanas
-                                    , focused = Just tp2
+                                    | counter =
+                                        c + 1
+                                    , ventanas =
+                                        Dict.insert tp2 ventana model.ventanas
+                                    , visVentanas =
+                                        visInsert tp2 model.visVentanas
+                                    , focused =
+                                        Just tp2
                                 }
                 in
                 ( newmodel, Cmd.none )
@@ -817,16 +821,28 @@ update msg model =
                                 key p =
                                     case ( Dict.get 0 p.names, p.email ) of
                                         ( Nothing, "" ) ->
-                                            "Anonymous " ++ UUID.toString p.id
+                                            String.join " "
+                                                [ "Anonymous"
+                                                , UUID.toString p.id
+                                                ]
 
                                         ( Nothing, email ) ->
-                                            "(Blank Name) " ++ email
+                                            String.join " "
+                                                [ "(Blank Name)"
+                                                , email
+                                                ]
 
                                         ( Just name, "" ) ->
-                                            name ++ " (Blank Email)"
+                                            String.join " "
+                                                [ name
+                                                , "(Blank Email)"
+                                                ]
 
                                         ( Just name, email ) ->
-                                            name ++ ", " ++ email
+                                            String.join " "
+                                                [ name ++ ","
+                                                , email
+                                                ]
 
                                 pdict =
                                     M.people vals
@@ -875,12 +891,15 @@ update msg model =
                                     let
                                         st =
                                             if String.length i.text > 5 then
-                                                "Gloss: "
-                                                    ++ String.left 5 i.text
-                                                    ++ "..."
+                                                String.join ""
+                                                    [ "Gloss: "
+                                                    , String.left 7 i.text
+                                                    , "..."
+                                                    ]
 
                                             else
-                                                "Gloss: " ++ i.text
+                                                String.join " "
+                                                    [ "Gloss: ", i.text ]
 
                                         vista =
                                             { project = env.project
@@ -1309,11 +1328,63 @@ handleCFIntChange : FieldId -> String -> InterlinearFormData -> InterlinearFormD
 handleCFIntChange fid str int =
     let
         tokens s =
-            List.length <| String.words (String.trim s)
+            String.words s
+                -- Don't include the empty string
+                |> List.filter (\x -> String.length x > 0)
+                |> List.length
 
         breax s =
-            String.words (String.trim s)
+            String.words s
+                -- Don't include the empty string
+                |> List.filter (\x -> String.length x > 0)
                 |> List.map (\x -> List.length <| String.split "-" x)
+
+        breakMismatch :
+            String
+            -> String
+            ->
+                Maybe
+                    { token1 : String
+                    , token2 : String
+                    , length1 : Int
+                    , length2 : Int
+                    }
+        breakMismatch s1 s2 =
+            let
+                brx1 =
+                    breax s1
+
+                brx2 =
+                    breax s2
+
+                idx =
+                    List.map2 (\a1 a2 -> a1 == a2) brx1 brx2
+                        |> LE.findIndex not
+
+                token1 =
+                    Maybe.andThen (\i -> LE.getAt i (String.words s1)) idx
+
+                token2 =
+                    Maybe.andThen (\i -> LE.getAt i (String.words s2)) idx
+
+                length1 =
+                    Maybe.andThen (\i -> LE.getAt i brx1) idx
+
+                length2 =
+                    Maybe.andThen (\i -> LE.getAt i brx2) idx
+            in
+            Maybe.map4
+                (\t1 t2 l1 l2 ->
+                    { token1 = t1
+                    , token2 = t2
+                    , length1 = l1
+                    , length2 = l2
+                    }
+                )
+                token1
+                token2
+                length1
+                length2
 
         str_ =
             String.trim str
@@ -1347,24 +1418,29 @@ handleCFIntChange fid str int =
         -- the user interface jump around while editing. It
         -- will also preserve the order from the Dict the
         -- items were derived from.
-        divided : Int -> Maybe
-                  ( List InterlinearTranslationData
-                  , InterlinearTranslationData
-                  , List InterlinearTranslationData
-                  )
+        divided :
+            Int
+            ->
+                Maybe
+                    ( List InterlinearTranslationData
+                    , InterlinearTranslationData
+                    , List InterlinearTranslationData
+                    )
         divided id_ =
             LE.splitWhen (\x -> x.id == id_) translations
                 |> Maybe.andThen
-                   (\( x, y ) ->
+                    (\( x, y ) ->
                         List.head y
-                   |> Maybe.andThen
-                        (\h ->
-                             List.tail y
-                        |> Maybe.map
-                             (\z -> ( x, h, z ))
-                        )
-                   )
+                            |> Maybe.andThen
+                                (\h ->
+                                    List.tail y
+                                        |> Maybe.map
+                                            (\z -> ( x, h, z ))
+                                )
+                    )
 
+        textTokens =
+            tokens int_.text.value
     in
     case fid of
         InterlinearForm IntTextF ->
@@ -1391,13 +1467,181 @@ handleCFIntChange fid str int =
                 }
 
         InterlinearForm IntBreaksF ->
-            int
+            let
+                newTokens =
+                    tokens str
+
+                ok =
+                    { int_
+                        | annotations =
+                            { annotations
+                                | breaks =
+                                    { breaks
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+                    }
+            in
+            if String.isEmpty (String.trim str) then
+                ok
+
+            else if newTokens == textTokens then
+                ok
+
+            else
+                let
+                    err =
+                        [ "The number of tokens is not equal."
+                        , "The text has"
+                        , String.fromInt textTokens ++ "."
+                        , "This line has"
+                        , String.fromInt newTokens ++ "."
+                        ]
+                            |> String.join " "
+                in
+                { int_
+                    | annotations =
+                        { annotations
+                            | breaks =
+                                { breaks
+                                    | value = str
+                                    , valid = False
+                                    , error = err
+                                    , changed = True
+                                }
+                        }
+                }
 
         InterlinearForm IntGlossesF ->
-            int
+            let
+                newTokens =
+                    tokens str
+
+                ok =
+                    { int_
+                        | annotations =
+                            { annotations
+                                | glosses =
+                                    { glosses
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+                    }
+            in
+            if String.isEmpty (String.trim str) then
+                ok
+
+            else
+                case
+                    ( newTokens == textTokens
+                    , breakMismatch breaks.value str
+                    )
+                of
+                    ( False, _ ) ->
+                        let
+                            err =
+                                [ "The number of tokens is not equal."
+                                , "The text has"
+                                , String.fromInt textTokens ++ "."
+                                , "This line has"
+                                , String.fromInt newTokens ++ "."
+                                ]
+                                    |> String.join " "
+                        in
+                        { int_
+                            | annotations =
+                                { annotations
+                                    | glosses =
+                                        { glosses
+                                            | value = str
+                                            , valid = False
+                                            , error = err
+                                            , changed = True
+                                        }
+                                }
+                        }
+
+                    ( True, Just mismatch ) ->
+                        let
+                            err =
+                                [ "There are incorrect affix breaks."
+                                , "'" ++ mismatch.token1 ++ "' has"
+                                , String.fromInt mismatch.length1 ++ "."
+                                , "'" ++ mismatch.token2 ++ "' has"
+                                , String.fromInt mismatch.length2 ++ "."
+                                ]
+                                    |> String.join " "
+                        in
+                        { int_
+                            | annotations =
+                                { annotations
+                                    | glosses =
+                                        { glosses
+                                            | value = str
+                                            , valid = False
+                                            , error = err
+                                            , changed = True
+                                        }
+                                }
+                        }
+
+                    ( True, Nothing ) ->
+                        ok
 
         InterlinearForm IntPhonemicF ->
-            int
+            let
+                newTokens =
+                    tokens str
+
+                ok =
+                    { int_
+                        | annotations =
+                            { annotations
+                                | phonemic =
+                                    { phonemic
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+                    }
+            in
+            if String.isEmpty (String.trim str) then
+                ok
+
+            else if newTokens == textTokens then
+                ok
+
+            else
+                let
+                    err =
+                        [ "The number of tokens is not equal."
+                        , "The text has"
+                        , String.fromInt textTokens ++ "."
+                        , "This line has"
+                        , String.fromInt newTokens ++ "."
+                        ]
+                            |> String.join " "
+                in
+                { int_
+                    | annotations =
+                        { annotations
+                            | phonemic =
+                                { phonemic
+                                    | value = str
+                                    , valid = False
+                                    , error = err
+                                    , changed = True
+                                }
+                        }
+                }
 
         InterlinearForm IntJudgmentF ->
             { int_
@@ -1413,6 +1657,7 @@ handleCFIntChange fid str int =
                     }
             }
 
+        -- This is a grouping type. It shouldn't be reachable.
         InterlinearForm IntTransF ->
             int
 
@@ -1435,10 +1680,12 @@ handleCFIntChange fid str int =
                             }
 
                         err =
-                            "The translation cannot be blank. "
-                                ++ "If you want to remove the translation, "
-                                    ++ "you must delete it."
-                                
+                            [ "The translation cannot be blank."
+                            , "If you want to remove the translation,"
+                            , "you must delete it."
+                            ]
+                                |> String.join " "
+
                         badTranslation =
                             { translation
                                 | translation =
@@ -1456,7 +1703,7 @@ handleCFIntChange fid str int =
 
                             else
                                 goodTranslation
-                                    
+
                         ntranslations =
                             prefix ++ (ntranslation :: suffix)
                     in
@@ -1487,7 +1734,6 @@ handleCFIntChange fid str int =
                             prefix ++ (ntranslation :: suffix)
                     in
                     { int_ | translations = ntranslations }
-
 
                 _ ->
                     int
@@ -2561,7 +2807,11 @@ viewCFInterlinearVista tp int =
                 , original = int.annotations.breaks.original
                 , changed = int.annotations.breaks.changed
                 , valid = int.annotations.breaks.valid
-                , help = "Optional affix break annotation. This is needed for glosses, below."
+                , help =
+                    String.join " "
+                        [ "Optional affix break annotation."
+                        , "This is needed for glosses, below."
+                        ]
                 , error = int.annotations.breaks.error
                 , spellcheck = False
                 , id = Nothing
@@ -2582,12 +2832,12 @@ viewCFInterlinearVista tp int =
                 , id = Nothing
                 }
             ]
-        , Html.fieldset []
-            ([ Html.legend [] [ Html.text "Translations" ]
-             ]
-                ++ List.map (viewCFInterlinearTrans tp) int.translations
-                ++ [ Html.button [] [ Html.text "Add Translation" ] ]
-            )
+        , Html.fieldset [] <|
+            List.concat
+                [ [ Html.legend [] [ Html.text "Translations" ] ]
+                , List.map (viewCFInterlinearTrans tp) int.translations
+                , [ Html.button [] [ Html.text "Add Translation" ] ]
+                ]
         ]
 
 
@@ -2785,7 +3035,12 @@ viewInterlinearIndexItem proj int =
         [ viewInterlinearItem proj int
         , Html.a
             [ Attr.href "#"
-            , Event.onClick (RequestAllDocId proj ("interlinear/" ++ UUID.toString int.id))
+            , Event.onClick <|
+                RequestAllDocId proj <|
+                    String.join ""
+                        [ "interlinear/"
+                        , UUID.toString int.id
+                        ]
             ]
             [ Html.text "Open" ]
         ]
