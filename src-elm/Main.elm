@@ -1657,9 +1657,60 @@ handleCFIntChange fid str int =
                     }
             }
 
-        -- This is a grouping type. It shouldn't be reachable.
         InterlinearForm IntTransF ->
-            int
+            case String.toInt str of
+                Nothing ->
+                    if str == "add" then
+                        let
+                            counter =
+                                int_.counter + 1
+
+                            trans =
+                                { id = counter
+                                , deleted = False
+                                , translation =
+                                    { value = ""
+                                    , valid = False
+                                    , error = "Cannot be blank."
+                                    , changed = True
+                                    , original = ""
+                                    }
+                                , judgment =
+                                    { value = ""
+                                    , valid = True
+                                    , error = ""
+                                    , changed = False
+                                    , original = ""
+                                    }
+                                }
+
+                            ntranslations =
+                                translations
+                                    |> List.reverse
+                                    |> (::) trans
+                                    |> List.reverse
+                        in
+                        { int_ | translations = ntranslations }
+
+                    else
+                        int_
+
+                Just id ->
+                    case divided id of
+                        Just ( prefix, translation, suffix ) ->
+                            let
+                                ntranslation =
+                                    { translation |
+                                          deleted = not translation.deleted
+                                    }
+                                    
+                                ntranslations =
+                                    prefix ++ (ntranslation :: suffix)
+                            in
+                            { int_ | translations = ntranslations }
+
+                        Nothing ->
+                            int_
 
         InterlinearForm (IntTransTranslationF id) ->
             case divided id of
@@ -2650,6 +2701,7 @@ type alias FieldDescription =
     , valid : Bool
     , help : String
     , error : String
+    , disabled : Bool
     , spellcheck : Bool
     , id : Maybe Int
     }
@@ -2695,11 +2747,15 @@ viewCFInterlinearField fd =
 
               else
                 Attr.class "unchanged-field"
+            , Attr.disabled fd.disabled
             ]
             []
         , Html.small
             [ Attr.id helper ]
-            [ if fd.valid then
+            [ if fd.disabled then
+                  Html.text "This content will be removed."
+
+              else if fd.valid then
                 Html.text fd.help
 
               else
@@ -2712,7 +2768,15 @@ viewCFInterlinearTrans : TabPath -> InterlinearTranslationData -> Html.Html Msg
 viewCFInterlinearTrans tp trans =
     Html.article []
         [ Html.header []
-            [ Html.text ("Id: " ++ String.fromInt trans.id) ]
+            [ Html.label [ ]
+                [ Html.input [ Attr.type_ "checkbox"
+                             , roleAttr "switch"
+                             , Attr.checked trans.deleted
+                             , Event.onCheck (\_ -> FormChange tp (InterlinearForm IntTransF) (String.fromInt trans.id) )
+                             ] []
+                , Html.text "Remove Translation"
+                ]
+            ]
         , viewCFInterlinearField
             { formname = "interlinear"
             , label = "Translation"
@@ -2725,6 +2789,7 @@ viewCFInterlinearTrans tp trans =
             , valid = trans.translation.valid
             , help = "A translation of the text."
             , error = trans.translation.error
+            , disabled = trans.deleted
             , spellcheck = True
             , id = Just trans.id
             }
@@ -2740,6 +2805,7 @@ viewCFInterlinearTrans tp trans =
             , valid = trans.judgment.valid
             , help = "Optional judgment, such as * or #."
             , error = trans.judgment.error
+            , disabled = trans.deleted
             , spellcheck = False
             , id = Just trans.id
             }
@@ -2762,6 +2828,7 @@ viewCFInterlinearVista tp int =
                 , valid = int.text.valid
                 , help = "The text to be glossed."
                 , error = int.text.error
+                , disabled = False
                 , spellcheck = False
                 , id = Nothing
                 }
@@ -2779,6 +2846,7 @@ viewCFInterlinearVista tp int =
                 , valid = int.annotations.judgment.valid
                 , help = "Optional judgment, such as * or #."
                 , error = int.annotations.judgment.error
+                , disabled = False
                 , spellcheck = False
                 , id = Nothing
                 }
@@ -2794,6 +2862,7 @@ viewCFInterlinearVista tp int =
                 , valid = int.annotations.phonemic.valid
                 , help = "Optional phonemic transcription."
                 , error = int.annotations.phonemic.error
+                , disabled = False
                 , spellcheck = False
                 , id = Nothing
                 }
@@ -2813,6 +2882,7 @@ viewCFInterlinearVista tp int =
                         , "This is needed for glosses, below."
                         ]
                 , error = int.annotations.breaks.error
+                , disabled = False
                 , spellcheck = False
                 , id = Nothing
                 }
@@ -2828,6 +2898,7 @@ viewCFInterlinearVista tp int =
                 , valid = int.annotations.glosses.valid
                 , help = "Optional glosses."
                 , error = int.annotations.glosses.error
+                , disabled = False
                 , spellcheck = False
                 , id = Nothing
                 }
@@ -2836,7 +2907,13 @@ viewCFInterlinearVista tp int =
             List.concat
                 [ [ Html.legend [] [ Html.text "Translations" ] ]
                 , List.map (viewCFInterlinearTrans tp) int.translations
-                , [ Html.button [] [ Html.text "Add Translation" ] ]
+                , [ Html.button
+                        [ Event.onClick <|
+                            FormChange tp (InterlinearForm IntTransF) "add"
+                        , Attr.class "secondary"
+                        ]
+                        [ Html.text "Add Translation" ]
+                  ]
                 ]
         ]
 
