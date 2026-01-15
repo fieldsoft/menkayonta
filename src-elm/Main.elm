@@ -54,6 +54,7 @@ type Msg
     | ChangeLengthParam TabPath String
     | ChangeSearchParam TabPath String
     | ChangeEditParam TabPath
+    | None
 
 
 type alias Model =
@@ -343,15 +344,21 @@ type InterlinearField
     | IntTransF
     | IntTransTranslationF Int
     | IntTransJudgmentF Int
+    | IntSaveF
+    | IntCancelF
 
 
+blankString : StringField
 blankString =
     { value = ""
     , valid = True
     , error = ""
+    , changed = False
+    , original = ""
     }
 
 
+interlinearFormData : InterlinearFormData
 interlinearFormData =
     { id = Nothing
     , rev = Nothing
@@ -360,7 +367,7 @@ interlinearFormData =
     , submitted = False
     , error = "Please fill the empty form."
     , valid = False
-    , text = blankString
+    , text = { blankString | valid = False, error = "Cannot be empty." }
     , annotations =
         { breaks = blankString
         , glosses = blankString
@@ -368,6 +375,7 @@ interlinearFormData =
         , judgment = blankString
         }
     , translations = []
+    , counter = 0
     }
 
 
@@ -552,6 +560,10 @@ init _ =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        -- A message for doing nothing
+        None ->
+            ( model, Cmd.none )
+
         NewTab ventana ->
             if Dict.isEmpty model.ventanas then
                 let
@@ -1415,18 +1427,19 @@ handleCFIntChange fid str int =
         translationsValid translations_ =
             translations_
                 |> List.map
-                   (\x -> [ x.translation.valid, x.judgment.valid ] )
+                    (\x -> [ x.translation.valid, x.judgment.valid ])
                 |> List.concat
                 |> List.all identity
-                   
+
         valid int_ =
-            List.all identity [ int_.text.valid
-                              , int_.annotations.judgment.valid
-                              , int_.annotations.breaks.valid
-                              , int_.annotations.glosses.valid
-                              , int_.annotations.phonemic.valid
-                              , translationsValid int_.translations
-                              ]
+            List.all identity
+                [ int_.text.valid
+                , int_.annotations.judgment.valid
+                , int_.annotations.breaks.valid
+                , int_.annotations.glosses.valid
+                , int_.annotations.phonemic.valid
+                , translationsValid int_.translations
+                ]
 
         toperr =
             "Correct errors before saving."
@@ -1439,12 +1452,13 @@ handleCFIntChange fid str int =
             { int_
                 | changed = True
                 , valid = valid_
-                , error = if valid_ then
-                              toperr
-                          else
-                              ""
+                , error =
+                    if valid_ then
+                        ""
+
+                    else
+                        toperr
             }
-            
 
         -- The reason for dividing the list in this way is
         -- ensuring that the user doesn't have the elements of
@@ -1480,13 +1494,14 @@ handleCFIntChange fid str int =
             if String.isEmpty str then
                 { int
                     | text =
-                      { text
-                          | value = str
-                          , valid = False
-                          , error = "The text can't be blank."
-                          , changed = True
-                      }
-                } |> defInt
+                        { text
+                            | value = str
+                            , valid = False
+                            , error = "The text can't be blank."
+                            , changed = True
+                        }
+                }
+                    |> defInt
 
             else
                 { int
@@ -1497,7 +1512,8 @@ handleCFIntChange fid str int =
                             , error = ""
                             , changed = True
                         }
-                } |> defInt
+                }
+                    |> defInt
 
         InterlinearForm IntBreaksF ->
             let
@@ -1516,7 +1532,8 @@ handleCFIntChange fid str int =
                                         , changed = True
                                     }
                             }
-                    } |> defInt
+                    }
+                        |> defInt
             in
             if String.isEmpty (String.trim str) then
                 ok
@@ -1546,7 +1563,8 @@ handleCFIntChange fid str int =
                                     , changed = True
                                 }
                         }
-                } |> defInt
+                }
+                    |> defInt
 
         InterlinearForm IntGlossesF ->
             let
@@ -1565,7 +1583,8 @@ handleCFIntChange fid str int =
                                         , changed = True
                                     }
                             }
-                    } |> defInt
+                    }
+                        |> defInt
             in
             if String.isEmpty (String.trim str) then
                 ok
@@ -1598,7 +1617,8 @@ handleCFIntChange fid str int =
                                             , changed = True
                                         }
                                 }
-                        } |> defInt
+                        }
+                            |> defInt
 
                     ( True, Just mismatch ) ->
                         let
@@ -1622,7 +1642,8 @@ handleCFIntChange fid str int =
                                             , changed = True
                                         }
                                 }
-                        } |> defInt
+                        }
+                            |> defInt
 
                     ( True, Nothing ) ->
                         ok
@@ -1644,7 +1665,8 @@ handleCFIntChange fid str int =
                                         , changed = True
                                     }
                             }
-                    } |> defInt
+                    }
+                        |> defInt
             in
             if String.isEmpty (String.trim str) then
                 ok
@@ -1674,7 +1696,8 @@ handleCFIntChange fid str int =
                                     , changed = True
                                 }
                         }
-                } |> defInt
+                }
+                    |> defInt
 
         InterlinearForm IntJudgmentF ->
             { int
@@ -1688,7 +1711,8 @@ handleCFIntChange fid str int =
                                 , changed = True
                             }
                     }
-            } |> defInt
+            }
+                |> defInt
 
         InterlinearForm IntTransF ->
             case String.toInt str of
@@ -1734,10 +1758,10 @@ handleCFIntChange fid str int =
                         Just ( prefix, translation, suffix ) ->
                             let
                                 ntranslation =
-                                    { translation |
-                                          deleted = not translation.deleted
+                                    { translation
+                                        | deleted = not translation.deleted
                                     }
-                                    
+
                                 ntranslations =
                                     prefix ++ (ntranslation :: suffix)
                             in
@@ -1799,7 +1823,6 @@ handleCFIntChange fid str int =
                 Nothing ->
                     int
 
-
         InterlinearForm (IntTransJudgmentF id) ->
             case divided id of
                 Just ( prefix, translation, suffix ) ->
@@ -1827,6 +1850,55 @@ handleCFIntChange fid str int =
                 -- Unexpected, do nothing
                 Nothing ->
                     int
+
+        InterlinearForm IntSaveF ->
+            int
+
+        InterlinearForm IntCancelF ->
+            -- Indicates that this is a new item
+            if String.isEmpty text.original then
+                interlinearFormData
+
+            else
+                let
+                    renew orig =
+                        { blankString | value = orig, original = orig }
+                in
+                { int
+                    | changed = False
+                    , submitted = False
+                    , error = ""
+                    , valid = True
+                    , text = renew text.original
+                    , annotations =
+                        { breaks = renew breaks.original
+                        , glosses = renew glosses.original
+                        , phonemic = renew phonemic.original
+                        , judgment = renew judgment.original
+                        }
+                    , translations =
+                        List.filter
+                            (\x ->
+                                x.translation.original
+                                    |> String.isEmpty
+                                    |> not
+                            )
+                            translations
+                            |> List.map
+                                (\x ->
+                                    { id = x.id
+                                    , deleted = False
+                                    , translation =
+                                        renew x.translation.original
+                                    , judgment =
+                                        renew x.judgment.original
+                                    }
+                                )
+                    , counter =
+                        List.map (\x -> x.id) translations
+                            |> List.maximum
+                            |> Maybe.withDefault 0
+                }
 
 
 maybeInitForm : String -> Vistas -> Vistas
@@ -2794,7 +2866,7 @@ viewCFInterlinearField fd =
         , Html.small
             [ Attr.id helper ]
             [ if fd.disabled then
-                  Html.text "This content will be removed."
+                Html.text "This content will be removed."
 
               else if fd.valid then
                 Html.text fd.help
@@ -2809,12 +2881,14 @@ viewCFInterlinearTrans : TabPath -> InterlinearTranslationData -> Html.Html Msg
 viewCFInterlinearTrans tp trans =
     Html.article []
         [ Html.header []
-            [ Html.label [ ]
-                [ Html.input [ Attr.type_ "checkbox"
-                             , roleAttr "switch"
-                             , Attr.checked trans.deleted
-                             , Event.onCheck (\_ -> FormChange tp (InterlinearForm IntTransF) (String.fromInt trans.id) )
-                             ] []
+            [ Html.label []
+                [ Html.input
+                    [ Attr.type_ "checkbox"
+                    , roleAttr "switch"
+                    , Attr.checked trans.deleted
+                    , Event.onCheck (\_ -> FormChange tp (InterlinearForm IntTransF) (String.fromInt trans.id))
+                    ]
+                    []
                 , Html.text "Remove Translation"
                 ]
             ]
@@ -2948,24 +3022,37 @@ viewCFInterlinearVista tp int =
             List.concat
                 [ [ Html.legend [] [ Html.text "Translations" ] ]
                 , List.map (viewCFInterlinearTrans tp) int.translations
-                , [ Html.button
+                , [ Html.a
                         [ Event.onClick <|
                             FormChange tp (InterlinearForm IntTransF) "add"
-                        , Attr.class "secondary"
+                        , Attr.href "#"
                         ]
-                        [ Html.text "Add Translation" ]
+                        [ Html.text "+ Add Translation" ]
                   ]
                 ]
         , Html.button
-              ( Attr.disabled (not int.valid) ::
-                    if int.valid then
-                        []
-                    else
-                        [ Attr.attribute "data-tooltip" int.error
-                        , Attr.attribute "data-placement" "right"
-                        ]
-              )
-              [ Html.text "Save" ]
+            (if int.valid then
+                [ Event.onClick <|
+                    FormChange tp (InterlinearForm IntSaveF) ""
+                ]
+
+             else
+                [ Attr.attribute "data-tooltip" int.error
+                , Attr.attribute "data-placement" "right"
+                , Attr.type_ "button"
+                , Event.onClick None
+                ]
+            )
+            [ Html.text "Save" ]
+        , Html.button
+            [ Attr.class "secondary"
+            , Attr.attribute "data-tooltip" "This will erase all changes!"
+            , Attr.attribute "data-placement" "right"
+            , Attr.type_ "button"
+            , Event.onClick <|
+                FormChange tp (InterlinearForm IntCancelF) ""
+            ]
+            [ Html.text "Cancel" ]
         ]
 
 
