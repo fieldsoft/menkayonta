@@ -1451,7 +1451,7 @@ handleDocContentSubmit edit vista model =
                                     , { translation =
                                             x.translation.value
                                       , judgment =
-                                            x.translation.value
+                                            x.judgment.value
                                       }
                                     )
                                 )
