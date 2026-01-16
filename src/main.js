@@ -533,6 +533,18 @@ const requestAllDocId = (_event, message) => {
   gvs.active[message.identifier].postMessage(message)
 }
 
+const command = (_event, envelope) => {
+  switch (envelope.command) {
+    case 'bulk-write': {
+      gvs.active[envelope.identifier].postMessage(envelope)
+      break
+    }
+    default: {
+      gvs.active[envelope.identifier].postMessage(envelope)
+    }
+  }
+}
+
 const init = async () => {
   try {
     await app.whenReady()
@@ -547,6 +559,7 @@ const init = async () => {
     ipcMain.handle('update-project', updateProject)
     ipcMain.handle('import-file', importFile)
     ipcMain.handle('update-global-settings', updateGlobalSettings)
+    ipcMain.handle('command', command)
     ipcMain.on('set-title', handleSetTitle)
     createWindow()
 

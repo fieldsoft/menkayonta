@@ -1,8 +1,20 @@
 import { Elm } from '../src-elm/Main.elm'
 
+const typedArray = new Int32Array(4)
+const randomSeeds = crypto.getRandomValues(typedArray)
+
 const app = Elm.Main.init({
   node: document.getElementById('root'),
-  flags: { windowHeight: window.innerHeight },
+  flags: {
+    seed1: randomSeeds[0],
+    seed2: randomSeeds[1],
+    seed3: randomSeeds[2],
+    seed4: randomSeeds[3],
+  },
+})
+
+app.ports.send.subscribe((envelope) => {
+  window.electronAPI.command(envelope)
 })
 
 app.ports.setWindowTitle.subscribe((title) => {

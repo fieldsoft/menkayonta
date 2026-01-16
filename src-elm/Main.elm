@@ -17,6 +17,7 @@ import List.Extra as LE
 import Math.Vector3 as V3
 import Maybe.Extra as ME
 import Menkayonta as M exposing (Interlinear)
+import Random
 import Result
 import Set exposing (Set)
 import Task
@@ -54,6 +55,7 @@ type Msg
     | ChangeLengthParam TabPath String
     | ChangeSearchParam TabPath String
     | ChangeEditParam TabPath
+    | SetTime Time.Posix
     | None
 
 
@@ -69,6 +71,8 @@ type alias Model =
     , forms : Dict String FormData
     , loading : Set String
     , people : Dict String (Dict String M.Person)
+    , seeds : UUID.Seeds
+    , time : Time.Posix
     }
 
 
@@ -496,7 +500,7 @@ globalSettingsFields gs =
         ]
 
 
-main : Program () Model Msg
+main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
@@ -514,9 +518,24 @@ defVParams =
     }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
+type alias Flags =
+    { seed1 : Int
+    , seed2 : Int
+    , seed3 : Int
+    , seed4 : Int
+    }
+
+
+init : Flags -> ( Model, Cmd Msg )
+init flags =
     let
+        seeds =
+            { seed1 = Random.initialSeed flags.seed1
+            , seed2 = Random.initialSeed flags.seed2
+            , seed3 = Random.initialSeed flags.seed3
+            , seed4 = Random.initialSeed flags.seed4
+            }
+
         newProjectForm =
             { fields = projectFields <| ProjectInfo "" "" True Nothing
             , submitted = False
@@ -552,8 +571,13 @@ init _ =
       , forms = forms
       , loading = Set.empty
       , people = Dict.empty
+      , seeds = seeds
+      , time = Time.millisToPosix 0
       }
-    , requestGlobalConfig ()
+    , Cmd.batch
+        [ Task.perform SetTime Time.now
+        , requestGlobalConfig ()
+        ]
     )
 
 
@@ -563,6 +587,9 @@ update msg model =
         -- A message for doing nothing
         None ->
             ( model, Cmd.none )
+
+        SetTime time ->
+            ( { model | time = time }, Cmd.none )
 
         NewTab ventana ->
             if Dict.isEmpty model.ventanas then
@@ -1201,7 +1228,25 @@ update msg model =
                 Just ident ->
                     case Dict.get ident model.forms of
                         Nothing ->
-                            ( model, Cmd.none )
+                            let
+                                contentVista =
+                                    getContentVistaFromVistas
+                                        ident
+                                        model.vistas
+                            in
+                            case contentVista of
+                                Just ( DocContent dc, vista ) ->
+                                    let
+                                        ( nmodel, ncmd ) =
+                                            handleDocContentSubmit
+                                                dc.edit
+                                                vista
+                                                model
+                                    in
+                                    ( nmodel, ncmd )
+
+                                _ ->
+                                    ( model, Cmd.none )
 
                         Just fd ->
                             let
@@ -1299,43 +1344,176 @@ update msg model =
                     ( model, Cmd.none )
 
         FormChange tp fid str ->
-            case Dict.get tp model.ventanas of
-                Just ventana ->
-                    case Dict.get ventana.vista model.vistas of
-                        Just vista ->
-                            case vista.content of
-                                DocContent dc ->
-                                    case dc.edit of
-                                        Just (InterlinearCForm int) ->
-                                            let
-                                                nint =
-                                                    handleCFIntChange fid str int
+            case getContentVistaVentana tp model of
+                Nothing ->
+                    ( model, Cmd.none )
 
-                                                nvista =
-                                                    { vista
-                                                        | content =
-                                                            DocContent
-                                                                { dc
-                                                                    | edit =
-                                                                        Just (InterlinearCForm nint)
-                                                                }
-                                                    }
-                                            in
-                                            ( { model | vistas = Dict.insert ventana.vista nvista model.vistas }
-                                            , Cmd.none
-                                            )
-
-                                        Nothing ->
-                                            ( model, Cmd.none )
-
-                                _ ->
-                                    ( model, Cmd.none )
-
+                Just ( DocContent dc, ( vista, ventana ) ) ->
+                    case dc.edit of
                         Nothing ->
                             ( model, Cmd.none )
 
-                Nothing ->
+                        Just (InterlinearCForm int) ->
+                            let
+                                nint =
+                                    handleCFIntChange fid str int
+
+                                nedit =
+                                    Just (InterlinearCForm nint)
+
+                                ncontent =
+                                    DocContent { dc | edit = nedit }
+
+                                nvista =
+                                    { vista | content = ncontent }
+
+                                nvistas =
+                                    Dict.insert
+                                        ventana.vista
+                                        nvista
+                                        model.vistas
+                            in
+                            ( { model | vistas = nvistas }
+                            , if nint.submitted then
+                                Cmd.batch
+                                    [ Task.perform SetTime Time.now
+                                    , Task.succeed (FormSubmit tp)
+                                        |> Task.perform identity
+                                    ]
+
+                              else
+                                Cmd.none
+                            )
+
+                Just ( TranslationContent _, _ ) ->
                     ( model, Cmd.none )
+
+                Just ( TranslationsContent _, _ ) ->
+                    ( model, Cmd.none )
+
+                Just ( InterlinearsContent _, _ ) ->
+                    ( model, Cmd.none )
+
+                Just ( ProjectInfoContent _, _ ) ->
+                    ( model, Cmd.none )
+
+                Just ( ImportOptionsContent _, _ ) ->
+                    ( model, Cmd.none )
+
+                Just ( GlobalSettingsContent _, _ ) ->
+                    ( model, Cmd.none )
+
+                Just ( ErrorContent _, _ ) ->
+                    ( model, Cmd.none )
+
+
+handleDocContentSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
+handleDocContentSubmit edit vista model =
+    case edit of
+        Just (InterlinearCForm int) ->
+            let
+                ( uuid, seeds ) =
+                    case int.id of
+                        Nothing ->
+                            UUID.step model.seeds
+
+                        Just uuid_ ->
+                            ( uuid_, model.seeds )
+
+                -- This is set to change after refactor so a fake
+                -- value is provided for Nothing.
+                meId =
+                    case model.me of
+                        Nothing ->
+                            uuid
+
+                        Just p ->
+                            p.id
+
+                interlinear : M.Interlinear
+                interlinear =
+                    { id = uuid
+                    , rev = int.rev
+                    , version = int.version
+                    , text = int.text.value
+                    , ann =
+                        { breaks = int.annotations.breaks.value
+                        , glosses = int.annotations.glosses.value
+                        , phonemic = int.annotations.phonemic.value
+                        , judgment = int.annotations.judgment.value
+                        }
+                    , translations =
+                        int.translations
+                            |> List.filter (\x -> not x.deleted)
+                            |> List.map
+                                (\x ->
+                                    ( x.id
+                                    , { translation =
+                                            x.translation.value
+                                      , judgment =
+                                            x.translation.value
+                                      }
+                                    )
+                                )
+                            |> Dict.fromList
+                    }
+
+                modification : M.Modification
+                modification =
+                    { id =
+                        { kind = "update"
+                        , docid = M.InterlinearId uuid
+                        , time = model.time
+                        , person = M.PersonId meId
+                        , fragment = []
+                        }
+                    , rev = Nothing
+                    , version = 1
+                    , comment = "No comment"
+                    , docversion = int.version
+                    , value = M.encoder (M.MyInterlinear interlinear)
+                    }
+
+                envelope1 : Envelope
+                envelope1 =
+                    { command =
+                        "bulk-write"
+                    , project =
+                        vista.project
+                    , address =
+                        ""
+                    , content =
+                        [ M.MyInterlinear interlinear
+                        , M.MyModification modification
+                        ]
+                            |> List.map M.encoder
+                            |> E.list identity
+                    }
+
+                envelope2 : Envelope
+                envelope2 =
+                    { command =
+                        "request-all-docid"
+                    , project =
+                        vista.project
+                    , address =
+                        M.identifierToString
+                            (M.MyDocId <|
+                                M.InterlinearId uuid
+                            )
+                    , content =
+                        E.null
+                    }
+            in
+            ( { model | seeds = seeds }
+            , Cmd.batch
+                [ send (envelopeEncoder envelope1)
+                , send (envelopeEncoder envelope2)
+                ]
+            )
+
+        Nothing ->
+            ( model, Cmd.none )
 
 
 handleCFIntChange : FieldId -> String -> InterlinearFormData -> InterlinearFormData
@@ -1852,7 +2030,11 @@ handleCFIntChange fid str int =
                     int
 
         InterlinearForm IntSaveF ->
-            int
+            if defInt int |> .valid then
+                { int | submitted = True }
+
+            else
+                int
 
         InterlinearForm IntCancelF ->
             -- Indicates that this is a new item
@@ -1903,119 +2085,135 @@ handleCFIntChange fid str int =
 
 maybeInitForm : String -> Vistas -> Vistas
 maybeInitForm vid oldvistas =
-    case Dict.get vid oldvistas of
-        Just vista ->
-            case vista.content of
-                DocContent dc ->
-                    case ( dc.view.doc, dc.edit ) of
-                        ( Just (M.MyInterlinear int), Nothing ) ->
-                            let
-                                ann : InterlinearAnnotationsData
-                                ann =
-                                    { breaks =
-                                        { value = int.ann.breaks
-                                        , valid = True
-                                        , error = ""
-                                        , changed = False
-                                        , original = int.ann.breaks
-                                        }
-                                    , glosses =
-                                        { value = int.ann.glosses
-                                        , valid = True
-                                        , error = ""
-                                        , changed = False
-                                        , original = int.ann.glosses
-                                        }
-                                    , phonemic =
-                                        { value = int.ann.phonemic
-                                        , valid = True
-                                        , error = ""
-                                        , changed = False
-                                        , original = int.ann.phonemic
-                                        }
-                                    , judgment =
-                                        { value = int.ann.judgment
-                                        , valid = True
-                                        , error = ""
-                                        , changed = False
-                                        , original = int.ann.judgment
-                                        }
-                                    }
+    case getContentVistaFromVistas vid oldvistas of
+        Just ( DocContent dc, vista ) ->
+            case ( dc.view.doc, dc.edit ) of
+                ( Just (M.MyInterlinear int), Nothing ) ->
+                    let
+                        ann : InterlinearAnnotationsData
+                        ann =
+                            { breaks =
+                                { value = int.ann.breaks
+                                , valid = True
+                                , error = ""
+                                , changed = False
+                                , original = int.ann.breaks
+                                }
+                            , glosses =
+                                { value = int.ann.glosses
+                                , valid = True
+                                , error = ""
+                                , changed = False
+                                , original = int.ann.glosses
+                                }
+                            , phonemic =
+                                { value = int.ann.phonemic
+                                , valid = True
+                                , error = ""
+                                , changed = False
+                                , original = int.ann.phonemic
+                                }
+                            , judgment =
+                                { value = int.ann.judgment
+                                , valid = True
+                                , error = ""
+                                , changed = False
+                                , original = int.ann.judgment
+                                }
+                            }
 
-                                trans_ :
-                                    ( Int, M.Translation )
-                                    -> InterlinearTranslationData
-                                trans_ ( k, v ) =
-                                    { id = k
-                                    , deleted = False
-                                    , translation =
-                                        { value = v.translation
-                                        , valid = True
-                                        , error = ""
-                                        , changed = False
-                                        , original = v.translation
-                                        }
-                                    , judgment =
-                                        { value = v.judgment
-                                        , valid = True
-                                        , error = ""
-                                        , changed = False
-                                        , original = v.judgment
-                                        }
-                                    }
+                        trans_ :
+                            ( Int, M.Translation )
+                            -> InterlinearTranslationData
+                        trans_ ( k, v ) =
+                            { id = k
+                            , deleted = False
+                            , translation =
+                                { value = v.translation
+                                , valid = True
+                                , error = ""
+                                , changed = False
+                                , original = v.translation
+                                }
+                            , judgment =
+                                { value = v.judgment
+                                , valid = True
+                                , error = ""
+                                , changed = False
+                                , original = v.judgment
+                                }
+                            }
 
-                                trans : List InterlinearTranslationData
-                                trans =
-                                    Dict.toList int.translations
-                                        |> List.map trans_
+                        trans : List InterlinearTranslationData
+                        trans =
+                            Dict.toList int.translations
+                                |> List.map trans_
 
-                                counter : Int
-                                counter =
-                                    Dict.keys int.translations
-                                        |> List.maximum
-                                        |> Maybe.withDefault 0
+                        counter : Int
+                        counter =
+                            Dict.keys int.translations
+                                |> List.maximum
+                                |> Maybe.withDefault 0
 
-                                formData : InterlinearFormData
-                                formData =
-                                    { id = Just int.id
-                                    , rev = int.rev
-                                    , version = int.version
-                                    , changed = False
-                                    , submitted = False
-                                    , error = ""
-                                    , valid = True
-                                    , text =
-                                        { value = int.text
-                                        , valid = True
-                                        , error = ""
-                                        , changed = False
-                                        , original = int.text
-                                        }
-                                    , annotations = ann
-                                    , translations = trans
-                                    , counter = counter
-                                    }
+                        formData : InterlinearFormData
+                        formData =
+                            { id = Just int.id
+                            , rev = int.rev
+                            , version = int.version
+                            , changed = False
+                            , submitted = False
+                            , error = ""
+                            , valid = True
+                            , text =
+                                { value = int.text
+                                , valid = True
+                                , error = ""
+                                , changed = False
+                                , original = int.text
+                                }
+                            , annotations = ann
+                            , translations = trans
+                            , counter = counter
+                            }
 
-                                ndc =
-                                    { view =
-                                        dc.view
-                                    , edit =
-                                        Just (InterlinearCForm formData)
-                                    }
+                        ndc =
+                            { view =
+                                dc.view
+                            , edit =
+                                Just (InterlinearCForm formData)
+                            }
 
-                                newvista =
-                                    { vista | content = DocContent ndc }
+                        newvista =
+                            { vista | content = DocContent ndc }
 
-                                newvistas =
-                                    Dict.insert vid newvista oldvistas
-                            in
-                            newvistas
-
-                        _ ->
-                            oldvistas
+                        newvistas =
+                            Dict.insert vid newvista oldvistas
+                    in
+                    newvistas
 
                 _ ->
                     oldvistas
+
+        Just ( TranslationContent _, _ ) ->
+            oldvistas
+
+        Just ( TranslationsContent _, _ ) ->
+            oldvistas
+
+        Just ( InterlinearsContent _, _ ) ->
+            oldvistas
+
+        Just ( ProjectInfoContent _, _ ) ->
+            oldvistas
+
+        Just ( ImportOptionsContent _, _ ) ->
+            oldvistas
+
+        Just ( GlobalSettingsContent _, _ ) ->
+            oldvistas
+
+        Just ( ErrorContent _, _ ) ->
+            oldvistas
 
         Nothing ->
             oldvistas
@@ -2795,7 +2993,13 @@ viewDocContentEditVista : TabPath -> CForm -> Html.Html Msg
 viewDocContentEditVista tp cform =
     case cform of
         InterlinearCForm int ->
-            viewCFInterlinearVista tp int
+            if int.submitted then
+                Html.span
+                    [ Attr.attribute "aria-busy" "true" ]
+                    [ Html.text "Saving changes." ]
+
+            else
+                viewCFInterlinearVista tp int
 
 
 type alias FieldDescription =
@@ -3713,6 +3917,28 @@ uuidStringParser =
             )
 
 
+getVistaVentana : TabPath -> Model -> Maybe ( Vista, Ventana )
+getVistaVentana tp model =
+    Dict.get tp model.ventanas
+        |> Maybe.andThen
+            (\ventana ->
+                Dict.get ventana.vista model.vistas
+                    |> Maybe.map (\vista -> ( vista, ventana ))
+            )
+
+
+getContentVistaVentana : TabPath -> Model -> Maybe ( Content, ( Vista, Ventana ) )
+getContentVistaVentana tp model =
+    getVistaVentana tp model
+        |> Maybe.map (\( vis, ven ) -> ( vis.content, ( vis, ven ) ))
+
+
+getContentVistaFromVistas : String -> Vistas -> Maybe ( Content, Vista )
+getContentVistaFromVistas vid vistas =
+    Dict.get vid vistas
+        |> Maybe.map (\vista -> ( vista.content, vista ))
+
+
 getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
 getByVista vista ventanas =
     List.head <| getAllByVista vista ventanas
@@ -3802,6 +4028,9 @@ oneBuilder v od =
 
 
 {- PORTS -}
+
+
+port send : E.Value -> Cmd msg
 
 
 {-| The window title changes depending on the focused tab. This sends

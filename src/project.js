@@ -233,7 +233,7 @@ const handleMainMessage = (m) => {
     }
 
     case 'bulk-write': {
-      handleBulk(m.data.bulkDocs)
+      handleBulk(m.data.content)
       break
     }
 

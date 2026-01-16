@@ -47,4 +47,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('import-file', importOptions),
   updateGlobalSettings: (globalSettings) =>
     ipcRenderer.invoke('update-global-settings', globalSettings),
+  command: (envelope) => ipcRenderer.invoke('command', envelope),
 })

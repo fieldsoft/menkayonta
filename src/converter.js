@@ -86,7 +86,8 @@ app.ports.sendBulkDocs.subscribe((job) => {
     process.parentPort.postMessage({
       command: 'bulk-write',
       identifier: job.project,
-      bulkDocs: job.payload,
+      address: '',
+      content: job.payload,
     })
   } else {
     error(Error(job.payload))
