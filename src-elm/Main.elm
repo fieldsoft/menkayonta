@@ -50,6 +50,7 @@ type Msg
     | ImportOptionsFormChange (Field.Msg FieldKind)
     | GlobalSettingsFormChange (Field.Msg FieldKind)
     | ProjectSettingsEdit ProjectInfo
+    | FormInit String CForm
     | FormSubmit TabPath
     | FormChange TabPath FieldId String
     | ChangeLengthParam TabPath String
@@ -248,6 +249,7 @@ type Content
     | TranslationsContent (List Translation)
     | InterlinearsContent (List Interlinear)
     | DocContent { view : M.OneDoc, edit : Maybe CForm }
+    | NewDocContent CForm
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent ImportOptions
     | GlobalSettingsContent GlobalSettings
@@ -1219,6 +1221,58 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+        FormInit project (InterlinearCForm int) ->
+            let
+                ( uuid, seeds ) =
+                    UUID.step model.seeds
+
+                nint : InterlinearFormData
+                nint =
+                    { int | id = Just uuid }
+
+                nid : String
+                nid =
+                    uuid
+                        |> M.InterlinearId
+                        |> M.MyDocId
+                        |> M.identifierToString
+
+                vista : Vista
+                vista =
+                    { identifier =
+                        nid
+                    , kind =
+                        "interlinear"
+                    , project =
+                        project
+                    , content =
+                        NewDocContent (InterlinearCForm nint)
+                    }
+
+                ventana : Ventana
+                ventana =
+                    { title =
+                        "New Gloss"
+                    , vista =
+                        nid
+                    , params =
+                        { length =
+                            0
+                        , searchString =
+                            ""
+                        , edit =
+                            True
+                        }
+                    }
+            in
+            ( { model
+                | seeds = seeds
+                , vistas = Dict.insert nid vista model.vistas
+              }
+            , Task.succeed (NewTab ventana)
+                |> Task.perform identity
+            )
+
         FormSubmit tp ->
             let
                 formid =
@@ -1244,6 +1298,22 @@ update msg model =
                                                 model
                                     in
                                     ( nmodel, ncmd )
+
+                                Just ( NewDocContent fd, vista ) ->
+                                    let
+                                        ( nmodel, ncmd ) =
+                                            handleDocContentSubmit
+                                                (Just fd)
+                                                vista
+                                                model
+                                    in
+                                    ( nmodel
+                                    , Cmd.batch
+                                        [ Task.succeed CloseTab
+                                            |> Task.perform identity
+                                        , ncmd
+                                        ]
+                                    )
 
                                 _ ->
                                     ( model, Cmd.none )
@@ -1348,6 +1418,35 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+                Just ( NewDocContent (InterlinearCForm int), ( vista, ventana ) ) ->
+                    let
+                        nint =
+                            handleCFIntChange fid str int
+
+                        ncontent =
+                            NewDocContent (InterlinearCForm nint)
+
+                        nvista =
+                            { vista | content = ncontent }
+
+                        nvistas =
+                            Dict.insert
+                                ventana.vista
+                                nvista
+                                model.vistas
+                    in
+                    ( { model | vistas = nvistas }
+                    , if nint.submitted then
+                        Cmd.batch
+                            [ Task.perform SetTime Time.now
+                            , Task.succeed (FormSubmit tp)
+                                |> Task.perform identity
+                            ]
+
+                      else
+                        Cmd.none
+                    )
+
                 Just ( DocContent dc, ( vista, ventana ) ) ->
                     case dc.edit of
                         Nothing ->
@@ -1415,16 +1514,17 @@ handleDocContentSubmit edit vista model =
                 nventanas =
                     model.ventanas
                         |> Dict.filter
-                           (\_ v -> v.vista == vista.identifier)
+                            (\_ v -> v.vista == vista.identifier)
                         |> Dict.map
-                           (\_ v ->
+                            (\_ v ->
                                 let
-                                    params = v.params
+                                    params =
+                                        v.params
                                 in
                                 { v | params = { params | edit = False } }
-                           )
+                            )
                         |> (\vs -> Dict.union vs model.ventanas)
-                    
+
                 ( uuid, seeds ) =
                     case int.id of
                         Nothing ->
@@ -1496,7 +1596,7 @@ handleDocContentSubmit edit vista model =
                     , address =
                         M.identifierToString
                             (M.MyDocId <|
-                                 M.InterlinearId uuid
+                                M.InterlinearId uuid
                             )
                     , content =
                         [ M.MyInterlinear interlinear
@@ -2193,6 +2293,9 @@ maybeInitForm vid oldvistas =
                 _ ->
                     oldvistas
 
+        Just ( NewDocContent (InterlinearCForm int), vista ) ->
+            oldvistas
+
         Just ( TranslationContent _, _ ) ->
             oldvistas
 
@@ -2687,6 +2790,16 @@ viewProject model p =
                     ]
                     [ Html.text "Gloss Index" ]
                 ]
+            , Html.li []
+                [ Html.a
+                    [ Attr.href "#"
+                    , Event.onClick <|
+                        FormInit p.identifier <|
+                            InterlinearCForm interlinearFormData
+                    , Attr.class "secondary"
+                    ]
+                    [ Html.text "New Gloss" ]
+                ]
             ]
         ]
 
@@ -2929,8 +3042,27 @@ viewVista model tp vista =
                 , model = model
                 }
 
+        NewDocContent formData ->
+            viewNewDocContentVista
+                { vista = vista
+                , tp = tp
+                , fd = formData
+                , model = model
+                }
+
         ErrorContent err ->
             viewError model err
+
+
+viewNewDocContentVista :
+    { vista : Vista
+    , tp : TabPath
+    , fd : CForm
+    , model : Model
+    }
+    -> Html.Html Msg
+viewNewDocContentVista { vista, tp, fd, model } =
+    viewDocContentEditVista tp fd
 
 
 viewDocContentVista :
