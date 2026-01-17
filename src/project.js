@@ -225,10 +225,26 @@ const handleRequestAllDocId = async (docid) => {
   }
 }
 
+const handleUpdateDoc = async (data) => {
+  await handleBulk(data.content)
+  handleRequestAllDocId(data.address)
+
+  if (data.address.startsWith('interlinear')) {
+    handleRequestInterlinears()
+  } else if (data.address.content.startsWith('person')) {
+    handleRequestPeople()
+  }
+}
+
 const handleMainMessage = (m) => {
   switch (m.data.command) {
     case 'init': {
       handleInit(m.data)
+      break
+    }
+
+    case 'update-doc': {
+      handleUpdateDoc(m.data)
       break
     }
 

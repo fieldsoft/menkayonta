@@ -1412,6 +1412,19 @@ handleDocContentSubmit edit vista model =
     case edit of
         Just (InterlinearCForm int) ->
             let
+                nventanas =
+                    model.ventanas
+                        |> Dict.filter
+                           (\_ v -> v.vista == vista.identifier)
+                        |> Dict.map
+                           (\_ v ->
+                                let
+                                    params = v.params
+                                in
+                                { v | params = { params | edit = False } }
+                           )
+                        |> (\vs -> Dict.union vs model.ventanas)
+                    
                 ( uuid, seeds ) =
                     case int.id of
                         Nothing ->
@@ -1474,14 +1487,17 @@ handleDocContentSubmit edit vista model =
                     , value = M.encoder (M.MyInterlinear interlinear)
                     }
 
-                envelope1 : Envelope
-                envelope1 =
+                envelope : Envelope
+                envelope =
                     { command =
-                        "bulk-write"
+                        "update-doc"
                     , project =
                         vista.project
                     , address =
-                        ""
+                        M.identifierToString
+                            (M.MyDocId <|
+                                 M.InterlinearId uuid
+                            )
                     , content =
                         [ M.MyInterlinear interlinear
                         , M.MyModification modification
@@ -1489,27 +1505,10 @@ handleDocContentSubmit edit vista model =
                             |> List.map M.encoder
                             |> E.list identity
                     }
-
-                envelope2 : Envelope
-                envelope2 =
-                    { command =
-                        "request-all-docid"
-                    , project =
-                        vista.project
-                    , address =
-                        M.identifierToString
-                            (M.MyDocId <|
-                                M.InterlinearId uuid
-                            )
-                    , content =
-                        E.null
-                    }
             in
-            ( { model | seeds = seeds }
+            ( { model | seeds = seeds, ventanas = nventanas }
             , Cmd.batch
-                [ send (envelopeEncoder envelope1)
-                , send (envelopeEncoder envelope2)
-                ]
+                [ send (envelopeEncoder envelope) ]
             )
 
         Nothing ->
@@ -3238,6 +3237,7 @@ viewCFInterlinearVista tp int =
             (if int.valid then
                 [ Event.onClick <|
                     FormChange tp (InterlinearForm IntSaveF) ""
+                , Attr.type_ "button"
                 ]
 
              else
@@ -3946,6 +3946,8 @@ getByVista vista ventanas =
 
 getAllByVista : String -> Dict TabPath Ventana -> List TabPath
 getAllByVista vista ventanas =
+    -- TODO use Dict.filter (this may not warrant being a helper
+    -- function.)
     List.filter (\( _, v ) -> v.vista == vista) (Dict.toList ventanas)
         |> List.map Tuple.first
 
