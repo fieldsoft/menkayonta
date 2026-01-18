@@ -1,90 +1,136 @@
-module QueryParser exposing (Qs(..), Qstring(..), qandP, qstringP)
+module QueryParser exposing (Expr(..), parse)
 
 import Parser
     exposing
         ( (|.)
         , (|=)
+        , DeadEnd
         , Parser
         , Step(..)
+        , andThen
         , chompWhile
-        , end
         , getChompedString
+        , lazy
         , loop
         , map
         , oneOf
+        , run
         , spaces
         , succeed
+        , symbol
         , token
         )
 
 
-type Qstring
-    = Qstr String
+type Expr
+    = Str String
+    | Rx String
+    | Or Expr Expr
+    | And Expr Expr
 
 
-type Qs
-    = Qstring
-    | Qand (List Qstring)
+
+-- | Qnot Qexpr
+-- | Qfield String Qexpr
 
 
-qandP : Parser Qs
-qandP =
-    succeed Qand
-        |. spaces
-        |= loop [] qstringsP
+type Operator
+    = OrOp
+    | AndOp
 
 
-dumb : Parser (List String)
-dumb =
-    succeed 
+parse : String -> Result (List DeadEnd) Expr
+parse string =
+    run expression string
 
 
-qstringsP : List Qstring -> Parser (Step (List Qstring) (List Qstring))
-qstringsP acc =
+term : Parser Expr
+term =
     oneOf
-        [ spaces
-            |> map (\_ -> Loop acc)
-        , succeed (\qstr -> Loop (qstr :: acc))
-            |= qstringP
-        , succeed ()
-            |> map (\_ -> Done (List.reverse acc))
+        [ str
+        , rx
+        , succeed identity
+            |. symbol "("
+            |. spaces
+            |= lazy (\_ -> expression)
+            |. spaces
+            |. symbol ")"
         ]
 
 
-qstringP : Parser Qstring
-qstringP =
-    succeed Qstr
-        |= oneOf
-            [ quotedStringP
-            , unquotedStringP
-            ]
+expression : Parser Expr
+expression =
+    term
+        |> andThen (expression_ [])
 
 
-unquotedStringP : Parser String
-unquotedStringP =
-    chompWhile (\char -> char /= ' ')
-        |> getChompedString
+expression_ : List ( Expr, Operator ) -> Expr -> Parser Expr
+expression_ revOps expr =
+    oneOf
+        [ succeed Tuple.pair
+            |. spaces
+            |= operator
+            |. spaces
+            |= term
+            |> andThen
+                (\( op, newExpr ) ->
+                    expression_ (( expr, op ) :: revOps) newExpr
+                )
+        , lazy (\_ -> succeed (finalize revOps expr))
+        ]
 
 
-quotedStringP : Parser String
-quotedStringP =
-    succeed identity
+operator : Parser Operator
+operator =
+    oneOf
+        [ map (\_ -> OrOp) (symbol "or")
+        , map (\_ -> AndOp) (symbol "and")
+        ]
+
+
+str : Parser Expr
+str =
+    succeed Str
         |. token "\""
-        |= loop [] quoteEnvStringP
+        |= loop [] (quoteEnv '"')
 
 
-quoteEnvStringP : List String -> Parser (Step (List String) String)
-quoteEnvStringP acc =
+rx : Parser Expr
+rx =
+    succeed Rx
+        |. token "/"
+        |= loop [] (quoteEnv '/')
+
+
+quoteEnv : Char -> List String -> Parser (Step (List String) String)
+quoteEnv q acc =
     oneOf
         [ succeed (\chunk -> Loop (chunk :: acc))
             |. token "\\"
             |= oneOf
                 [ map (\_ -> "\\") (token "\\")
-                , map (\_ -> "\"") (token "\"")
+                , map
+                    (\_ ->
+                        String.fromChar q
+                    )
+                    (token (String.fromChar q))
                 ]
-        , token "\""
+        , token (String.fromChar q)
             |> map (\_ -> Done (String.join "" (List.reverse acc)))
-        , chompWhile (\char -> char /= '"' && char /= '\\')
+        , chompWhile (\char -> char /= q && char /= '\\')
             |> getChompedString
             |> map (\chunk -> Loop (chunk :: acc))
         ]
+
+
+finalize : List ( Expr, Operator ) -> Expr -> Expr
+finalize revOps finalExpr =
+    case revOps of
+        [] ->
+            finalExpr
+
+        ( expr, AndOp ) :: otherRevOps ->
+            finalize otherRevOps (And expr finalExpr)
+
+        ( expr, OrOp ) :: otherRevOps ->
+            Or (finalize otherRevOps expr) finalExpr
