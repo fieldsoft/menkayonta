@@ -529,10 +529,6 @@ const requestDocId = (_event, message) => {
   gvs.active[message.identifier].postMessage(message)
 }
 
-const requestAllDocId = (_event, message) => {
-  gvs.active[message.identifier].postMessage(message)
-}
-
 const command = (_event, envelope) => {
   switch (envelope.command) {
     case 'bulk-write': {

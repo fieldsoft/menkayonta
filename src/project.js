@@ -51,7 +51,7 @@ const startSync = async (url) => {
         info('change')
         info(info)
       })
-      .on('paused', (err) => {
+      .on('paused', (_err) => {
         // currently do nothing
       })
       .on('active', () => {
