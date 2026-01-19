@@ -10,13 +10,34 @@ import {
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import os from 'node:os'
+import { cwd } from 'node:process'
 import started from 'electron-squirrel-startup'
 import { v4 } from 'uuid'
 
+console.log(`The current environment is: ${process.env.NODE_ENV}`)
+
+console.log(`Current directory: ${cwd()}`)
+
+const home = (env) => {
+  if (env === 'production') {
+    return os.homedir()
+  } else if (env === 'development') {
+    return path.join(cwd(), '.devel')
+  } else if (env === 'testing') {
+    return path.join(cwd(), '.testing')
+  } else {
+    return cwd()
+  }
+}
+
 // Global variables.
 let gvs = {
-  projectsPath: path.join(os.homedir(), 'Menkayonta'),
-  globalConfPath: path.join(os.homedir(), 'Menkayonta', 'config.json'),
+  projectsPath: path.join(home(process.env.NODE_ENV), 'Menkayonta'),
+  globalConfPath: path.join(
+    home(process.env.NODE_ENV),
+    'Menkayonta',
+    'config.json',
+  ),
   globalConf: null,
   active: [],
 }
