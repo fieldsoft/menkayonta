@@ -36,7 +36,7 @@
     "electron": "^38.1.2",
     "elm": "^0.19.1-6",
     "elm-test": "^0.19.1-revision17",
-    "eslint": "^9.39.1",
+    "eslint": "^9.39.2",
     "globals": "^16.5.0",
     "prettier": "3.7.3",
     "vite-plugin-elm": "^3.0.1"
