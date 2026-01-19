@@ -2,7 +2,7 @@
 const design_version = 1
 const design_id = '_design/menkayonta'
 
-var menkayonta_dd = {
+export const menkayonta_dd = {
   _id: design_id,
   version: design_version,
   views: {
@@ -52,5 +52,3 @@ var menkayonta_dd = {
     },
   },
 }
-
-export { menkayonta_dd }

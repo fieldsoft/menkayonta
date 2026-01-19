@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { menkayonta_dd } from './design_docs/menkayonta.js'
+import { menkayonta_dd } from './design_docs/menkayonta.mjs'
 
 // Load the pouchdb packages. The pouchdb packages need commonjs
 // imports.

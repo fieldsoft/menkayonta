@@ -40,6 +40,7 @@
     "eslint": "^9.39.2",
     "globals": "^16.5.0",
     "prettier": "3.7.3",
+    "uvu": "^0.5.6",
     "vite-plugin-elm": "^3.0.1"
   },
   "dependencies": {
