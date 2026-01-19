@@ -21,7 +21,7 @@
     "publish": "electron-forge publish",
     "rebuild": "electron-rebuild -w sqlite3 -p",
     "lint": "eslint",
-    "test": "elm-test"
+    "test": "elm-test && uvu tests"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.9.0",
