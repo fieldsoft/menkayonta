@@ -182,6 +182,7 @@ main {
     display: flex;
 }
 
-.content {
+#content {
     display: flex;
+    justify-content: center;
 }

@@ -1,6 +1,7 @@
 port module Main exposing (main)
 
 import Browser
+import Browser.Dom as Dom
 import Dict exposing (Dict)
 import FormToolkit.Error as FError
 import FormToolkit.Field as Field exposing (Field)
@@ -29,6 +30,7 @@ import Url
 type Msg
     = NewTab Ventana
     | FocusTab TabPath
+    | GotoTab TabPath
     | CloseTab
     | CloneTab
     | Move Direction
@@ -84,6 +86,7 @@ already commonly referred to object or concepts such as "window" or
 -}
 type alias Ventana =
     { title : String
+    , fullTitle : String
     , vista : String
     , params : VentanaParams
     }
@@ -651,6 +654,24 @@ update msg model =
                 in
                 ( newmodel, Cmd.none )
 
+        GotoTab tp ->
+            let
+                id =
+                    tpToS tp
+            in
+            ( model
+            , Cmd.batch
+                [ Dom.getElement id
+                    |> Task.andThen
+                        (\el ->
+                            Dom.setViewport el.element.x el.element.y
+                        )
+                    |> Task.attempt (\_ -> None)
+                , Task.succeed (FocusTab tp)
+                    |> Task.perform identity
+                ]
+            )
+
         FocusTab tp ->
             let
                 title =
@@ -847,10 +868,10 @@ update msg model =
             ( model, requestAllDocId payload )
 
         ReceivedProjectIndex pi ->
-            handleReceivedVista pi "Index" model
+            handleReceivedVista pi "Index" "Index" model
 
         ReceivedInterlinearIndex ii ->
-            handleReceivedVista ii "Glosses" model
+            handleReceivedVista ii "Glosses" "Glosses" model
 
         ReceivedPersonIndex envelope ->
             case D.decodeValue envelopeDecoder envelope of
@@ -932,7 +953,11 @@ update msg model =
                             case doc_.doc of
                                 Just (M.MyInterlinear i) ->
                                     let
-                                        st =
+                                        full =
+                                            String.join " "
+                                                [ "Gloss: ", i.text ]
+
+                                        short =
                                             if String.length i.text > 5 then
                                                 String.join ""
                                                     [ "Gloss: "
@@ -941,13 +966,15 @@ update msg model =
                                                     ]
 
                                             else
-                                                String.join " "
-                                                    [ "Gloss: ", i.text ]
+                                                full
 
                                         vista =
-                                            { project = env.project
-                                            , kind = "interlinear"
-                                            , identifier = UUID.toString i.id
+                                            { project =
+                                                env.project
+                                            , kind =
+                                                "interlinear"
+                                            , identifier =
+                                                UUID.toString i.id
                                             , content =
                                                 DocContent
                                                     { view = doc_
@@ -955,7 +982,7 @@ update msg model =
                                                     }
                                             }
                                     in
-                                    handleVista vista st model
+                                    handleVista vista short full model
 
                                 _ ->
                                     ( model, Cmd.none )
@@ -993,7 +1020,7 @@ update msg model =
                     Dict.insert "new-project" pif model.forms
 
                 newVentana =
-                    Ventana "New Project" "new-project" defVParams
+                    Ventana "New Project" "New Project" "new-project" defVParams
 
                 newmodel =
                     { model | forms = forms }
@@ -1020,7 +1047,7 @@ update msg model =
                     pi.title ++ " Settings"
 
                 newVentana =
-                    Ventana tabtitle piid defVParams
+                    Ventana tabtitle tabtitle piid defVParams
 
                 newVista =
                     { project = pi.identifier
@@ -1073,6 +1100,7 @@ update msg model =
                     let
                         newVentana =
                             { title = "Import Options"
+                            , fullTitle = "Import Options"
                             , vista = "import-options"
                             , params = defVParams
                             }
@@ -1119,6 +1147,7 @@ update msg model =
                             let
                                 newVentana =
                                     { title = "Settings"
+                                    , fullTitle = "Settings"
                                     , vista = "global-settings"
                                     , params = defVParams
                                     }
@@ -1252,6 +1281,8 @@ update msg model =
                 ventana : Ventana
                 ventana =
                     { title =
+                        "New Gloss"
+                    , fullTitle =
                         "New Gloss"
                     , vista =
                         nid
@@ -2321,8 +2352,8 @@ maybeInitForm vid oldvistas =
             oldvistas
 
 
-handleReceivedVista : E.Value -> String -> Model -> ( Model, Cmd Msg )
-handleReceivedVista val st model =
+handleReceivedVista : E.Value -> String -> String -> Model -> ( Model, Cmd Msg )
+handleReceivedVista val short full model =
     case D.decodeValue vistaDecoder val of
         Err err ->
             ( { model | error = Just (Error (D.errorToString err)) }
@@ -2330,11 +2361,11 @@ handleReceivedVista val st model =
             )
 
         Ok v ->
-            handleVista v st model
+            handleVista v short full model
 
 
-handleVista : Vista -> String -> Model -> ( Model, Cmd Msg )
-handleVista vista st model =
+handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
+handleVista vista short full model =
     case getProjectTitle vista.project model of
         Nothing ->
             ( { model | error = Just (Error "No such project") }
@@ -2363,7 +2394,8 @@ handleVista vista st model =
                 Nothing ->
                     let
                         vt =
-                            { title = title ++ ": " ++ st
+                            { title = title ++ ": " ++ short
+                            , fullTitle = title ++ ": " ++ full
                             , vista = vista.identifier
                             , params = { defVParams | length = 20 }
                             }
@@ -2644,8 +2676,14 @@ view model =
     Html.main_ []
         [ Html.aside [ Attr.class "side" ]
             [ Html.nav []
-                [ Html.h2 [] [ Html.text "Projects" ]
+                [ Html.h4 [] [ Html.text "Projects" ]
                 , viewProjects model
+                , if Dict.isEmpty model.visVentanas then
+                    Html.text ""
+
+                  else
+                    Html.h4 [] [ Html.text "Open Tabs" ]
+                , viewTabList model.ventanas
                 ]
             ]
         , if Dict.isEmpty tabtree then
@@ -2661,7 +2699,7 @@ view model =
 
           else
             Html.div
-                [ Attr.class "content" ]
+                [ Attr.id "content" ]
                 (Dict.map (viewColumn model) tabtree
                     |> Dict.toList
                     |> List.map Tuple.second
@@ -2700,6 +2738,7 @@ viewTabHeader model tp =
             Dict.get tp model.ventanas
                 |> Maybe.withDefault
                     { title = "Error"
+                    , fullTitle = "Error"
                     , vista = "Vista not found"
                     , params = defVParams
                     }
@@ -2712,6 +2751,7 @@ viewTabHeader model tp =
     in
     Html.button
         [ Event.onClick (FocusTab tp)
+        , Attr.id (tpToS tp)
         , Attr.classList
             [ ( "focused", focused )
             , ( "secondary", not focused && visible )
@@ -2749,6 +2789,25 @@ viewProjects model =
         Just gconfig ->
             Html.ul [] <|
                 List.map (viewProject model) gconfig.projects
+
+
+viewTabList : Ventanas -> Html.Html Msg
+viewTabList ventanas =
+    Dict.map viewTabListItem ventanas
+        |> Dict.values
+        |> Html.ul []
+
+
+viewTabListItem : TabPath -> Ventana -> Html.Html Msg
+viewTabListItem tp ventana =
+    Html.li []
+        [ Html.a
+            [ Attr.href "#"
+            , Event.onClick <| GotoTab tp
+            , Attr.class "secondary"
+            ]
+            [ Html.text ventana.fullTitle ]
+        ]
 
 
 viewLoadingProject : Model -> ProjectInfo -> Html.Html Msg
