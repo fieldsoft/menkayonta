@@ -35,6 +35,9 @@
           # as the nodejs version below.
           buildInputs = with pkgs; [
             nodejs_22
+            flatpak-builder
+            wine
+            mono
           ];
           
           # Shell hook runs when entering the shell
