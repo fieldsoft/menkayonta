@@ -20,7 +20,8 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "rebuild": "electron-rebuild -w sqlite3 -p",
-    "lint": "echo \"No linting configured\""
+    "lint": "eslint",
+    "test": "elm-test"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.9.0",
