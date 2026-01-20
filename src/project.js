@@ -248,8 +248,16 @@ const handleMainMessage = (m) => {
       break
     }
 
+    // TODO: There are two possible formats sent to bulk-write. This
+    // needs to be fixed.
     case 'bulk-write': {
-      handleBulk(m.data.content)
+      if (m.data.content) {
+        handleBulk(m.data.content)
+      } else if (m.data.bulkDocs) {
+        handleBulk(m.data.bulkDocs)
+      } else {
+        error(Error(`Malformed bulk docs object: ${m.data}`))
+      }
       break
     }
 
