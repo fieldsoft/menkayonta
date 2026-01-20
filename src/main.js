@@ -14,25 +14,23 @@ import { cwd } from 'node:process'
 import started from 'electron-squirrel-startup'
 import { v4 } from 'uuid'
 
-console.log(`The current environment is: ${process.env.NODE_ENV}`)
+const production = process.env.NODE_ENV === 'production' || app.isPackaged
 
-console.log(`Current directory: ${cwd()}`)
-
-const home = (env) => {
-  if (env === 'production') {
+const home = () => {
+  if (production) {
     return os.homedir()
-  } else if (env === 'development') {
+  } else if (process.env.NODE_ENV === 'development') {
     return path.join(cwd(), '.devel')
-  } else if (env === 'testing') {
+  } else if (process.env.NODE_ENV === 'testing') {
     return path.join(cwd(), '.testing')
   } else {
-    return cwd()
+    throw Error('Undefined runtime environment. Try setting NODE_ENV.')
   }
 }
 
 // Global variables.
 let gvs = {
-  projectsPath: path.join(home(process.env.NODE_ENV), 'Menkayonta'),
+  projectsPath: path.join(home(), 'Menkayonta'),
   globalConfPath: path.join(
     home(process.env.NODE_ENV),
     'Menkayonta',
