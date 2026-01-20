@@ -1,18 +1,30 @@
 /* global MAIN_WINDOW_VITE_DEV_SERVER_URL, MAIN_WINDOW_VITE_NAME */
-import {
+// import {
+//   app,
+//   BrowserWindow,
+//   ipcMain,
+//   Menu,
+//   utilityProcess,
+//   dialog,
+// } from 'electron'
+// import path from 'node:path'
+// import fs from 'node:fs/promises'
+// import os from 'node:os'
+// import { cwd } from 'node:process'
+// import { v4 } from 'uuid'
+const {
   app,
   BrowserWindow,
   ipcMain,
   Menu,
   utilityProcess,
   dialog,
-} from 'electron'
-import path from 'node:path'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import { cwd } from 'node:process'
-import started from 'electron-squirrel-startup'
-import { v4 } from 'uuid'
+} = require('electron')
+const path = require('node:path')
+const { fs } = require('node:fs/promises')
+const os = require('node:os')
+const { cwd } = require('node:process')
+const { v4 } = require('uuid')
 
 const production = process.env.NODE_ENV === 'production' || app.isPackaged
 
@@ -45,9 +57,9 @@ const isMac = process.platform === 'darwin'
 
 // Handle creating/removing shortcuts on Windows when
 // installing/uninstalling.
-if (started) {
-  app.quit()
-}
+// if (started) {
+//   app.quit()
+// }
 
 // Set the window title according to renderer events
 const handleSetTitle = (event, title) => {

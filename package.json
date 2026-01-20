@@ -3,7 +3,7 @@
   "productName": "menkayonta",
   "version": "0.0.1",
   "description": "A linguistic research workbook",
-  "main": ".vite/build/main.js",
+  "main": "src/main.js",
   "keywords": [
     "linguistics"
   ],
@@ -15,24 +15,10 @@
   "author": "Noah Diewald",
   "type": "commonjs",
   "scripts": {
-    "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish",
-    "rebuild": "electron-rebuild -w sqlite3 -p",
     "lint": "eslint",
     "test": "elm-test && uvu tests"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.9.0",
-    "@electron-forge/maker-flatpak": "^7.11.1",
-    "@electron-forge/maker-squirrel": "^7.9.0",
-    "@electron-forge/maker-zip": "^7.9.0",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
-    "@electron-forge/plugin-fuses": "^7.9.0",
-    "@electron-forge/plugin-vite": "^7.9.0",
-    "@electron/fuses": "^1.8.0",
-    "@electron/rebuild": "^4.0.1",
     "@eslint/js": "^9.39.1",
     "electron": "^38.1.2",
     "elm": "^0.19.1-6",
@@ -40,15 +26,11 @@
     "eslint": "^9.39.2",
     "globals": "^16.5.0",
     "prettier": "3.7.3",
-    "uvu": "^0.5.6",
-    "vite-plugin-elm": "^3.0.1"
+    "uvu": "^0.5.6"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1",
-    "install": "^0.13.0",
     "npm": "^11.6.2",
     "pouchdb-adapter-http": "^9.0.0",
-    "pouchdb-adapter-node-sqlite": "^1.0.0",
     "pouchdb-adapter-node-websql": "^7.0.0",
     "pouchdb-core": "^9.0.0",
     "pouchdb-mapreduce": "^9.0.0",
