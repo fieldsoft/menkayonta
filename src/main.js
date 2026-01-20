@@ -386,7 +386,6 @@ const openGlobalConf = async () => {
 // 5. Initialize a database
 // 6. Send the globabl config to the renderer
 const createProject = async (_event, data) => {
-  console.log(data)
   const projectInfo = data.project
   const seed = data.seed
   const projPath = path.join(gvs.projectsPath, projectInfo.identifier)
