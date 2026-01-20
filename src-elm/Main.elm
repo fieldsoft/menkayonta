@@ -2445,6 +2445,10 @@ handleProjectSubmit ident fd model =
                         |> (\p ->
                                 E.object
                                     [ ( "project", jsonValue )
+                                    -- "seed" is for database seed
+                                    -- data.  Not to be confused with
+                                    -- the random seeds used for UUID
+                                    -- generation.
                                     , ( "seed"
                                       , E.list (EE.maybe identity) [ p ]
                                       )
