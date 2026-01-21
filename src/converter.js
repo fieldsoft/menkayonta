@@ -47,8 +47,6 @@ try {
   error(e)
 }
 
-info(JSON.stringify(args))
-
 const readJsonFile = (filepath) => {
   try {
     const json = fs.readFileSync(filepath, 'utf-8')
