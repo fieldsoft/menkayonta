@@ -1,11 +1,18 @@
-import { Elm } from '../src-elm/Converter.elm'
-import fs from 'node:fs/promises'
+const fs = require('node:fs')
+const path = require('node:path')
+const vm = require('node:vm')
 
 // Get a high-quality random seed to make a client UUID. We use 4
 // 32-bit integers
 const typedArray = new Int32Array(4)
 const randomSeeds = crypto.getRandomValues(typedArray)
 const args = JSON.parse(process.argv[2])
+
+// Load the elm code into the global namespace
+const elmPath = path.join(__dirname, 'conv.js')
+const code = fs.readFileSync(elmPath, 'utf-8')
+vm.runInThisContext(code, elmPath)
+
 let app
 
 const info = (msg) => {
@@ -42,12 +49,9 @@ try {
 
 info(JSON.stringify(args))
 
-const readJsonFile = async (filepath) => {
+const readJsonFile = (filepath) => {
   try {
-    const fh = await fs.open(filepath, 'r')
-    const json = await fh.readFile({ encoding: 'utf8' })
-
-    fh.close()
+    const json = fs.readFileSync(filepath, 'utf-8')
 
     return JSON.parse(json)
   } catch (e) {
@@ -57,10 +61,10 @@ const readJsonFile = async (filepath) => {
   }
 }
 
-const handleMainMessage = async (m) => {
+const handleMainMessage = (m) => {
   switch (m.data.command) {
     case 'convert-to-batch': {
-      const parsedJson = await readJsonFile(m.data.filepath)
+      const parsedJson = readJsonFile(m.data.filepath)
 
       if (m.data.kind === 'Dative Form Json') {
         info('Got!!')
@@ -81,7 +85,6 @@ const handleMainMessage = async (m) => {
 process.parentPort.on('message', handleMainMessage)
 
 app.ports.sendBulkDocs.subscribe((job) => {
-  console.log('here too')
   if (Array.isArray(job.payload)) {
     process.parentPort.postMessage({
       command: 'bulk-write',
@@ -99,5 +102,6 @@ app.ports.reportError.subscribe((error) => {
 })
 
 app.ports.reportInfo.subscribe((msg) => {
-  info(msg)
+  // this should eventually be enabled by a debug setting.
+  //info(msg)
 })

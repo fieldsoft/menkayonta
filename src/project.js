@@ -1,5 +1,5 @@
-import path from 'node:path'
-import { menkayonta_dd } from './design_docs/menkayonta.mjs'
+const path = require('node:path')
+const { menkayonta_dd } = require('./design_docs/menkayonta.js')
 
 // Load the pouchdb packages. The pouchdb packages need commonjs
 // imports.
@@ -255,8 +255,10 @@ const handleMainMessage = (m) => {
         handleBulk(m.data.content)
       } else if (m.data.bulkDocs) {
         handleBulk(m.data.bulkDocs)
+      } else if (m.bulkDocs) {
+        handleBulk(m.bulkDocs)
       } else {
-        error(Error(`Malformed bulk docs object: ${m.data}`))
+        error(Error(`Malformed bulk docs object: ${JSON.stringify(m)}`))
       }
       break
     }

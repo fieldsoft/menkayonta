@@ -21,7 +21,7 @@ const {
   dialog,
 } = require('electron')
 const path = require('node:path')
-const { fs } = require('node:fs/promises')
+const fs = require('node:fs/promises')
 const os = require('node:os')
 const { cwd } = require('node:process')
 const { v4 } = require('uuid')
@@ -43,11 +43,7 @@ const home = () => {
 // Global variables.
 let gvs = {
   projectsPath: path.join(home(), 'Menkayonta'),
-  globalConfPath: path.join(
-    home(process.env.NODE_ENV),
-    'Menkayonta',
-    'config.json',
-  ),
+  globalConfPath: path.join(home(), 'Menkayonta', 'config.json'),
   globalConf: null,
   active: [],
 }
@@ -300,12 +296,10 @@ const createWindow = () => {
   gvs.webContents = mainWindow.webContents
 
   // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+  if (process.env.NODE_ENV) {
+    mainWindow.loadURL('http://localhost:4403')
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-    )
+    mainWindow.loadFile(path.join(process.cwd(), `/renderer/index.html`))
   }
 }
 
@@ -488,7 +482,7 @@ const handleImportWrite = (data) => {
     const payload = {
       command: 'bulk-write',
       identifier: data.identifier,
-      bulkDocs: data.bulkDocs,
+      content: data.content,
     }
 
     gvs.active[data.identifier].postMessage(payload)
