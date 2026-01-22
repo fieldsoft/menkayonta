@@ -42,6 +42,7 @@ type Msg
     | GotoTab TabPath
     | ImportOptionsFileMenu String
     | Move Direction
+    | MultiMsg (List Msg)
     | NewProjectMenu String
     | NewTab Ventana
     | None
@@ -631,6 +632,10 @@ update msg model =
         -- A message for doing nothing
         None ->
             ( model, Cmd.none )
+
+        -- A message of many messages
+        MultiMsg msgs ->
+            ( model, msgs |> List.map sendMsg |> Cmd.batch )
 
         SetTime time ->
             ( { model | time = time }, Cmd.none )
@@ -1789,18 +1794,88 @@ handleCFImpChange fid str cfimp =
                 
 handleCFImpChange_ : ImportField -> String -> ImportFormData -> ImportFormData
 handleCFImpChange_ fid str imp =
+    let
+        kind =
+            imp.kind
+
+        kindopts =
+            List.map Tuple.second kind.options
+
+        project =
+            imp.project
+
+        projopts =
+            List.map Tuple.second project.options
+
+        toperr =
+            "Pleae correct form."
+
+        valid imp_ =
+            List.all identity
+                [ imp_.kind.valid
+                , imp_.project.valid
+                ]
+                
+        defImp imp_ =
+            let
+                valid_ =
+                    valid imp_
+            in
+            { imp_
+                | changed = True
+                , valid = valid_
+                , error =
+                  if valid_ then
+                      ""
+
+                  else
+                      toperr
+            }
+    in
     case fid of
         ImpKindF ->
-            imp
+            if List.member str kindopts then
+                { imp | kind = { kind
+                                   | value = str
+                                   , valid = True
+                                   , changed = True
+                                   , error = ""
+                               }
+                } |> defImp
+
+            else
+                { imp | kind = { kind
+                                   | value = ""
+                                   , valid = False
+                                   , changed = True
+                                   , error = "Choose an import type."
+                               }
+                } |> defImp
                 
         ImpProjectF ->
-            imp
+            if List.member str projopts then
+                { imp | project = { project
+                                   | value = str
+                                   , valid = True
+                                   , changed = True
+                                   , error = ""
+                               }
+                } |> defImp
+
+            else
+                { imp | project = { project
+                                   | value = ""
+                                   , valid = False
+                                   , changed = True
+                                   , error = "Choose a project."
+                               }
+                } |> defImp
                 
         ImpImportF ->
             imp
                 
         ImpCancelF ->
-            imp
+            importFormData
 
 
 handleCFIntChange : InterlinearField -> String -> CForm -> CForm
@@ -2571,10 +2646,10 @@ handleVista vista short full model =
                             , params = { defVParams | length = 20 }
                             }
                     in
-                    update (NewTab vt) newmodel
+                    (newmodel, sendMsg (NewTab vt))
 
                 Just tp ->
-                    update (FocusTab tp) newmodel
+                    (newmodel, sendMsg (FocusTab tp))
 
 
 handleSubmit : List String -> FormData -> Model -> ( Model, Cmd Msg )
@@ -3660,6 +3735,15 @@ viewCFImportVista tp imp =
                     , id = Nothing
                     }
               ]
+        , Html.button
+              [ Attr.class "secondary"
+              , Attr.type_ "button"
+              , Event.onClick <|
+                  MultiMsg [ FormChange tp (ImportForm ImpCancelF) ""
+                           , CloseTab
+                           ]
+              ]
+              [ Html.text "Cancel" ]
         ]
 
 
