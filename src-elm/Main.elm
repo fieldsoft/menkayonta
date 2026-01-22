@@ -1398,7 +1398,7 @@ update msg model =
                                 Just ( DocContent dc, vista ) ->
                                     let
                                         ( nmodel, ncmd ) =
-                                            handleDocContentSubmit
+                                            handleCFormSubmit
                                                 dc.edit
                                                 vista
                                                 model
@@ -1408,7 +1408,7 @@ update msg model =
                                 Just ( NewDocContent fd, vista ) ->
                                     let
                                         ( nmodel, ncmd ) =
-                                            handleDocContentSubmit
+                                            handleCFormSubmit
                                                 (Just fd)
                                                 vista
                                                 model
@@ -1420,7 +1420,40 @@ update msg model =
                                         ]
                                     )
 
-                                _ ->
+                                Just ( ImportOptionsContent imf, vista )  ->
+                                    let
+                                        ( nmodel, ncmd ) =
+                                            handleCFormSubmit
+                                                (Just imf)
+                                                vista
+                                                    model
+                                    in
+                                    ( nmodel
+                                    , Cmd.batch
+                                        [ sendMsg CloseTab
+                                        , ncmd
+                                        ]
+                                    )
+
+                                Just ( TranslationContent _, _ ) ->
+                                    ( model, Cmd.none )
+
+                                Just ( TranslationsContent _, _ ) ->
+                                    ( model, Cmd.none )
+
+                                Just ( InterlinearsContent _, _ ) ->
+                                    ( model, Cmd.none )
+
+                                Just ( ProjectInfoContent _, _ ) ->
+                                    ( model, Cmd.none )
+
+                                Just ( GlobalSettingsContent _, _ ) ->
+                                    ( model, Cmd.none )
+
+                                Just ( ErrorContent _, _ ) ->
+                                    ( model, Cmd.none )
+
+                                Nothing ->
                                     ( model, Cmd.none )
 
                         Just fd ->
@@ -1658,11 +1691,28 @@ update msg model =
                     ( model, Cmd.none )
 
 
-handleDocContentSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
-handleDocContentSubmit edit vista model =
+handleCFormSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
+handleCFormSubmit edit vista model =
     case edit of
         Just (ImportCForm imp) ->
-            ( model, Cmd.none )
+            let
+                jsonValue =
+                    E.object
+                        [ ("filepath", E.string imp.filepath)
+                        , ("kind", E.string imp.kind.value)
+                        , ("project", E.string imp.kind.value)
+                        ]
+
+                nvista =
+                    { vista |
+                          content =
+                          ImportOptionsContent (ImportCForm importFormData)
+                    }
+
+                nvistas =
+                    Dict.insert nvista.identifier nvista model.vistas
+            in
+            ( { model | vistas = nvistas }, importFile jsonValue )
 
         Just (InterlinearCForm int) ->
             let
