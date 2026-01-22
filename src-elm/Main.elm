@@ -28,38 +28,37 @@ import Url
 
 
 type Msg
-    = NewTab Ventana
-    | FocusTab TabPath
-    | GotoTab TabPath
-    | CloseTab
-    | CloneTab
-    | Move Direction
-    | SetWindowTitle String
-    | ReceivedGlobalConfig E.Value
-    | ReceivedProjectIndex E.Value
-    | ReceivedInterlinearIndex E.Value
-    | ReceivedPersonIndex E.Value
-    | ReceivedDoc E.Value
-    | ReceivedAllDoc E.Value
-    | RequestProjectIndex String
-    | RequestInterlinearIndex String
-    | RequestDocId String String
-    | RequestAllDocId String String
-    | NewProjectMenu String
-    | ImportOptionsFileMenu String
-    | GlobalSettingsMenu E.Value
-    | ProjectInfoFormChange TabPath (Field.Msg FieldKind)
-    | ImportOptionsFormChange (Field.Msg FieldKind)
-    | GlobalSettingsFormChange (Field.Msg FieldKind)
-    | ProjectSettingsEdit ProjectInfo
-    | FormInit String CForm
-    | FormSubmit TabPath
-    | FormChange TabPath FieldId String
+    = ChangeEditParam TabPath
     | ChangeLengthParam TabPath String
     | ChangeSearchParam TabPath String
-    | ChangeEditParam TabPath
-    | SetTime Time.Posix
+    | CloneTab
+    | CloseTab
+    | FocusTab TabPath
+    | FormChange TabPath FieldId String
+    | FormInit String CForm
+    | FormSubmit TabPath
+    | GlobalSettingsFormChange (Field.Msg FieldKind)
+    | GlobalSettingsMenu E.Value
+    | GotoTab TabPath
+    | ImportOptionsFileMenu String
+    | Move Direction
+    | NewProjectMenu String
+    | NewTab Ventana
     | None
+    | ProjectInfoFormChange TabPath (Field.Msg FieldKind)
+    | ProjectSettingsEdit ProjectInfo
+    | ReceivedAllDoc E.Value
+    | ReceivedDoc E.Value
+    | ReceivedGlobalConfig E.Value
+    | ReceivedInterlinearIndex E.Value
+    | ReceivedPersonIndex E.Value
+    | ReceivedProjectIndex E.Value
+    | RequestAllDocId String String
+    | RequestDocId String String
+    | RequestInterlinearIndex String
+    | RequestProjectIndex String
+    | SetTime Time.Posix
+    | SetWindowTitle String
 
 
 type alias Model =
@@ -158,8 +157,7 @@ type alias ProjectInfo =
 
 
 type alias ImportOptions =
-    { filepath : Maybe String
-    , content : Maybe String
+    { filepath : String
     , kind : String
     , project : String
     }
@@ -238,10 +236,6 @@ type FieldKind
     | ProjectTitle
     | ProjectEnabled
     | ProjectUrl
-    | ImportKind
-    | ImportProject
-    | ImportFile
-    | ImportContent
     | GlobalName
     | GlobalEmail
     | GlobalUUID
@@ -254,7 +248,7 @@ type Content
     | DocContent { view : M.OneDoc, edit : Maybe CForm }
     | NewDocContent CForm
     | ProjectInfoContent ProjectInfo
-    | ImportOptionsContent ImportOptions
+    | ImportOptionsContent CForm
     | GlobalSettingsContent GlobalSettings
     | ErrorContent Error
 
@@ -282,7 +276,7 @@ globalVistas =
       , { project = "global"
         , kind = "import-options"
         , identifier = "import-options"
-        , content = ImportOptionsContent (ImportOptions Nothing Nothing "" "")
+        , content = ImportOptionsContent (ImportCForm importFormData)
         }
       )
     , ( "global-settings"
@@ -298,6 +292,16 @@ globalVistas =
 
 type alias StringField =
     { value : String
+    , valid : Bool
+    , error : String
+    , changed : Bool
+    , original : String
+    }
+
+
+type alias SelectField =
+    { value : String
+    , options : List ( String, String )
     , valid : Bool
     , error : String
     , changed : Bool
@@ -336,12 +340,32 @@ type alias InterlinearFormData =
     }
 
 
+type alias ImportFormData =
+    { changed : Bool
+    , submitted : Bool
+    , error : String
+    , valid : Bool
+    , filepath : String
+    , kind : SelectField
+    , project : SelectField
+    }
+
+
 type CForm
     = InterlinearCForm InterlinearFormData
+    | ImportCForm ImportFormData
 
 
 type FieldId
     = InterlinearForm InterlinearField
+    | ImportForm ImportField
+
+
+type ImportField
+    = ImpKindF
+    | ImpProjectF
+    | ImpImportF
+    | ImpCancelF
 
 
 type InterlinearField
@@ -367,6 +391,17 @@ blankString =
     }
 
 
+blankSelect : SelectField
+blankSelect =
+    { value = ""
+    , options = []
+    , valid = True
+    , error = ""
+    , changed = False
+    , original = ""
+    }
+
+
 interlinearFormData : InterlinearFormData
 interlinearFormData =
     { id = Nothing
@@ -385,6 +420,21 @@ interlinearFormData =
         }
     , translations = []
     , counter = 0
+    }
+
+
+importFormData =
+    { changed = False
+    , submitted = False
+    , error = "Please fill the empty form."
+    , valid = False
+    , filepath = ""
+    , kind = { blankSelect | options = [ ( "Dative Form Json"
+                                         , "Dative Form Json"
+                                         )
+                                       ]
+             }
+    , project = blankSelect
     }
 
 
@@ -432,7 +482,6 @@ importOptionsFields gc filesource =
                     Field.textarea
                         [ Field.label "Content"
                         , Field.required True
-                        , Field.identifier ImportContent
                         , Field.name "content"
                         ]
 
@@ -441,7 +490,6 @@ importOptionsFields gc filesource =
                         [ Field.label "File"
                         , Field.required True
                         , Field.disabled True
-                        , Field.identifier ImportFile
                         , Field.name "filepath"
                         , Field.value (Value.string filepath)
                         ]
@@ -460,14 +508,12 @@ importOptionsFields gc filesource =
         [ Field.select
             [ Field.label "Target Project"
             , Field.required True
-            , Field.identifier ImportProject
             , Field.name "project"
             , Field.options projects
             ]
         , Field.select
             [ Field.label "Import Type"
             , Field.required True
-            , Field.identifier ImportKind
             , Field.name "kind"
             , Field.stringOptions [ "Dative Form Json" ]
             ]
@@ -547,12 +593,6 @@ init flags =
             , result = Nothing
             }
 
-        importForm =
-            { fields = importOptionsFields Nothing Nothing
-            , submitted = False
-            , result = Nothing
-            }
-
         globalForm =
             { fields = globalSettingsFields <| GlobalSettings "" "" Nothing
             , submitted = False
@@ -562,7 +602,6 @@ init flags =
         forms =
             Dict.empty
                 |> Dict.insert "new-project" newProjectForm
-                |> Dict.insert "import-options" importForm
                 |> Dict.insert "global-settings" globalForm
     in
     ( { gconfig = Nothing
@@ -667,8 +706,7 @@ update msg model =
                             Dom.setViewport el.element.x el.element.y
                         )
                     |> Task.attempt (\_ -> None)
-                , Task.succeed (FocusTab tp)
-                    |> Task.perform identity
+                , sendMsg (FocusTab tp)
                 ]
             )
 
@@ -812,8 +850,7 @@ update msg model =
                             }
 
                         openMenu =
-                            Task.succeed (GlobalSettingsMenu gc)
-                                |> Task.perform identity
+                            sendMsg (GlobalSettingsMenu gc)
 
                         command =
                             case ( gc_.name, gc_.email ) of
@@ -1080,20 +1117,49 @@ update msg model =
         -- Open or focus the Import Options form with a filename.
         ImportOptionsFileMenu filepath ->
             let
+                gc =
+                    case model.gconfig of
+                        Nothing ->
+                            []
+
+                        Just gconf ->
+                            gconf.projects
+                                |> List.map
+                                    (\x ->
+                                        ( x.title
+                                        , x.identifier
+                                        )
+                                    )
+
                 formData =
-                    { fields =
-                        importOptionsFields model.gconfig (Just filepath)
-                    , submitted =
-                        False
-                    , result =
-                        Nothing
+                    { importFormData
+                        | filepath = filepath
+                        , kind =
+                            { blankSelect
+                                | options = [ ( "Dative Form Json"
+                                              , "Dative Form Json"
+                                              )
+                                            ]
+                            }
+                        , project =
+                            { blankSelect | options = gc }
                     }
 
-                forms =
-                    Dict.insert "import-options" formData model.forms
+                content =
+                    ImportOptionsContent (ImportCForm formData)
+
+                vista =
+                    { project = "global"
+                    , kind = "import-options"
+                    , identifier = "import-options"
+                    , content = content
+                    }
+
+                vistas =
+                    Dict.insert "import-options" vista model.vistas
 
                 newmodel =
-                    { model | forms = forms }
+                    { model | vistas = vistas }
             in
             case getByVista "import-options" model.ventanas of
                 Nothing ->
@@ -1105,10 +1171,14 @@ update msg model =
                             , params = defVParams
                             }
                     in
-                    update (NewTab newVentana) newmodel
+                    ( newmodel
+                    , sendMsg (NewTab newVentana)
+                    )
 
                 Just tp ->
-                    update (FocusTab tp) newmodel
+                    ( newmodel
+                    , sendMsg (GotoTab tp)
+                    )
 
         -- Open or focus the Global Settings form with updated global
         -- configuration.
@@ -1192,34 +1262,34 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        ImportOptionsFormChange mesg ->
-            case Dict.get "import-options" model.forms of
-                Just fd ->
-                    let
-                        ( fields, result ) =
-                            FParse.parseUpdate importParser mesg fd.fields
+        -- ImportOptionsFormChange mesg ->
+        --     case Dict.get "import-options" model.forms of
+        --         Just fd ->
+        --             let
+        --                 ( fields, result ) =
+        --                     FParse.parseUpdate importParser mesg fd.fields
 
-                        result_ =
-                            case result of
-                                Ok r ->
-                                    Ok (ImportOptionsContent r)
+        --                 result_ =
+        --                     case result of
+        --                         Ok r ->
+        --                             Ok (ImportOptionsContent r)
 
-                                Err e ->
-                                    Err e
+        --                         Err e ->
+        --                             Err e
 
-                        ipf =
-                            { fd
-                                | fields = fields
-                                , result = Just result_
-                            }
+        --                 ipf =
+        --                     { fd
+        --                         | fields = fields
+        --                         , result = Just result_
+        --                     }
 
-                        forms =
-                            Dict.insert "import-options" ipf model.forms
-                    in
-                    ( { model | forms = forms }, Cmd.none )
+        --                 forms =
+        --                     Dict.insert "import-options" ipf model.forms
+        --             in
+        --             ( { model | forms = forms }, Cmd.none )
 
-                Nothing ->
-                    ( model, Cmd.none )
+        --         Nothing ->
+        --             ( model, Cmd.none )
 
         GlobalSettingsFormChange mesg ->
             case Dict.get "global-settings" model.forms of
@@ -1249,6 +1319,9 @@ update msg model =
 
                 Nothing ->
                     ( model, Cmd.none )
+
+        FormInit _ (ImportCForm imp) ->
+            (model, Cmd.none)
 
         FormInit project (InterlinearCForm int) ->
             let
@@ -1300,8 +1373,7 @@ update msg model =
                 | seeds = seeds
                 , vistas = Dict.insert nid vista model.vistas
               }
-            , Task.succeed (NewTab ventana)
-                |> Task.perform identity
+            , sendMsg (NewTab ventana)
             )
 
         FormSubmit tp ->
@@ -1340,8 +1412,7 @@ update msg model =
                                     in
                                     ( nmodel
                                     , Cmd.batch
-                                        [ Task.succeed CloseTab
-                                            |> Task.perform identity
+                                        [ sendMsg CloseTab
                                         , ncmd
                                         ]
                                     )
@@ -1449,13 +1520,13 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-                Just ( NewDocContent (InterlinearCForm int), ( vista, ventana ) ) ->
+                Just ( ImportOptionsContent cfimp, ( vista, ventana ) ) ->
                     let
-                        nint =
-                            handleCFIntChange fid str int
+                        ncfimp =
+                            handleCFChange fid str cfimp
 
                         ncontent =
-                            NewDocContent (InterlinearCForm nint)
+                            ImportOptionsContent ncfimp
 
                         nvista =
                             { vista | content = ncontent }
@@ -1465,13 +1536,55 @@ update msg model =
                                 ventana.vista
                                 nvista
                                 model.vistas
+
+                        nimp =
+                            case ncfimp of
+                                ImportCForm imp ->
+                                    imp
+
+                                -- This shouldn't happen.
+                                _ ->
+                                    importFormData
+                    in
+                    ( { model | vistas = nvistas }
+                    , if nimp.submitted then
+                        sendMsg (FormSubmit tp)
+
+                      else
+                        Cmd.none
+                    )
+
+                Just ( NewDocContent cfint, ( vista, ventana ) ) ->
+                    let
+                        ncfint =
+                            handleCFChange fid str cfint
+
+                        ncontent =
+                            NewDocContent ncfint
+
+                        nvista =
+                            { vista | content = ncontent }
+
+                        nvistas =
+                            Dict.insert
+                                ventana.vista
+                                nvista
+                                model.vistas
+
+                        nint =
+                            case ncfint of
+                                InterlinearCForm int ->
+                                    int
+
+                                -- This shouldn't happen.
+                                _ ->
+                                    interlinearFormData
                     in
                     ( { model | vistas = nvistas }
                     , if nint.submitted then
                         Cmd.batch
                             [ Task.perform SetTime Time.now
-                            , Task.succeed (FormSubmit tp)
-                                |> Task.perform identity
+                            , sendMsg (FormSubmit tp)
                             ]
 
                       else
@@ -1483,13 +1596,13 @@ update msg model =
                         Nothing ->
                             ( model, Cmd.none )
 
-                        Just (InterlinearCForm int) ->
+                        Just cfint ->
                             let
-                                nint =
-                                    handleCFIntChange fid str int
+                                ncfint =
+                                    handleCFChange fid str cfint
 
                                 nedit =
-                                    Just (InterlinearCForm nint)
+                                    Just ncfint
 
                                 ncontent =
                                     DocContent { dc | edit = nedit }
@@ -1502,13 +1615,21 @@ update msg model =
                                         ventana.vista
                                         nvista
                                         model.vistas
+
+                                nint =
+                                    case ncfint of
+                                        InterlinearCForm int ->
+                                            int
+
+                                        -- This shouldn't happen
+                                        _ ->
+                                            interlinearFormData
                             in
                             ( { model | vistas = nvistas }
                             , if nint.submitted then
                                 Cmd.batch
                                     [ Task.perform SetTime Time.now
-                                    , Task.succeed (FormSubmit tp)
-                                        |> Task.perform identity
+                                    , sendMsg (FormSubmit tp)
                                     ]
 
                               else
@@ -1527,9 +1648,6 @@ update msg model =
                 Just ( ProjectInfoContent _, _ ) ->
                     ( model, Cmd.none )
 
-                Just ( ImportOptionsContent _, _ ) ->
-                    ( model, Cmd.none )
-
                 Just ( GlobalSettingsContent _, _ ) ->
                     ( model, Cmd.none )
 
@@ -1540,6 +1658,9 @@ update msg model =
 handleDocContentSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
 handleDocContentSubmit edit vista model =
     case edit of
+        Just (ImportCForm imp) ->
+            ( model, Cmd.none)
+                
         Just (InterlinearCForm int) ->
             let
                 nventanas =
@@ -1646,8 +1767,54 @@ handleDocContentSubmit edit vista model =
             ( model, Cmd.none )
 
 
-handleCFIntChange : FieldId -> String -> InterlinearFormData -> InterlinearFormData
-handleCFIntChange fid str int =
+handleCFChange : FieldId -> String -> CForm -> CForm
+handleCFChange fid str data =
+    case fid of
+        ImportForm field ->
+            handleCFImpChange field str data
+
+        InterlinearForm field ->
+            handleCFIntChange field str data
+
+                
+handleCFImpChange : ImportField -> String -> CForm -> CForm
+handleCFImpChange fid str cfimp =
+    case cfimp of
+        ImportCForm imp ->
+            handleCFImpChange_ fid str imp |> ImportCForm
+
+        _ ->
+            cfimp
+
+                
+handleCFImpChange_ : ImportField -> String -> ImportFormData -> ImportFormData
+handleCFImpChange_ fid str imp =
+    case fid of
+        ImpKindF ->
+            imp
+                
+        ImpProjectF ->
+            imp
+                
+        ImpImportF ->
+            imp
+                
+        ImpCancelF ->
+            imp
+
+
+handleCFIntChange : InterlinearField -> String -> CForm -> CForm
+handleCFIntChange fid str cfint =
+    case cfint of
+        InterlinearCForm int ->
+            handleCFIntChange_ fid str int |> InterlinearCForm
+
+        _ ->
+            cfint
+                
+    
+handleCFIntChange_ : InterlinearField -> String -> InterlinearFormData -> InterlinearFormData
+handleCFIntChange_ fid str int =
     let
         tokens s =
             String.words s
@@ -1798,7 +1965,7 @@ handleCFIntChange fid str int =
             tokens int.text.value
     in
     case fid of
-        InterlinearForm IntTextF ->
+        IntTextF ->
             if String.isEmpty str then
                 { int
                     | text =
@@ -1823,7 +1990,7 @@ handleCFIntChange fid str int =
                 }
                     |> defInt
 
-        InterlinearForm IntBreaksF ->
+        IntBreaksF ->
             let
                 newTokens =
                     tokens str
@@ -1874,7 +2041,7 @@ handleCFIntChange fid str int =
                 }
                     |> defInt
 
-        InterlinearForm IntGlossesF ->
+        IntGlossesF ->
             let
                 newTokens =
                     tokens str
@@ -1956,7 +2123,7 @@ handleCFIntChange fid str int =
                     ( True, Nothing ) ->
                         ok
 
-        InterlinearForm IntPhonemicF ->
+        IntPhonemicF ->
             let
                 newTokens =
                     tokens str
@@ -2007,7 +2174,7 @@ handleCFIntChange fid str int =
                 }
                     |> defInt
 
-        InterlinearForm IntJudgmentF ->
+        IntJudgmentF ->
             { int
                 | annotations =
                     { annotations
@@ -2022,7 +2189,7 @@ handleCFIntChange fid str int =
             }
                 |> defInt
 
-        InterlinearForm IntTransF ->
+        IntTransF ->
             case String.toInt str of
                 Nothing ->
                     if str == "add" then
@@ -2079,7 +2246,7 @@ handleCFIntChange fid str int =
                         Nothing ->
                             int |> defInt
 
-        InterlinearForm (IntTransTranslationF id) ->
+        IntTransTranslationF id ->
             case divided id of
                 Just ( prefix, translation, suffix ) ->
                     let
@@ -2131,7 +2298,7 @@ handleCFIntChange fid str int =
                 Nothing ->
                     int
 
-        InterlinearForm (IntTransJudgmentF id) ->
+        IntTransJudgmentF id ->
             case divided id of
                 Just ( prefix, translation, suffix ) ->
                     let
@@ -2159,14 +2326,14 @@ handleCFIntChange fid str int =
                 Nothing ->
                     int
 
-        InterlinearForm IntSaveF ->
+        IntSaveF ->
             if defInt int |> .valid then
                 { int | submitted = True }
 
             else
                 int
 
-        InterlinearForm IntCancelF ->
+        IntCancelF ->
             -- Indicates that this is a new item
             if String.isEmpty text.original then
                 interlinearFormData
@@ -2327,6 +2494,10 @@ maybeInitForm vid oldvistas =
         Just ( NewDocContent (InterlinearCForm int), vista ) ->
             oldvistas
 
+        -- This form cannot be used to create new content.
+        Just ( NewDocContent (ImportCForm _), _ ) ->
+            oldvistas
+
         Just ( TranslationContent _, _ ) ->
             oldvistas
 
@@ -2445,6 +2616,7 @@ handleProjectSubmit ident fd model =
                         |> (\p ->
                                 E.object
                                     [ ( "project", jsonValue )
+
                                     -- "seed" is for database seed
                                     -- data.  Not to be confused with
                                     -- the random seeds used for UUID
@@ -2915,11 +3087,11 @@ viewVista model tp vista =
                 Nothing ->
                     Html.text "No such form."
 
-        ImportOptionsContent _ ->
+        ImportOptionsContent (ImportCForm imp) ->
             case Dict.get "import-options" model.forms of
                 Just f ->
                     Html.form [ Event.onSubmit (FormSubmit tp) ]
-                        [ Field.toHtml ImportOptionsFormChange f.fields
+                        [ Html.text imp.filepath
                         , Html.button [ Event.onClick (FormSubmit tp) ]
                             [ Html.text "Save" ]
                         , Html.button [ Event.onClick CloseTab ]
@@ -2928,6 +3100,9 @@ viewVista model tp vista =
 
                 Nothing ->
                     Html.text "No such form."
+
+        ImportOptionsContent _ ->
+            Html.text "no such form"
 
         GlobalSettingsContent _ ->
             let
@@ -3195,6 +3370,15 @@ viewDocContentEditVista tp cform =
             else
                 viewCFInterlinearVista tp int
 
+        ImportCForm imp ->
+            if imp.submitted then
+                Html.span
+                    [ Attr.attribute "aria-busy" "true" ]
+                    [ Html.text "Saving changes." ]
+
+            else
+                viewCFImportVista tp imp
+
 
 type alias FieldDescription =
     { formname : String
@@ -3217,8 +3401,8 @@ type alias FieldDescription =
     }
 
 
-viewCFInterlinearField : FieldDescription -> Html.Html Msg
-viewCFInterlinearField fd =
+viewCField : FieldDescription -> Html.Html Msg
+viewCField fd =
     let
         id =
             Maybe.withDefault -1 fd.id
@@ -3290,7 +3474,7 @@ viewCFInterlinearTrans tp trans =
                 , Html.text "Remove Translation"
                 ]
             ]
-        , viewCFInterlinearField
+        , viewCField
             { formname = "interlinear"
             , label = "Translation"
             , kind = Html.textarea
@@ -3306,7 +3490,7 @@ viewCFInterlinearTrans tp trans =
             , spellcheck = True
             , id = Just trans.id
             }
-        , viewCFInterlinearField
+        , viewCField
             { formname = "interlinear"
             , label = "Translation Judgment"
             , kind = Html.input
@@ -3329,7 +3513,7 @@ viewCFInterlinearVista : TabPath -> InterlinearFormData -> Html.Html Msg
 viewCFInterlinearVista tp int =
     Html.form []
         [ Html.fieldset []
-            [ viewCFInterlinearField
+            [ viewCField
                 { formname = "interlinear"
                 , label = "Text"
                 , kind = Html.textarea
@@ -3347,7 +3531,7 @@ viewCFInterlinearVista tp int =
                 }
             ]
         , Html.fieldset []
-            [ viewCFInterlinearField
+            [ viewCField
                 { formname = "interlinear"
                 , label = "Text Judgment"
                 , kind = Html.input
@@ -3363,7 +3547,7 @@ viewCFInterlinearVista tp int =
                 , spellcheck = False
                 , id = Nothing
                 }
-            , viewCFInterlinearField
+            , viewCField
                 { formname = "interlinear"
                 , label = "Phonemic Transcription"
                 , kind = Html.textarea
@@ -3379,7 +3563,7 @@ viewCFInterlinearVista tp int =
                 , spellcheck = False
                 , id = Nothing
                 }
-            , viewCFInterlinearField
+            , viewCField
                 { formname = "interlinear"
                 , label = "Affix Breaks"
                 , kind = Html.textarea
@@ -3399,7 +3583,7 @@ viewCFInterlinearVista tp int =
                 , spellcheck = False
                 , id = Nothing
                 }
-            , viewCFInterlinearField
+            , viewCField
                 { formname = "interlinear"
                 , label = "Affix Glosses"
                 , kind = Html.textarea
@@ -3452,6 +3636,30 @@ viewCFInterlinearVista tp int =
                 FormChange tp (InterlinearForm IntCancelF) ""
             ]
             [ Html.text "Cancel" ]
+        ]
+
+
+viewCFImportVista : TabPath -> ImportFormData -> Html.Html Msg
+viewCFImportVista tp imp =
+    Html.form []
+        [ Html.fieldset []
+              [ viewCField
+                    { formname = "importoptions"
+                    , label = "File Path"
+                    , kind = Html.input
+                    , oninput = FormChange tp (InterlinearForm IntTextF)
+                    , name = "filepath"
+                    , value = imp.filepath
+                    , original = imp.filepath
+                    , changed = False
+                    , valid = True
+                    , help = "The file chosen to import."
+                    , error = ""
+                    , disabled = True
+                    , spellcheck = False
+                    , id = Nothing
+                    }
+              ]
         ]
 
 
@@ -4065,15 +4273,6 @@ projectParser =
         (FParse.field ProjectUrl (FParse.maybe urlStringParser))
 
 
-importParser : FParse.Parser FieldKind ImportOptions
-importParser =
-    FParse.map4 ImportOptions
-        (FParse.field ImportFile (FParse.maybe FParse.string))
-        (FParse.field ImportContent (FParse.maybe FParse.string))
-        (FParse.field ImportKind FParse.string)
-        (FParse.field ImportProject FParse.string)
-
-
 globalParser : FParse.Parser FieldKind GlobalSettings
 globalParser =
     FParse.map3 GlobalSettings
@@ -4221,6 +4420,12 @@ oneBuilder v od =
 
         other ->
             { od | doc = Just other }
+
+
+sendMsg : Msg -> Cmd Msg
+sendMsg msg =
+    Task.succeed msg
+        |> Task.perform identity
 
 
 
