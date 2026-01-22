@@ -430,11 +430,14 @@ importFormData =
     , error = "Please fill the empty form."
     , valid = False
     , filepath = ""
-    , kind = { blankSelect | options = [ ( "Dative Form Json"
-                                         , "Dative Form Json"
-                                         )
-                                       ]
-             }
+    , kind =
+        { blankSelect
+            | options =
+                [ ( "Dative Form Json"
+                  , "Dative Form Json"
+                  )
+                ]
+        }
     , project = blankSelect
     }
 
@@ -1141,10 +1144,11 @@ update msg model =
                         | filepath = filepath
                         , kind =
                             { blankSelect
-                                | options = [ ( "Dative Form Json"
-                                              , "Dative Form Json"
-                                              )
-                                            ]
+                                | options =
+                                    [ ( "Dative Form Json"
+                                      , "Dative Form Json"
+                                      )
+                                    ]
                             }
                         , project =
                             { blankSelect | options = gc }
@@ -1273,29 +1277,23 @@ update msg model =
         --             let
         --                 ( fields, result ) =
         --                     FParse.parseUpdate importParser mesg fd.fields
-
         --                 result_ =
         --                     case result of
         --                         Ok r ->
         --                             Ok (ImportOptionsContent r)
-
         --                         Err e ->
         --                             Err e
-
         --                 ipf =
         --                     { fd
         --                         | fields = fields
         --                         , result = Just result_
         --                     }
-
         --                 forms =
         --                     Dict.insert "import-options" ipf model.forms
         --             in
         --             ( { model | forms = forms }, Cmd.none )
-
         --         Nothing ->
         --             ( model, Cmd.none )
-
         GlobalSettingsFormChange mesg ->
             case Dict.get "global-settings" model.forms of
                 Just fd ->
@@ -1326,7 +1324,7 @@ update msg model =
                     ( model, Cmd.none )
 
         FormInit _ (ImportCForm imp) ->
-            (model, Cmd.none)
+            ( model, Cmd.none )
 
         FormInit project (InterlinearCForm int) ->
             let
@@ -1664,8 +1662,8 @@ handleDocContentSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
 handleDocContentSubmit edit vista model =
     case edit of
         Just (ImportCForm imp) ->
-            ( model, Cmd.none)
-                
+            ( model, Cmd.none )
+
         Just (InterlinearCForm int) ->
             let
                 nventanas =
@@ -1781,7 +1779,7 @@ handleCFChange fid str data =
         InterlinearForm field ->
             handleCFIntChange field str data
 
-                
+
 handleCFImpChange : ImportField -> String -> CForm -> CForm
 handleCFImpChange fid str cfimp =
     case cfimp of
@@ -1791,7 +1789,7 @@ handleCFImpChange fid str cfimp =
         _ ->
             cfimp
 
-                
+
 handleCFImpChange_ : ImportField -> String -> ImportFormData -> ImportFormData
 handleCFImpChange_ fid str imp =
     let
@@ -1815,7 +1813,7 @@ handleCFImpChange_ fid str imp =
                 [ imp_.kind.valid
                 , imp_.project.valid
                 ]
-                
+
         defImp imp_ =
             let
                 valid_ =
@@ -1825,55 +1823,67 @@ handleCFImpChange_ fid str imp =
                 | changed = True
                 , valid = valid_
                 , error =
-                  if valid_ then
-                      ""
+                    if valid_ then
+                        ""
 
-                  else
-                      toperr
+                    else
+                        toperr
             }
     in
     case fid of
         ImpKindF ->
             if List.member str kindopts then
-                { imp | kind = { kind
-                                   | value = str
-                                   , valid = True
-                                   , changed = True
-                                   , error = ""
-                               }
-                } |> defImp
+                { imp
+                    | kind =
+                        { kind
+                            | value = str
+                            , valid = True
+                            , changed = True
+                            , error = ""
+                        }
+                }
+                    |> defImp
 
             else
-                { imp | kind = { kind
-                                   | value = ""
-                                   , valid = False
-                                   , changed = True
-                                   , error = "Choose an import type."
-                               }
-                } |> defImp
-                
+                { imp
+                    | kind =
+                        { kind
+                            | value = ""
+                            , valid = False
+                            , changed = True
+                            , error = "Choose an import type."
+                        }
+                }
+                    |> defImp
+
         ImpProjectF ->
             if List.member str projopts then
-                { imp | project = { project
-                                   | value = str
-                                   , valid = True
-                                   , changed = True
-                                   , error = ""
-                               }
-                } |> defImp
+                { imp
+                    | project =
+                        { project
+                            | value = str
+                            , valid = True
+                            , changed = True
+                            , error = ""
+                        }
+                }
+                    |> defImp
 
             else
-                { imp | project = { project
-                                   | value = ""
-                                   , valid = False
-                                   , changed = True
-                                   , error = "Choose a project."
-                               }
-                } |> defImp
-                
+                { imp
+                    | project =
+                        { project
+                            | value = ""
+                            , valid = False
+                            , changed = True
+                            , error = "Choose a project."
+                        }
+                }
+                    |> defImp
+
         ImpImportF ->
             imp
-                
+
         ImpCancelF ->
             importFormData
 
@@ -1886,8 +1896,8 @@ handleCFIntChange fid str cfint =
 
         _ ->
             cfint
-                
-    
+
+
 handleCFIntChange_ : InterlinearField -> String -> InterlinearFormData -> InterlinearFormData
 handleCFIntChange_ fid str int =
     let
@@ -2646,10 +2656,10 @@ handleVista vista short full model =
                             , params = { defVParams | length = 20 }
                             }
                     in
-                    (newmodel, sendMsg (NewTab vt))
+                    ( newmodel, sendMsg (NewTab vt) )
 
                 Just tp ->
-                    (newmodel, sendMsg (FocusTab tp))
+                    ( newmodel, sendMsg (FocusTab tp) )
 
 
 handleSubmit : List String -> FormData -> Model -> ( Model, Cmd Msg )
@@ -3162,23 +3172,6 @@ viewVista model tp vista =
                 Nothing ->
                     Html.text "No such form."
 
-        ImportOptionsContent (ImportCForm imp) ->
-            case Dict.get "import-options" model.forms of
-                Just f ->
-                    Html.form [ Event.onSubmit (FormSubmit tp) ]
-                        [ Html.text imp.filepath
-                        , Html.button [ Event.onClick (FormSubmit tp) ]
-                            [ Html.text "Save" ]
-                        , Html.button [ Event.onClick CloseTab ]
-                            [ Html.text "Cancel" ]
-                        ]
-
-                Nothing ->
-                    Html.text "No such form."
-
-        ImportOptionsContent _ ->
-            Html.text "no such form"
-
         GlobalSettingsContent _ ->
             let
                 isV4 uuid =
@@ -3363,6 +3356,12 @@ viewVista model tp vista =
                 , model = model
                 }
 
+        ImportOptionsContent (ImportCForm imp) ->
+            viewDocContentEditVista tp (ImportCForm imp)
+
+        ImportOptionsContent _ ->
+            Html.text "no such form"
+
         ErrorContent err ->
             viewError model err
 
@@ -3471,7 +3470,9 @@ type alias FieldDescription =
     , help : String
     , error : String
     , disabled : Bool
+    , deleted : Bool
     , spellcheck : Bool
+    , options : List ( String, String )
     , id : Maybe Int
     }
 
@@ -3517,12 +3518,77 @@ viewCField fd =
 
               else
                 Attr.class "unchanged-field"
-            , Attr.disabled fd.disabled
+            , Attr.disabled (fd.disabled || fd.deleted)
             ]
             []
         , Html.small
             [ Attr.id helper ]
-            [ if fd.disabled then
+            [ if fd.deleted then
+                Html.text "This content will be removed."
+
+              else if fd.valid then
+                Html.text fd.help
+
+              else
+                Html.text fd.error
+            ]
+        ]
+
+
+viewCSelectField : FieldDescription -> Html.Html Msg
+viewCSelectField fd =
+    let
+        id =
+            Maybe.withDefault -1 fd.id
+
+        name =
+            [ fd.formname
+            , fd.name
+            ]
+                |> String.join "-"
+
+        helper =
+            [ name
+            , String.fromInt id
+            , "helper"
+            ]
+                |> String.join "-"
+    in
+    Html.label []
+        [ Html.a
+            [ Attr.class "secondary"
+            , Attr.attribute "data-tooltip" "Reload Field"
+            , Attr.attribute "data-placement" "right"
+            , Attr.href "#"
+            , Event.onClick (fd.oninput fd.original)
+            ]
+            [ Html.text "🗘 " ]
+        , Html.text fd.label
+        , fd.kind
+            [ Event.onInput fd.oninput
+            , Attr.name name
+            , Attr.value fd.value
+            , Attr.attribute "aria-label" fd.label
+            , Attr.attribute "aria-describedby" helper
+            , Attr.spellcheck fd.spellcheck
+            , if fd.changed then
+                isInValidAttr fd.valid
+
+              else
+                Attr.class "unchanged-field"
+            , Attr.disabled (fd.disabled || fd.deleted)
+            ]
+            (List.map
+                (\opt ->
+                    Html.option
+                        [ Attr.value (Tuple.second opt) ]
+                        [ Html.text (Tuple.first opt) ]
+                )
+                ( ( "", "" ) :: fd.options )
+            )
+        , Html.small
+            [ Attr.id helper ]
+            [ if fd.deleted then
                 Html.text "This content will be removed."
 
               else if fd.valid then
@@ -3562,7 +3628,9 @@ viewCFInterlinearTrans tp trans =
             , help = "A translation of the text."
             , error = trans.translation.error
             , disabled = trans.deleted
+            , deleted = trans.deleted
             , spellcheck = True
+            , options = []
             , id = Just trans.id
             }
         , viewCField
@@ -3578,7 +3646,9 @@ viewCFInterlinearTrans tp trans =
             , help = "Optional judgment, such as * or #."
             , error = trans.judgment.error
             , disabled = trans.deleted
+            , deleted = trans.deleted
             , spellcheck = False
+            , options = []
             , id = Just trans.id
             }
         ]
@@ -3601,7 +3671,9 @@ viewCFInterlinearVista tp int =
                 , help = "The text to be glossed."
                 , error = int.text.error
                 , disabled = False
+                , deleted = False
                 , spellcheck = False
+                , options = []
                 , id = Nothing
                 }
             ]
@@ -3619,7 +3691,9 @@ viewCFInterlinearVista tp int =
                 , help = "Optional judgment, such as * or #."
                 , error = int.annotations.judgment.error
                 , disabled = False
+                , deleted = False
                 , spellcheck = False
+                , options = []
                 , id = Nothing
                 }
             , viewCField
@@ -3635,7 +3709,9 @@ viewCFInterlinearVista tp int =
                 , help = "Optional phonemic transcription."
                 , error = int.annotations.phonemic.error
                 , disabled = False
+                , deleted = False
                 , spellcheck = False
+                , options = []
                 , id = Nothing
                 }
             , viewCField
@@ -3655,7 +3731,9 @@ viewCFInterlinearVista tp int =
                         ]
                 , error = int.annotations.breaks.error
                 , disabled = False
+                , deleted = False
                 , spellcheck = False
+                , options = []
                 , id = Nothing
                 }
             , viewCField
@@ -3671,7 +3749,9 @@ viewCFInterlinearVista tp int =
                 , help = "Optional glosses."
                 , error = int.annotations.glosses.error
                 , disabled = False
+                , deleted = False
                 , spellcheck = False
+                , options = []
                 , id = Nothing
                 }
             ]
@@ -3718,32 +3798,86 @@ viewCFImportVista : TabPath -> ImportFormData -> Html.Html Msg
 viewCFImportVista tp imp =
     Html.form []
         [ Html.fieldset []
-              [ viewCField
-                    { formname = "importoptions"
-                    , label = "File Path"
-                    , kind = Html.input
-                    , oninput = FormChange tp (InterlinearForm IntTextF)
-                    , name = "filepath"
-                    , value = imp.filepath
-                    , original = imp.filepath
-                    , changed = False
-                    , valid = True
-                    , help = "The file chosen to import."
-                    , error = ""
-                    , disabled = True
-                    , spellcheck = False
-                    , id = Nothing
-                    }
-              ]
+            [ viewCField
+                { formname = "importoptions"
+                , label = "File Path"
+                , kind = Html.input
+                , oninput = \_ -> None
+                , name = "filepath"
+                , value = imp.filepath
+                , original = imp.filepath
+                , changed = False
+                , valid = True
+                , help = "The file chosen to import."
+                , error = ""
+                , disabled = True
+                , deleted = False
+                , spellcheck = False
+                , options = []
+                , id = Nothing
+                }
+            , viewCSelectField
+                { formname = "importoptions"
+                , label = "Import Type"
+                , kind = Html.select
+                , oninput = FormChange tp (ImportForm ImpKindF)
+                , name = "kind"
+                , value = imp.kind.value
+                , original = imp.kind.original
+                , changed = imp.kind.changed
+                , valid = imp.kind.valid
+                , help = "The format of the import file."
+                , error = imp.kind.error
+                , disabled = False
+                , deleted = False
+                , spellcheck = False
+                , options = imp.kind.options
+                , id = Nothing
+                }
+            , viewCSelectField
+                { formname = "importoptions"
+                , label = "Project"
+                , kind = Html.select
+                , oninput = FormChange tp (ImportForm ImpProjectF)
+                , name = "project"
+                , value = imp.project.value
+                , original = imp.project.original
+                , changed = imp.project.changed
+                , valid = imp.project.valid
+                , help = "The project that receives the import."
+                , error = imp.project.error
+                , disabled = False
+                , deleted = False
+                , spellcheck = False
+                , options = imp.project.options
+                , id = Nothing
+                }
+            ]
         , Html.button
-              [ Attr.class "secondary"
-              , Attr.type_ "button"
-              , Event.onClick <|
-                  MultiMsg [ FormChange tp (ImportForm ImpCancelF) ""
-                           , CloseTab
-                           ]
-              ]
-              [ Html.text "Cancel" ]
+              (if imp.valid then
+                   [ Event.onClick <|
+                         FormChange tp (ImportForm ImpImportF) ""
+                   , Attr.type_ "button"
+                   ]
+
+               else
+                 [ Attr.attribute "data-tooltip" imp.error
+                 , Attr.attribute "data-placement" "right"
+                 , Attr.type_ "button"
+                 , Event.onClick None
+                 ]
+              )
+              [ Html.text "Import" ]
+        , Html.button
+            [ Attr.class "secondary"
+            , Attr.type_ "button"
+            , Event.onClick <|
+                MultiMsg
+                    [ FormChange tp (ImportForm ImpCancelF) ""
+                    , CloseTab
+                    ]
+            ]
+            [ Html.text "Cancel" ]
         ]
 
 
