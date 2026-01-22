@@ -32,7 +32,7 @@ const error = (e) => {
 }
 
 try {
-  app = Elm.Converter.init({
+  app = global.Elm.Converter.init({
     flags: {
       seed1: randomSeeds[0],
       seed2: randomSeeds[1],
@@ -99,7 +99,7 @@ app.ports.reportError.subscribe((error) => {
   error(Error(error))
 })
 
-app.ports.reportInfo.subscribe((msg) => {
+app.ports.reportInfo.subscribe((_msg) => {
   // this should eventually be enabled by a debug setting.
   //info(msg)
 })

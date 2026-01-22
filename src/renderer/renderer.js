@@ -1,7 +1,7 @@
 const typedArray = new Int32Array(4)
 const randomSeeds = crypto.getRandomValues(typedArray)
 
-const app = Elm.Main.init({
+const app = window.Elm.Main.init({
   node: document.getElementById('root'),
   flags: {
     seed1: randomSeeds[0],
