@@ -305,7 +305,7 @@ const createWindow = () => {
   if (environment() === 'development') {
     mainWindow.loadURL('http://localhost:4403')
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'))
+    mainWindow.loadFile(path.join(__dirname, 'html', 'index.html'))
   }
 }
 

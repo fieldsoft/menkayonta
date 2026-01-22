@@ -1,12 +1,12 @@
 {
-  "serve": "./renderer/",
+  "serve": "src/html/",
   "port": 4403,
   "targets": {
     "Main": {
       "inputs": [
         "src-elm/Main.elm"
       ],
-      "output": "renderer/elm.js"
+      "output": "src/elm.js"
     }
   }
 }
