@@ -1,0 +1,19 @@
+[
+  {
+    "command": ["elm-watch", "hot"],
+    "title": "elm-watch",
+    "status": {
+      "⏳": ["⏳", "W"],
+      "🚨": ["🚨", "E"],
+      "✅": ["✅", "+"]
+    },
+    "defaultStatus": ["⏳", "W"]
+  },
+  {
+    "command": ["electron", "."],
+    "title": "electron",
+    "status": {
+      "Error": ["🚨", "E"]
+    }
+  }
+]
