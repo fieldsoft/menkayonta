@@ -19,6 +19,7 @@
     "test": "elm-test && uvu tests"
   },
   "devDependencies": {
+    "@electron/packager": "^19.0.1",
     "@electron/rebuild": "^4.0.2",
     "@eslint/js": "^9.39.1",
     "electron": "^38.1.2",
@@ -28,10 +29,10 @@
     "eslint": "^9.39.2",
     "globals": "^16.5.0",
     "prettier": "3.7.3",
+    "npm": "^11.6.2",
     "uvu": "^0.5.6"
   },
   "dependencies": {
-    "npm": "^11.6.2",
     "pouchdb-adapter-http": "^9.0.0",
     "pouchdb-adapter-node-websql": "^7.0.0",
     "pouchdb-core": "^9.0.0",
