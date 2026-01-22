@@ -1,17 +1,3 @@
-/* global MAIN_WINDOW_VITE_DEV_SERVER_URL, MAIN_WINDOW_VITE_NAME */
-// import {
-//   app,
-//   BrowserWindow,
-//   ipcMain,
-//   Menu,
-//   utilityProcess,
-//   dialog,
-// } from 'electron'
-// import path from 'node:path'
-// import fs from 'node:fs/promises'
-// import os from 'node:os'
-// import { cwd } from 'node:process'
-// import { v4 } from 'uuid'
 const {
   app,
   BrowserWindow,
@@ -28,15 +14,35 @@ const { v4 } = require('uuid')
 
 const production = process.env.NODE_ENV === 'production' || app.isPackaged
 
-const home = () => {
+const environment = () => {
   if (production) {
-    return os.homedir()
+    return 'production'
   } else if (process.env.NODE_ENV === 'development') {
-    return path.join(cwd(), '.devel')
+    return 'development'
   } else if (process.env.NODE_ENV === 'testing') {
-    return path.join(cwd(), '.testing')
+    return 'testing'
   } else {
     throw Error('Undefined runtime environment. Try setting NODE_ENV.')
+  }
+}
+
+const home = () => {
+  switch (environment()) {
+    case 'production': {
+      return os.homedir()
+    }
+
+    case 'development': {
+      return path.join(cwd(), '.devel')
+    }
+
+    case 'testing': {
+      return path.join(cwd(), '.testing')
+    }
+
+    default: {
+      throw Error('Undefined runtime environment. Try setting NODE_ENV.')
+    }
   }
 }
 
@@ -296,10 +302,10 @@ const createWindow = () => {
   gvs.webContents = mainWindow.webContents
 
   // and load the index.html of the app.
-  if (process.env.NODE_ENV) {
+  if (environment() === 'development') {
     mainWindow.loadURL('http://localhost:4403')
   } else {
-    mainWindow.loadFile(path.join(process.cwd(), `/renderer/index.html`))
+    mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'))
   }
 }
 
