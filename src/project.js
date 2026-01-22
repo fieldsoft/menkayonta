@@ -248,7 +248,7 @@ const handleMainMessage = (m) => {
       break
     }
 
-    // TODO: There are two possible formats sent to bulk-write. This
+    // TODO: There are multiple formats sent to bulk-write. This
     // needs to be fixed.
     case 'bulk-write': {
       if (m.data.content) {
