@@ -1,6 +1,12 @@
 # Menkayonta
 
-It means \"workbook\" in Wao Terero, a linguistic isolate spoken in the
+For announcements, join the following group:
+
+https://groups.google.com/g/menkayonta-announce
+
+## The Name
+
+Menkayonta means \"workbook\" in Wao Terero, a linguistic isolate spoken in the
 Ecuadorian Amazon.
 
 The name is significant for a number of reasons.
