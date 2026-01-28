@@ -1700,7 +1700,7 @@ handleCFormSubmit edit vista model =
                     E.object
                         [ ("filepath", E.string imp.filepath)
                         , ("kind", E.string imp.kind.value)
-                        , ("project", E.string imp.kind.value)
+                        , ("project", E.string imp.project.value)
                         ]
 
                 nvista =
@@ -1932,7 +1932,11 @@ handleCFImpChange_ fid str imp =
                     |> defImp
 
         ImpImportF ->
-            imp
+            if defImp imp |> .valid then
+                { imp | submitted = True }
+
+            else
+                imp
 
         ImpCancelF ->
             importFormData
