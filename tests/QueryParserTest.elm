@@ -1,4 +1,4 @@
-module QueryParserTest exposing (..)
+module QueryParserTest exposing (suite)
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
@@ -19,12 +19,12 @@ andTests : Test
 andTests =
     describe "Qs Qand"
         [ test "Two unquoted strings are Qand" <|
-              \_ ->
-              Expect.equal
-              (Ok (And (Str "a") (Str "b")))
-              (parse "\"a\" and \"b\"")
+            \_ ->
+                Expect.equal
+                    (Ok (And (Str "a") (Str "b")))
+                    (parse "\"a\" and \"b\"")
         ]
-        
+
 
 stringTests : Test
 stringTests =
