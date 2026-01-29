@@ -16,7 +16,7 @@
   "type": "commonjs",
   "scripts": {
     "lint": "eslint",
-    "test": "NODE_ENV=testing elm-test && jest",
+    "test": "NODE_ENV=testing elm-test && NODE_OPTIONS='--localstorage-file=./tests/jest-storage' jest",
     "start": "NODE_ENV=development run-pty run-pty-dev.json"
   },
   "devDependencies": {

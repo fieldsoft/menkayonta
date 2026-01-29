@@ -31,3 +31,4 @@ elm.js
 out/
 .devel/
 .testing/
+tests/jest-storage
