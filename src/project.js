@@ -200,7 +200,7 @@ const handleRequestDocId = async (docid) => {
 const handleRequestAllDocId = async (docid) => {
   try {
     if (typeof docid === 'string') {
-      const all = await gvs.db.query('menkayonta/meta_reversals', {
+      const all = await gvs.db.allDocs({
         include_docs: true,
         startkey: docid,
         endkey: `${docid}\ufff0`,

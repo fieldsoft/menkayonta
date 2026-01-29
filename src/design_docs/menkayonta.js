@@ -9,16 +9,19 @@ const menkayonta_dd = {
     flat_trans: {
       map: function (doc) {
         if (doc._id.startsWith('interlinear/') && doc._deleted !== true) {
-          if (doc.transcription && doc.translations.length > 0) {
+          if (doc.text && doc.translations.length > 0) {
             doc.translations.forEach(function (trad) {
-              emit(doc.transcription, trad.transcription)
+              emit(doc.text, trad.transcription)
             })
           } else {
-            emit(doc.transcription, '')
+            emit(doc.text, '')
           }
         }
       }.toString(),
     },
+    // The below does not currently work with the schema. It is left
+    // as a reference for a future implementation of a "reverse"
+    // identifier view.
     meta_reversals: {
       map: function (doc) {
         if (doc._deleted !== true) {
