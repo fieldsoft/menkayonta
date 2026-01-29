@@ -22,6 +22,7 @@ module Menkayonta exposing
     , identifierToString
     , listDecoder
     , people
+    , stringToIdentifier
     )
 
 import Dict exposing (Dict, values)
@@ -235,12 +236,12 @@ stringToIdentifier idstring =
         ( d1 :: d2 :: [], [] ) ->
             documentIdentifier ( d1, d2 ) |> Maybe.map MyDocId
 
-        ( "tag" :: kind :: d1 :: d2 :: [], fragment ) ->
+        ( d1 :: d2 :: "tag" :: kind :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
                 |> Maybe.map (\d -> TagId kind d fragment)
                 |> Maybe.map MyTagId
 
-        ( "description" :: kind :: d1 :: d2 :: [], fragment ) ->
+        ( d1 :: d2 :: "description" :: kind :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
                 |> Maybe.map (\d -> DescriptionId kind d fragment)
                 |> Maybe.map MyDescriptionId
@@ -250,7 +251,7 @@ stringToIdentifier idstring =
                 |> Maybe.map (\d -> UtilityId kind d fragment)
                 |> Maybe.map MyUtilityId
 
-        ( "property" :: kind :: value :: d1 :: d2 :: [], fragment ) ->
+        ( d1 :: d2 :: "property" :: kind :: value :: [], fragment ) ->
             documentIdentifier ( d1, d2 )
                 |> Maybe.map (\d -> PropertyId kind value d fragment)
                 |> Maybe.map MyPropertyId
@@ -338,9 +339,9 @@ docUuidToString docid =
 
 descriptionIdToString : DescriptionId -> String
 descriptionIdToString descriptionid =
-    [ "description"
+    [ docIdToString descriptionid.docid
+    , "description"
     , descriptionid.kind
-    , docIdToString descriptionid.docid
     ]
         |> addFrag descriptionid.fragment
 
@@ -358,19 +359,19 @@ modificationIdToString modid =
 
 tagIdToString : TagId -> String
 tagIdToString tagid =
-    [ "tag"
+    [ docIdToString tagid.docid
+    , "tag"
     , tagid.kind
-    , docIdToString tagid.docid
     ]
         |> addFrag tagid.fragment
 
 
 propertyIdToString : PropertyId -> String
 propertyIdToString propertyid =
-    [ "property"
+    [ docIdToString propertyid.docid
+    , "property"
     , propertyid.kind
     , propertyid.value
-    , docIdToString propertyid.docid
     ]
         |> addFrag propertyid.fragment
 
