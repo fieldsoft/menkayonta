@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "pouchdb-adapter-http": "^9.0.0",
-    "pouchdb-adapter-node-websql": "^7.0.0",
+    "pouchdb-adapter-node-sqlite": "^1.0.0",
     "pouchdb-core": "^9.0.0",
     "pouchdb-mapreduce": "^9.0.0",
     "pouchdb-replication": "^9.0.0",

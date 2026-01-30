@@ -7,7 +7,8 @@ const PouchDB = require('pouchdb-core')
 const HttpPouch = require('pouchdb-adapter-http')
 const mapreduce = require('pouchdb-mapreduce')
 const replication = require('pouchdb-replication')
-const sqliteAdapter = require('pouchdb-adapter-node-websql')
+const SQLiteAdapterModule = require('pouchdb-adapter-node-sqlite')
+const sqliteAdapter = SQLiteAdapterModule.default || SQLiteAdapterModule
 
 // Set the pouchdb plugins.
 PouchDB.plugin(HttpPouch)
@@ -79,7 +80,7 @@ const handleInit = ({ identifier: i, projectsPath: pp, url: url }) => {
   gvs.identifier = i
   gvs.path = path.join(pp, i)
   gvs.dbPath = path.join(gvs.path, `${i}.sql`)
-  gvs.db = new PouchDB(gvs.dbPath, { adapter: 'websql' })
+  gvs.db = new PouchDB(gvs.dbPath, { adapter: 'sqlite3' })
 
   if (url) {
     startSync(url)
