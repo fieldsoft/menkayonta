@@ -26,6 +26,7 @@ module Menkayonta exposing
     )
 
 import Dict exposing (Dict, values)
+import Email exposing (Email)
 import Json.Decode as D
 import Json.Decode.Extra as DE
 import Json.Encode as E
@@ -62,7 +63,7 @@ type Identifier
 documents, data structures that contain non-metadata.
 -}
 type DocId
-    = PersonId UUID
+    = PersonId String
     | InterlinearId UUID
 
 
@@ -157,10 +158,9 @@ type alias Property =
 
 
 type alias Person =
-    { id : UUID
+    { id : String
     , rev : Maybe String
     , version : Int
-    , email : String
     , names : Dict Int String
     }
 
@@ -207,9 +207,9 @@ documentIdentifier idpair =
                 |> Result.toMaybe
                 |> Maybe.map InterlinearId
 
-        ( "person", uuidstr ) ->
-            UUID.fromString uuidstr
-                |> Result.toMaybe
+        ( "person", id ) ->
+            Email.fromString id
+                |> Maybe.map Email.toString
                 |> Maybe.map PersonId
 
         _ ->
@@ -317,8 +317,8 @@ docIdToString docid =
             doctype ++ "/" ++ UUID.toString uuid
     in
     case docid of
-        PersonId uuid ->
-            appendUUID "person" uuid
+        PersonId id ->
+            "person" ++ "/" ++ id
 
         InterlinearId uuid ->
             appendUUID "interlinear" uuid
@@ -330,8 +330,8 @@ of the UUID part.
 docUuidToString : DocId -> String
 docUuidToString docid =
     case docid of
-        PersonId uuid ->
-            UUID.toString uuid
+        PersonId id ->
+            id
 
         InterlinearId uuid ->
             UUID.toString uuid
@@ -461,13 +461,12 @@ translationDecoder =
         (D.field "judgment" D.string)
 
 
-personDecoder_ : UUID -> D.Decoder Person
+personDecoder_ : String -> D.Decoder Person
 personDecoder_ id =
-    D.map5 Person
+    D.map4 Person
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
-        (D.field "email" D.string)
         (D.field "names" (DE.dict2 D.int D.string))
 
 
@@ -555,7 +554,6 @@ personEncoder : Person -> E.Value
 personEncoder person =
     [ ( "_id", E.string (docIdToString <| PersonId person.id) )
     , ( "version", E.int person.version )
-    , ( "email", E.string person.email )
     , ( "names", E.dict String.fromInt E.string person.names )
     ]
         |> addRev person.rev

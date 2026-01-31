@@ -2,6 +2,7 @@ port module Converter exposing (main)
 
 import DativeTypes as DT
 import Dict exposing (Dict)
+import Email exposing (Email)
 import Json.Decode as D
 import Json.Encode as E
 import Json.Encode.Extra as EE
@@ -39,7 +40,7 @@ type alias Model =
     , from : List DT.DativeForm
     , stage : Stage
     , time : Time.Posix
-    , me : UUID
+    , me : String
     , people : Dict Int M.Person
     }
 
@@ -51,7 +52,7 @@ performed some role with associated information.
 
 What was a big table with some referenced information is broken up
 into a number of independent documents, which reference a main
-interlinear gloss document. In practice, most to these documents will
+interlinear gloss document. In practice, most of these documents will
 not be created because the original table had data that was very
 sparse, with many nulls and empty strings.
 
@@ -133,27 +134,27 @@ init flags =
             , seed4 = Random.initialSeed flags.seed4
             }
 
-        me =
-            UUID.fromString flags.me
+        validMe =
+            Email.fromString flags.me
 
         project =
             UUID.fromString flags.project
     in
-    case ( me, project ) of
-        ( Ok me_, Ok project_ ) ->
+    case ( validMe, project ) of
+        ( Just _, Ok project_ ) ->
             ( { seeds = seeds
               , project = project_
               , to = Dict.empty
               , from = []
               , stage = OriginalS
               , time = Time.millisToPosix flags.time
-              , me = me_
+              , me = flags.me
               , people = Dict.empty
               }
             , reportInfo "Converter Initialized" 
             )
 
-        _ ->
+        ( Just _, Err _ ) ->
             let
                 ( fakeuuid, _ ) =
                     UUID.step seeds
@@ -164,10 +165,40 @@ init flags =
               , from = []
               , stage = OriginalS
               , time = Time.millisToPosix 0
-              , me = fakeuuid
+              , me = flags.me
               , people = Dict.empty
               }
-            , reportError "One or more flags was an invalid UUID"
+            , reportError "The project flag is an invalid UUID."
+            )
+
+        ( Nothing, Ok project_ ) ->
+            ( { seeds = seeds
+              , project = project_
+              , to = Dict.empty
+              , from = []
+              , stage = OriginalS
+              , time = Time.millisToPosix 0
+              , me = "nobody@example.com"
+              , people = Dict.empty
+              }
+            , reportError "The person flag is not a valid email address."
+            )
+
+        ( Nothing, Err _ ) ->
+            let
+                ( fakeuuid, _ ) =
+                    UUID.step seeds
+            in
+            ( { seeds = seeds
+              , project = fakeuuid
+              , to = Dict.empty
+              , from = []
+              , stage = OriginalS
+              , time = Time.millisToPosix 0
+              , me = "nobody@example.com"
+              , people = Dict.empty
+              }
+            , reportError "The project and person flags are invalid."
             )
 
 
@@ -502,7 +533,7 @@ verifierStage :
     -> ( Model, Cmd Msg )
 verifierStage { docid, curr, verifier, model } =
     let
-        ( stringid, newperson, seeds ) =
+        ( stringid, newperson ) =
             perhapsMakePerson verifier model
 
         people =
@@ -518,8 +549,7 @@ verifierStage { docid, curr, verifier, model } =
                 |> when modDate_
     in
     ( { model
-          | seeds = seeds
-          , people = people
+          | people = people
           , to = newto
           , stage = UtilityS
       }
@@ -536,7 +566,7 @@ modifierStage :
     -> ( Model, Cmd Msg )
 modifierStage { docid, curr, modifier, model } =
     let
-        ( stringid, newperson, seeds ) =
+        ( stringid, newperson ) =
             perhapsMakePerson modifier model
 
         people =
@@ -552,8 +582,7 @@ modifierStage { docid, curr, modifier, model } =
                 |> when modDate_
     in
     ( { model
-          | seeds = seeds
-          , people = people
+          | people = people
           , to = newto
           , stage = VerifierS
       }
@@ -570,7 +599,7 @@ entererStage :
     -> ( Model, Cmd Msg )
 entererStage { docid, curr, enterer, model } =
     let
-        ( stringid, newperson, seeds ) =
+        ( stringid, newperson ) =
             perhapsMakePerson enterer model
 
         people =
@@ -586,8 +615,7 @@ entererStage { docid, curr, enterer, model } =
                 |> when modDate_
     in
     ( { model
-          | seeds = seeds
-          , people = people
+          | people = people
           , to = newto
           , stage = ModifierS
       }
@@ -604,7 +632,7 @@ elicitorStage :
     -> ( Model, Cmd Msg )
 elicitorStage { docid, curr, elicitor, model } =
     let
-        ( stringid, newperson, seeds ) =
+        ( stringid, newperson ) =
             perhapsMakePerson elicitor model
 
         people =
@@ -634,8 +662,7 @@ elicitorStage { docid, curr, elicitor, model } =
                 |> when elicitationMethod
     in
     ( { model
-          | seeds = seeds
-          , people = people
+          | people = people
           , to = newto
           , stage = EntererS
       }
@@ -652,12 +679,11 @@ speakerStage :
     -> ( Model, Cmd Msg )
 speakerStage { docid, curr, speaker, model } =
     let
-        ( stringid, newperson, seeds ) =
+        ( stringid, newperson ) =
             case Dict.get -speaker.id model.people of
                 Just person ->
                     ( personIdString person.id
                     , person
-                    , model.seeds
                     )
 
                 Nothing ->
@@ -665,7 +691,6 @@ speakerStage { docid, curr, speaker, model } =
                         { first = speaker.first_name
                         , last = speaker.last_name
                         , id = speaker.id
-                        , seeds = model.seeds
                         }
 
         -- Add speakers with negative numbers to avoid
@@ -703,7 +728,6 @@ speakerStage { docid, curr, speaker, model } =
     in
     ( { model
           | to = newto
-          , seeds = seeds
           , people = people
           , stage = ElicitorS
       }
@@ -802,9 +826,9 @@ constNonBlankDesc kind c docid =
         Nothing
 
 
-personIdString : UUID -> String
-personIdString uuid =
-    uuid
+personIdString : String -> String
+personIdString str =
+    str
         |> M.PersonId
         |> M.MyDocId
         |> M.identifierToString
@@ -812,13 +836,12 @@ personIdString uuid =
 
 {-| The person will only be constructed if they haven't been already.
 -}
-perhapsMakePerson : DT.DativePerson -> Model -> ( String, M.Person, UUID.Seeds )
+perhapsMakePerson : DT.DativePerson -> Model -> ( String, M.Person )
 perhapsMakePerson dperson model =
     case Dict.get dperson.id model.people of
         Just person ->
             ( personIdString person.id
             , person
-            , model.seeds
             )
 
         Nothing ->
@@ -826,11 +849,10 @@ perhapsMakePerson dperson model =
                 { first = dperson.first_name
                 , last = dperson.last_name
                 , id = dperson.id
-                , seeds = model.seeds
                 }
 
 
-constructPerson : { first : String, last : String, id : Int, seeds : UUID.Seeds } -> ( String, M.Person, UUID.Seeds )
+constructPerson : { first : String, last : String, id : Int} -> ( String, M.Person )
 constructPerson pdata =
     let
         first_name =
@@ -842,24 +864,23 @@ constructPerson pdata =
         name =
             String.join " " [ first_name, last_name ]
 
-        ( uuid, seeds ) =
-            UUID.step pdata.seeds
+        email =
+            first_name ++ "." ++ last_name ++ "@example.com"
+                
+        stringid =
+            personIdString email
 
         newperson =
-            { id = uuid
+            { id = email
             , rev = Nothing
             , version = 1
-            , email = ""
             , names = Dict.singleton pdata.id name
             }
-
-        stringid =
-            personIdString uuid
     in
-    ( stringid, newperson, seeds )
+    ( stringid, newperson )
 
 
-modDate : String -> Maybe Time.Posix -> M.DocId -> UUID -> Maybe ( M.Identifier, M.Value )
+modDate : String -> Maybe Time.Posix -> M.DocId -> String -> Maybe ( M.Identifier, M.Value )
 modDate kind time docid pid =
     time
         |> Maybe.map
@@ -878,7 +899,7 @@ constructModifier :
     { kind : String
     , time : Time.Posix
     , docid : M.DocId
-    , pid : UUID
+    , pid : String
     , json : E.Value
     }
     -> ( M.Identifier, M.Value )

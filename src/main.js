@@ -468,12 +468,6 @@ const updateGlobalSettings = async (_event, globalSettings) => {
   gvs.globalConf.name = globalSettings.name
   gvs.globalConf.email = globalSettings.email
 
-  if (globalSettings.identifier) {
-    gvs.globalConf.identifier = globalSettings.identifier
-  } else {
-    gvs.globalConf.identifier = v4()
-  }
-
   await writeGlobalConf(gvs.globalConf)
 
   return gvs.globalConf
@@ -500,7 +494,7 @@ const handleImportWrite = (data) => {
 const handleDativeJson = (importOptions) => {
   const args = JSON.stringify({
     project: importOptions.project,
-    me: gvs.globalConf.identifier,
+    me: gvs.globalConf.email,
     time: Date.now(),
   })
   const converter = utilityProcess.fork(

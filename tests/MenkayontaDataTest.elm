@@ -41,8 +41,8 @@ stringToIdTests =
         , test "Person Doc" <|
             \_ ->
                 Expect.equal
-                    (PersonId uuid |> MyDocId |> Just)
-                    (String.join "/" [ "person", UUID.toString uuid ]
+                    (PersonId "e@w.com" |> MyDocId |> Just)
+                    (String.join "/" [ "person", "e@w.com" ]
                         |> stringToIdentifier
                     )
         , test "Tag without fragment" <|
@@ -115,7 +115,7 @@ stringToIdTests =
             \_ ->
                 Expect.equal
                     ({ kind = "modname"
-                     , person = PersonId uuid
+                     , person = PersonId "e@w.com"
                      , time = Time.millisToPosix 0
                      , docid = intid
                      , fragment = []
@@ -127,7 +127,7 @@ stringToIdTests =
                                      , "modification"
                                      , "modname"
                                      , "0"
-                                     , UUID.toString uuid
+                                     , "e@w.com"
                                      ]
                         |> stringToIdentifier
                     )      
@@ -148,8 +148,8 @@ idToStringTests =
         , test "Person Doc" <|
             \_ ->
                 Expect.equal
-                    (String.join "/" [ "person", UUID.toString uuid ])
-                    (PersonId uuid
+                    (String.join "/" [ "person", "e@w.com" ])
+                    (PersonId "e@w.com"
                         |> MyDocId
                         |> identifierToString
                     )
@@ -215,13 +215,13 @@ idToStringTests =
                         , "modification"
                         , "modname"
                         , "0"
-                        , UUID.toString uuid
+                        , "e@w.com"
                         ]
                     )
                     ({ kind = "modname"
                      , time = Time.millisToPosix 0
                      , docid = intid
-                     , person = PersonId uuid
+                     , person = PersonId "e@w.com"
                      , fragment = []
                      }
                         |> MyModificationId

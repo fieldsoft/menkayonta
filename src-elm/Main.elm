@@ -3,6 +3,7 @@ port module Main exposing (main)
 import Browser
 import Browser.Dom as Dom
 import Dict exposing (Dict)
+import Email exposing (Email)
 import FormToolkit.Error as FError
 import FormToolkit.Field as Field exposing (Field)
 import FormToolkit.Parse as FParse
@@ -37,7 +38,6 @@ type Msg
     | FormChange TabPath FieldId String
     | FormInit String CForm
     | FormSubmit TabPath
-    | GlobalSettingsFormChange (Field.Msg FieldKind)
     | GlobalSettingsMenu E.Value
     | GotoTab TabPath
     | ImportOptionsFileMenu String
@@ -135,7 +135,6 @@ type alias GlobalConfig =
     { projects : List ProjectInfo
     , name : Maybe String
     , email : Maybe String
-    , identifier : Maybe String
     }
 
 
@@ -145,7 +144,6 @@ a project.
 type alias GlobalSettings =
     { name : String
     , email : String
-    , identifier : Maybe String
     }
 
 
@@ -250,7 +248,7 @@ type Content
     | NewDocContent CForm
     | ProjectInfoContent ProjectInfo
     | ImportOptionsContent CForm
-    | GlobalSettingsContent GlobalSettings
+    | GlobalSettingsContent CForm
     | ErrorContent Error
 
 
@@ -284,7 +282,7 @@ globalVistas =
       , { project = "global"
         , kind = "global-settings"
         , identifier = "global-settings"
-        , content = GlobalSettingsContent (GlobalSettings "" "" Nothing)
+        , content = GlobalSettingsContent (GlobalCForm globalFormData)
         }
       )
     ]
@@ -352,14 +350,33 @@ type alias ImportFormData =
     }
 
 
+type alias GlobalFormData =
+    { changed : Bool
+    , submitted : Bool
+    , error : String
+    , valid : Bool
+    , name : StringField
+    , email : StringField
+    }
+
+
 type CForm
     = InterlinearCForm InterlinearFormData
     | ImportCForm ImportFormData
+    | GlobalCForm GlobalFormData
 
 
 type FieldId
     = InterlinearForm InterlinearField
     | ImportForm ImportField
+    | GlobalForm GlobalField
+
+
+type GlobalField
+    = GlbEmailF
+    | GlbNameF
+    | GlbSaveF
+    | GlbCancelF
 
 
 type ImportField
@@ -442,6 +459,16 @@ importFormData =
     }
 
 
+globalFormData =
+    { changed = False
+    , submitted = False
+    , error = "Please fill the empty form."
+    , valid = False
+    , email = { blankString | valid = False, error = "Cannot be empty." }
+    , name = { blankString | valid = False, error = "Cannot be empty." }
+    }
+
+
 projectFields : ProjectInfo -> Field FieldKind
 projectFields pi =
     Field.group []
@@ -473,84 +500,6 @@ projectFields pi =
             , Field.identifier ProjectUrl
             , Field.name "url"
             , Field.value (Value.string <| Maybe.withDefault "" pi.url)
-            ]
-        ]
-
-
-importOptionsFields : Maybe GlobalConfig -> Maybe String -> Field FieldKind
-importOptionsFields gc filesource =
-    let
-        inputSource =
-            case filesource of
-                Nothing ->
-                    Field.textarea
-                        [ Field.label "Content"
-                        , Field.required True
-                        , Field.name "content"
-                        ]
-
-                Just filepath ->
-                    Field.text
-                        [ Field.label "File"
-                        , Field.required True
-                        , Field.disabled True
-                        , Field.name "filepath"
-                        , Field.value (Value.string filepath)
-                        ]
-
-        projects =
-            case gc of
-                Nothing ->
-                    []
-
-                Just gconf ->
-                    gconf.projects
-                        |> List.map
-                            (\x -> ( x.title, Value.string x.identifier ))
-    in
-    Field.group []
-        [ Field.select
-            [ Field.label "Target Project"
-            , Field.required True
-            , Field.name "project"
-            , Field.options projects
-            ]
-        , Field.select
-            [ Field.label "Import Type"
-            , Field.required True
-            , Field.name "kind"
-            , Field.stringOptions [ "Dative Form Json" ]
-            ]
-        , inputSource
-        ]
-
-
-globalSettingsFields : GlobalSettings -> Field FieldKind
-globalSettingsFields gs =
-    Field.group []
-        [ Field.text
-            [ Field.label "Your Name"
-            , Field.required True
-            , Field.identifier GlobalName
-            , Field.name "name"
-            , Field.value (Value.string gs.name)
-            ]
-        , Field.email
-            [ Field.label "Your Email"
-            , Field.required True
-            , Field.identifier GlobalEmail
-            , Field.name "email"
-            , Field.value (Value.string gs.email)
-            ]
-        , Field.text
-            [ Field.label "Your Identifier (Leave blank to create)"
-            , Field.required False
-            , Field.identifier GlobalUUID
-            , Field.name "identifier"
-            , Field.value
-                (Value.string <|
-                    Maybe.withDefault "" gs.identifier
-                )
             ]
         ]
 
@@ -597,16 +546,9 @@ init flags =
             , result = Nothing
             }
 
-        globalForm =
-            { fields = globalSettingsFields <| GlobalSettings "" "" Nothing
-            , submitted = False
-            , result = Nothing
-            }
-
         forms =
             Dict.empty
                 |> Dict.insert "new-project" newProjectForm
-                |> Dict.insert "global-settings" globalForm
     in
     ( { gconfig = Nothing
       , me = Nothing
@@ -832,24 +774,20 @@ update msg model =
                 Ok gc_ ->
                     let
                         person =
-                            gc_.identifier
-                                |> Maybe.map UUID.fromString
-                                |> Maybe.map Result.toMaybe
-                                |> ME.join
-                                |> (\uuid ->
-                                        ( gc_.name, gc_.email, uuid )
-                                            |> all3
+                            gc_.email
+                                |> Maybe.andThen
+                                    (\email ->
+                                        gc_.name
                                             |> Maybe.map
-                                                (\( x, y, z ) ->
-                                                    { id = z
+                                                (\name ->
+                                                    { id = email
                                                     , rev = Nothing
                                                     , version = 1
-                                                    , email = y
                                                     , names =
-                                                        Dict.singleton 0 x
+                                                        Dict.singleton 0 name
                                                     }
                                                 )
-                                   )
+                                    )
 
                         newmodel =
                             { model
@@ -928,29 +866,17 @@ update msg model =
                                     envelope_.project
 
                                 key p =
-                                    case ( Dict.get 0 p.names, p.email ) of
-                                        ( Nothing, "" ) ->
+                                    case Dict.get 0 p.names of
+                                        Nothing ->
                                             String.join " "
                                                 [ "Anonymous"
-                                                , UUID.toString p.id
+                                                , p.id
                                                 ]
 
-                                        ( Nothing, email ) ->
-                                            String.join " "
-                                                [ "(Blank Name)"
-                                                , email
-                                                ]
-
-                                        ( Just name, "" ) ->
-                                            String.join " "
-                                                [ name
-                                                , "(Blank Email)"
-                                                ]
-
-                                        ( Just name, email ) ->
+                                        Just name ->
                                             String.join " "
                                                 [ name ++ ","
-                                                , email
+                                                , p.id
                                                 ]
 
                                 pdict =
@@ -1202,24 +1128,30 @@ update msg model =
                             GlobalSettings
                                 (Maybe.withDefault "" gf.name)
                                 (Maybe.withDefault "" gf.email)
-                                gf.identifier
 
-                        gsForm =
-                            { fields = globalSettingsFields gs
-                            , submitted = False
-                            , result = Nothing
+                        formData =
+                            { globalFormData
+                                | email =
+                                    { blankString | value = gs.email }
+                                , name =
+                                    { blankString | value = gs.name }
                             }
 
-                        forms =
-                            Dict.insert "global-settings"
-                                gsForm
-                                model.forms
+                        content =
+                            GlobalSettingsContent (GlobalCForm formData)
+
+                        vista =
+                            { project = "global"
+                            , kind = "global-settings"
+                            , identifier = "global-settings"
+                            , content = content
+                            }
+
+                        vistas =
+                            Dict.insert "global-settings" vista model.vistas
 
                         newmodel =
-                            { model
-                                | gconfig = Just gf
-                                , forms = forms
-                            }
+                            { model | vistas = vistas }
                     in
                     case getByVista "global-settings" model.ventanas of
                         Nothing ->
@@ -1231,10 +1163,14 @@ update msg model =
                                     , params = defVParams
                                     }
                             in
-                            update (NewTab newVentana) newmodel
+                            ( newmodel
+                            , sendMsg (NewTab newVentana)
+                            )
 
                         Just tp ->
-                            update (FocusTab tp) newmodel
+                            ( newmodel
+                            , sendMsg (GotoTab tp)
+                            )
 
         ProjectInfoFormChange tp mesg ->
             let
@@ -1271,59 +1207,10 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        -- ImportOptionsFormChange mesg ->
-        --     case Dict.get "import-options" model.forms of
-        --         Just fd ->
-        --             let
-        --                 ( fields, result ) =
-        --                     FParse.parseUpdate importParser mesg fd.fields
-        --                 result_ =
-        --                     case result of
-        --                         Ok r ->
-        --                             Ok (ImportOptionsContent r)
-        --                         Err e ->
-        --                             Err e
-        --                 ipf =
-        --                     { fd
-        --                         | fields = fields
-        --                         , result = Just result_
-        --                     }
-        --                 forms =
-        --                     Dict.insert "import-options" ipf model.forms
-        --             in
-        --             ( { model | forms = forms }, Cmd.none )
-        --         Nothing ->
-        --             ( model, Cmd.none )
-        GlobalSettingsFormChange mesg ->
-            case Dict.get "global-settings" model.forms of
-                Just fd ->
-                    let
-                        ( fields, result ) =
-                            FParse.parseUpdate globalParser mesg fd.fields
-
-                        result_ =
-                            case result of
-                                Ok r ->
-                                    Ok (GlobalSettingsContent r)
-
-                                Err e ->
-                                    Err e
-
-                        gsf =
-                            { fd
-                                | fields = fields
-                                , result = Just result_
-                            }
-
-                        forms =
-                            Dict.insert "global-settings" gsf model.forms
-                    in
-                    ( { model | forms = forms }, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
         FormInit _ (ImportCForm imp) ->
+            ( model, Cmd.none )
+
+        FormInit _ (GlobalCForm imp) ->
             ( model, Cmd.none )
 
         FormInit project (InterlinearCForm int) ->
@@ -1420,13 +1307,13 @@ update msg model =
                                         ]
                                     )
 
-                                Just ( ImportOptionsContent imf, vista )  ->
+                                Just ( ImportOptionsContent imf, vista ) ->
                                     let
                                         ( nmodel, ncmd ) =
                                             handleCFormSubmit
                                                 (Just imf)
                                                 vista
-                                                    model
+                                                model
                                     in
                                     ( nmodel
                                     , Cmd.batch
@@ -1694,19 +1581,40 @@ update msg model =
 handleCFormSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
 handleCFormSubmit edit vista model =
     case edit of
+        Just (GlobalCForm glb) ->
+            let
+                jsonValue =
+                    E.object
+                        [ ( "email", E.string glb.email.value )
+                        , ( "name", E.string glb.name.value )
+                        ]
+
+                nvista =
+                    { vista
+                        | content =
+                            GlobalSettingsContent (GlobalCForm globalFormData)
+                    }
+
+                nvistas =
+                    Dict.insert nvista.identifier nvista model.vistas
+            in
+            ( { model | vistas = nvistas }
+            , updateGlobalSettings jsonValue
+            )
+
         Just (ImportCForm imp) ->
             let
                 jsonValue =
                     E.object
-                        [ ("filepath", E.string imp.filepath)
-                        , ("kind", E.string imp.kind.value)
-                        , ("project", E.string imp.project.value)
+                        [ ( "filepath", E.string imp.filepath )
+                        , ( "kind", E.string imp.kind.value )
+                        , ( "project", E.string imp.project.value )
                         ]
 
                 nvista =
-                    { vista |
-                          content =
-                          ImportOptionsContent (ImportCForm importFormData)
+                    { vista
+                        | content =
+                            ImportOptionsContent (ImportCForm importFormData)
                     }
 
                 nvistas =
@@ -1743,7 +1651,7 @@ handleCFormSubmit edit vista model =
                 meId =
                     case model.me of
                         Nothing ->
-                            uuid
+                            ""
 
                         Just p ->
                             p.id
@@ -1826,8 +1734,21 @@ handleCFChange fid str data =
         ImportForm field ->
             handleCFImpChange field str data
 
+        GlobalForm field ->
+            handleCFGlbChange field str data
+
         InterlinearForm field ->
             handleCFIntChange field str data
+
+
+handleCFGlbChange : GlobalField -> String -> CForm -> CForm
+handleCFGlbChange fid str cfglb =
+    case cfglb of
+        GlobalCForm imp ->
+            handleCFGlbChange_ fid str imp |> GlobalCForm
+
+        _ ->
+            cfglb
 
 
 handleCFImpChange : ImportField -> String -> CForm -> CForm
@@ -1838,6 +1759,116 @@ handleCFImpChange fid str cfimp =
 
         _ ->
             cfimp
+
+
+handleCFGlbChange_ : GlobalField -> String -> GlobalFormData -> GlobalFormData
+handleCFGlbChange_ fid str glb =
+    let
+        email =
+            glb.email
+
+        name =
+            glb.name
+
+        toperr =
+            "Please correct form."
+
+        valid glb_ =
+            List.all identity
+                [ glb_.email.valid
+                , glb_.name.valid
+                ]
+
+        defGlb glb_ =
+            let
+                valid_ =
+                    valid glb_
+            in
+            { glb_
+                | changed = True
+                , valid = valid_
+                , error =
+                    if valid_ then
+                        ""
+
+                    else
+                        toperr
+            }
+    in
+    case fid of
+        GlbEmailF ->
+            if String.isEmpty str then
+                { glb
+                    | email =
+                        { email
+                            | value = str
+                            , valid = False
+                            , error = "An email address is required."
+                            , changed = True
+                        }
+                }
+                    |> defGlb
+
+            else
+                case Email.fromString str of
+                    Nothing ->
+                        { glb
+                            | email =
+                                { email
+                                    | value = str
+                                    , valid = False
+                                    , error = "Invalid email address."
+                                    , changed = True
+                                }
+                        }
+                            |> defGlb
+
+                    Just _ ->
+                        { glb
+                            | email =
+                                { email
+                                    | value = str
+                                    , valid = True
+                                    , error = ""
+                                    , changed = True
+                                }
+                        }
+                            |> defGlb
+
+        GlbNameF ->
+            if String.isEmpty str then
+                { glb
+                    | name =
+                        { name
+                            | value = str
+                            , valid = False
+                            , error = "A name is required."
+                            , changed = True
+                        }
+                }
+                    |> defGlb
+
+            else
+                { glb
+                    | name =
+                        { name
+                            | value = str
+                            , valid = True
+                            , error = ""
+                            , changed = True
+                        }
+                }
+                    |> defGlb
+
+        GlbSaveF ->
+            if defGlb glb |> .valid then
+                { glb | submitted = True }
+
+            else
+                glb
+
+        GlbCancelF ->
+            globalFormData
 
 
 handleCFImpChange_ : ImportField -> String -> ImportFormData -> ImportFormData
@@ -2637,6 +2668,10 @@ maybeInitForm vid oldvistas =
         Just ( NewDocContent (ImportCForm _), _ ) ->
             oldvistas
 
+        -- This form cannot be used to create new content.
+        Just ( NewDocContent (GlobalCForm _), _ ) ->
+            oldvistas
+
         Just ( TranslationContent _, _ ) ->
             oldvistas
 
@@ -2726,12 +2761,6 @@ handleSubmit ident fd model =
         "new-project" :: _ ->
             handleProjectSubmit strIdent fd model
 
-        "import-options" :: _ ->
-            handleImportSubmit fd model
-
-        "global-settings" :: _ ->
-            handleGlobalSubmit fd model
-
         "edit-project" :: _ ->
             handleProjectSubmit strIdent fd model
 
@@ -2792,64 +2821,34 @@ handleProjectSubmit ident fd model =
             ( { model | forms = forms }, Cmd.none )
 
 
-handleImportSubmit : FormData -> Model -> ( Model, Cmd Msg )
-handleImportSubmit fd model =
-    case FParse.parseValidate FParse.json fd.fields of
-        ( _, Ok jsonValue ) ->
-            let
-                ipf =
-                    importOptionsFields model.gconfig Nothing
 
-                ipff =
-                    { fd | fields = ipf }
-
-                forms =
-                    Dict.insert "import-options" ipff model.forms
-            in
-            ( { model | forms = forms }, importFile jsonValue )
-
-        ( _, Err _ ) ->
-            let
-                ipff =
-                    { fd | submitted = False }
-
-                forms =
-                    Dict.insert "import-options" ipff model.forms
-            in
-            ( { model | forms = forms }, Cmd.none )
-
-
-handleGlobalSubmit : FormData -> Model -> ( Model, Cmd Msg )
-handleGlobalSubmit fd model =
-    case FParse.parseValidate FParse.json fd.fields of
-        ( _, Ok jsonValue ) ->
-            let
-                gs =
-                    GlobalSettings "" "" Nothing
-
-                gsf =
-                    { fd | fields = globalSettingsFields gs }
-
-                forms =
-                    Dict.insert "global-settings" gsf model.forms
-            in
-            ( closeAll "global-settings" { model | forms = forms }
-            , updateGlobalSettings jsonValue
-            )
-
-        ( fields, Err e ) ->
-            let
-                gsf =
-                    { fd
-                        | fields = fields
-                        , submitted = False
-                        , result = Just (Err e)
-                    }
-
-                forms =
-                    Dict.insert "global-settings" gsf model.forms
-            in
-            ( { model | forms = forms }, Cmd.none )
+-- handleGlobalSubmit : FormData -> Model -> ( Model, Cmd Msg )
+-- handleGlobalSubmit fd model =
+--     case FParse.parseValidate FParse.json fd.fields of
+--         ( _, Ok jsonValue ) ->
+--             let
+--                 gs =
+--                     GlobalSettings "" "" Nothing
+--                 gsf =
+--                     { fd | fields = globalSettingsFields gs }
+--                 forms =
+--                     Dict.insert "global-settings" gsf model.forms
+--             in
+--             ( closeAll "global-settings" { model | forms = forms }
+--             , updateGlobalSettings jsonValue
+--             )
+--         ( fields, Err e ) ->
+--             let
+--                 gsf =
+--                     { fd
+--                         | fields = fields
+--                         , submitted = False
+--                         , result = Just (Err e)
+--                     }
+--                 forms =
+--                     Dict.insert "global-settings" gsf model.forms
+--             in
+--             ( { model | forms = forms }, Cmd.none )
 
 
 {-| insertTabPath, newTabPath, and createNecessary are all helpers for
@@ -3226,73 +3225,11 @@ viewVista model tp vista =
                 Nothing ->
                     Html.text "No such form."
 
+        GlobalSettingsContent (GlobalCForm glb) ->
+            viewDocContentEditVista tp (GlobalCForm glb)
+
         GlobalSettingsContent _ ->
-            let
-                isV4 uuid =
-                    UUID.version uuid == 4
-
-                noUUID =
-                    model.gconfig
-                        |> Maybe.map .identifier
-                        |> ME.join
-                        |> Maybe.map UUID.fromString
-                        |> Maybe.map Result.toMaybe
-                        |> ME.join
-                        |> Maybe.andThen (maybeIf isV4)
-                        |> ME.isNothing
-            in
-            case Dict.get "global-settings" model.forms of
-                Just f ->
-                    let
-                        errorsExist =
-                            case f.result of
-                                Just (Err _) ->
-                                    True
-
-                                _ ->
-                                    False
-                    in
-                    Html.div []
-                        [ Html.p []
-                            [ Html.text
-                                "Name and email address required."
-                            ]
-                        , Html.form [ Event.onSubmit (FormSubmit tp) ]
-                            [ Field.toHtml
-                                GlobalSettingsFormChange
-                                f.fields
-                            , Html.button
-                                [ Event.onClick (FormSubmit tp)
-                                , Attr.disabled errorsExist
-                                ]
-                                [ Html.text "Save" ]
-                            , Html.button
-                                [ Event.onClick CloseTab
-                                , Attr.disabled noUUID
-                                , Attr.class "secondary"
-                                ]
-                                [ Html.text "Cancel" ]
-                            ]
-                        , case f.result of
-                            Just (Err e) ->
-                                Html.div []
-                                    [ Html.text "There were errors"
-                                    , Html.ul []
-                                        (FError.toList e
-                                            |> List.map
-                                                (\e_ ->
-                                                    Html.li []
-                                                        [ Html.text (FError.toEnglish e_) ]
-                                                )
-                                        )
-                                    ]
-
-                            _ ->
-                                Html.text ""
-                        ]
-
-                Nothing ->
-                    Html.text "No such form."
+            Html.text "no such form"
 
         TranslationContent trn ->
             viewTranslation model trn
@@ -3507,6 +3444,15 @@ viewDocContentEditVista tp cform =
             else
                 viewCFImportVista tp imp
 
+        GlobalCForm glb ->
+            if glb.submitted then
+                Html.span
+                    [ Attr.attribute "aria-busy" "true" ]
+                    [ Html.text "Saving changes." ]
+
+            else
+                viewCFGlobalVista tp glb
+
 
 type alias FieldDescription =
     { formname : String
@@ -3638,7 +3584,7 @@ viewCSelectField fd =
                         [ Attr.value (Tuple.second opt) ]
                         [ Html.text (Tuple.first opt) ]
                 )
-                ( ( "", "" ) :: fd.options )
+                (( "", "" ) :: fd.options)
             )
         , Html.small
             [ Attr.id helper ]
@@ -3848,6 +3794,73 @@ viewCFInterlinearVista tp int =
         ]
 
 
+viewCFGlobalVista : TabPath -> GlobalFormData -> Html.Html Msg
+viewCFGlobalVista tp glb =
+    Html.form []
+        [ viewCField
+            { formname = "globalsettings"
+            , label = "Email Address"
+            , kind = Html.input
+            , oninput = FormChange tp (GlobalForm GlbEmailF)
+            , name = "email"
+            , value = glb.email.value
+            , original = glb.email.original
+            , changed = glb.email.changed
+            , valid = glb.email.valid
+            , help = "Your email address."
+            , error = glb.email.error
+            , disabled = False
+            , deleted = False
+            , spellcheck = False
+            , options = []
+            , id = Nothing
+            }
+        , viewCField
+            { formname = "globalsettings"
+            , label = "Name"
+            , kind = Html.input
+            , oninput = FormChange tp (GlobalForm GlbNameF)
+            , name = "name"
+            , value = glb.name.value
+            , original = glb.name.original
+            , changed = glb.name.changed
+            , valid = glb.name.valid
+            , help = "Your name."
+            , error = glb.name.error
+            , disabled = False
+            , deleted = False
+            , spellcheck = False
+            , options = []
+            , id = Nothing
+            }
+        , Html.button
+            (if glb.valid then
+                [ Event.onClick <|
+                    FormChange tp (GlobalForm GlbSaveF) ""
+                , Attr.type_ "button"
+                ]
+
+             else
+                [ Attr.attribute "data-tooltip" glb.error
+                , Attr.attribute "data-placement" "right"
+                , Attr.type_ "button"
+                , Event.onClick None
+                ]
+            )
+            [ Html.text "Save" ]
+        , Html.button
+            [ Attr.class "secondary"
+            , Attr.type_ "button"
+            , Event.onClick <|
+                MultiMsg
+                    [ FormChange tp (GlobalForm GlbCancelF) ""
+                    , CloseTab
+                    ]
+            ]
+            [ Html.text "Cancel" ]
+        ]
+
+
 viewCFImportVista : TabPath -> ImportFormData -> Html.Html Msg
 viewCFImportVista tp imp =
     Html.form []
@@ -3908,20 +3921,20 @@ viewCFImportVista tp imp =
                 }
             ]
         , Html.button
-              (if imp.valid then
-                   [ Event.onClick <|
-                         FormChange tp (ImportForm ImpImportF) ""
-                   , Attr.type_ "button"
-                   ]
+            (if imp.valid then
+                [ Event.onClick <|
+                    FormChange tp (ImportForm ImpImportF) ""
+                , Attr.type_ "button"
+                ]
 
-               else
-                 [ Attr.attribute "data-tooltip" imp.error
-                 , Attr.attribute "data-placement" "right"
-                 , Attr.type_ "button"
-                 , Event.onClick None
-                 ]
-              )
-              [ Html.text "Import" ]
+             else
+                [ Attr.attribute "data-tooltip" imp.error
+                , Attr.attribute "data-placement" "right"
+                , Attr.type_ "button"
+                , Event.onClick None
+                ]
+            )
+            [ Html.text "Import" ]
         , Html.button
             [ Attr.class "secondary"
             , Attr.type_ "button"
@@ -4507,11 +4520,10 @@ contentDecoder kind =
 
 globalConfigDecoder : D.Decoder GlobalConfig
 globalConfigDecoder =
-    D.map4 GlobalConfig
+    D.map3 GlobalConfig
         (D.field "projects" <| D.list projectInfoDecoder)
         (D.field "name" <| D.nullable D.string)
         (D.field "email" <| D.nullable D.string)
-        (D.field "identifier" <| D.nullable D.string)
 
 
 projectInfoDecoder : D.Decoder ProjectInfo
@@ -4543,14 +4555,6 @@ projectParser =
         (FParse.field ProjectTitle FParse.string)
         (FParse.field ProjectEnabled FParse.bool)
         (FParse.field ProjectUrl (FParse.maybe urlStringParser))
-
-
-globalParser : FParse.Parser FieldKind GlobalSettings
-globalParser =
-    FParse.map3 GlobalSettings
-        (FParse.field GlobalName FParse.string)
-        (FParse.field GlobalEmail FParse.email)
-        (FParse.field GlobalUUID (FParse.maybe uuidStringParser))
 
 
 urlStringParser : FParse.Parser FieldKind String
