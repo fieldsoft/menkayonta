@@ -367,7 +367,6 @@ const openGlobalConf = async () => {
     projects: [],
     name: null,
     email: null,
-    identifier: null,
   }
 
   try {

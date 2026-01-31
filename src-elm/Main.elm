@@ -1322,6 +1322,21 @@ update msg model =
                                         ]
                                     )
 
+                                Just ( GlobalSettingsContent glf, vista ) ->
+                                    let
+                                        ( nmodel, ncmd ) =
+                                            handleCFormSubmit
+                                            (Just glf)
+                                                vista
+                                                    model
+                                    in
+                                    ( nmodel
+                                    , Cmd.batch
+                                        [ sendMsg CloseTab
+                                        , ncmd
+                                        ]
+                                    )
+
                                 Just ( TranslationContent _, _ ) ->
                                     ( model, Cmd.none )
 
@@ -1332,9 +1347,6 @@ update msg model =
                                     ( model, Cmd.none )
 
                                 Just ( ProjectInfoContent _, _ ) ->
-                                    ( model, Cmd.none )
-
-                                Just ( GlobalSettingsContent _, _ ) ->
                                     ( model, Cmd.none )
 
                                 Just ( ErrorContent _, _ ) ->
@@ -1442,6 +1454,41 @@ update msg model =
             case getContentVistaVentana tp model of
                 Nothing ->
                     ( model, Cmd.none )
+
+                Just ( GlobalSettingsContent cfglb, ( vista, ventana ) ) ->
+                    let
+                        ncfglb =
+                            handleCFChange fid str cfglb
+
+                        ncontent =
+                            GlobalSettingsContent ncfglb
+
+                        nvista =
+                            { vista | content = ncontent }
+
+                        nvistas =
+                            Dict.insert
+                                ventana.vista
+                                nvista
+                                model.vistas
+                                
+
+                        nglb =
+                            case ncfglb of
+                                GlobalCForm glb ->
+                                    glb
+
+                                -- This shouldn't happen.
+                                _ ->
+                                    globalFormData
+                    in
+                    ( { model | vistas = nvistas }
+                    , if nglb.submitted then
+                          sendMsg (FormSubmit tp)
+
+                      else
+                          Cmd.none
+                    )
 
                 Just ( ImportOptionsContent cfimp, ( vista, ventana ) ) ->
                     let
@@ -1569,9 +1616,6 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just ( ProjectInfoContent _, _ ) ->
-                    ( model, Cmd.none )
-
-                Just ( GlobalSettingsContent _, _ ) ->
                     ( model, Cmd.none )
 
                 Just ( ErrorContent _, _ ) ->
@@ -1744,8 +1788,8 @@ handleCFChange fid str data =
 handleCFGlbChange : GlobalField -> String -> CForm -> CForm
 handleCFGlbChange fid str cfglb =
     case cfglb of
-        GlobalCForm imp ->
-            handleCFGlbChange_ fid str imp |> GlobalCForm
+        GlobalCForm glb ->
+            handleCFGlbChange_ fid str glb |> GlobalCForm
 
         _ ->
             cfglb
