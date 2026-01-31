@@ -21,6 +21,7 @@ module Menkayonta exposing
     , encoder
     , identifierToString
     , listDecoder
+    , oneBuilder
     , people
     , stringToIdentifier
     )
@@ -687,3 +688,27 @@ addFrag s1 s2 =
 
     else
         String.join "/" s2 ++ "#" ++ s1_
+
+
+{-| A helper function to use in folds.
+-}
+oneBuilder : Value -> OneDoc -> OneDoc
+oneBuilder v od =
+    case v of
+        MyTag t ->
+            { od | tags = t :: od.tags }
+
+        MyProperty p ->
+            { od | properties = p :: od.properties }
+
+        MyDescription d ->
+            { od | descriptions = d :: od.descriptions }
+
+        MyModification m ->
+            { od | modifications = m :: od.modifications }
+
+        MyUtility _ ->
+            od
+
+        other ->
+            { od | doc = Just other }

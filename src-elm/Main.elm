@@ -2,6 +2,31 @@ port module Main exposing (main)
 
 import Browser
 import Browser.Dom as Dom
+import Config exposing (GlobalConfig, GlobalSettings, ProjectInfo)
+import Content
+    exposing
+        ( Content(..)
+        , Translation
+        , translationsDecoder
+        )
+import Content.Form
+    exposing
+        ( CForm(..)
+        , FieldId(..)
+        , GlobalField(..)
+        , GlobalFormData
+        , ImportField(..)
+        , ImportFormData
+        , InterlinearAnnotationsData
+        , InterlinearField(..)
+        , InterlinearFormData
+        , InterlinearTranslationData
+        , blankSelect
+        , blankString
+        , globalFormData
+        , importFormData
+        , interlinearFormData
+        )
 import Dict exposing (Dict)
 import Email exposing (Email)
 import FormToolkit.Error as FError
@@ -19,47 +44,25 @@ import List.Extra as LE
 import Math.Vector3 as V3
 import Maybe.Extra as ME
 import Menkayonta as M exposing (Interlinear)
+import Msg exposing (..)
 import Random
 import Result
 import Set exposing (Set)
+import Tab
+    exposing
+        ( Direction(..)
+        , TabPath
+        , Ventana
+        , VentanaParams
+        , Ventanas
+        , VisVentanas
+        , Vista
+        , Vistas
+        )
 import Task
 import Time
 import UUID
 import Url
-
-
-type Msg
-    = ChangeEditParam TabPath
-    | ChangeLengthParam TabPath String
-    | ChangeSearchParam TabPath String
-    | CloneTab
-    | CloseTab
-    | FocusTab TabPath
-    | FormChange TabPath FieldId String
-    | FormInit String CForm
-    | FormSubmit TabPath
-    | GlobalSettingsMenu E.Value
-    | GotoTab TabPath
-    | ImportOptionsFileMenu String
-    | Move Direction
-    | MultiMsg (List Msg)
-    | NewProjectMenu String
-    | NewTab Ventana
-    | None
-    | ProjectInfoFormChange TabPath (Field.Msg FieldKind)
-    | ProjectSettingsEdit ProjectInfo
-    | ReceivedAllDoc E.Value
-    | ReceivedDoc E.Value
-    | ReceivedGlobalConfig E.Value
-    | ReceivedInterlinearIndex E.Value
-    | ReceivedPersonIndex E.Value
-    | ReceivedProjectIndex E.Value
-    | RequestAllDocId String String
-    | RequestDocId String String
-    | RequestInterlinearIndex String
-    | RequestProjectIndex String
-    | SetTime Time.Posix
-    | SetWindowTitle String
 
 
 type alias Model =
@@ -70,88 +73,12 @@ type alias Model =
     , focused : Maybe TabPath
     , visVentanas : VisVentanas
     , vistas : Vistas
-    , error : Maybe Error
+    , error : String
     , forms : Dict String FormData
     , loading : Set String
     , people : Dict String (Dict String M.Person)
     , seeds : UUID.Seeds
     , time : Time.Posix
-    }
-
-
-{-| A Ventana supplies the title and a referrence to a Vista, which is
-an identifier for some viewable content. I use Spanish when there are
-already commonly referred to object or concepts such as "window" or
-"view".
--}
-type alias Ventana =
-    { title : String
-    , fullTitle : String
-    , vista : String
-    , params : VentanaParams
-    }
-
-
-type alias VentanaParams =
-    { length : Int
-    , searchString : String
-    , edit : Bool
-    }
-
-
-{-| All of the viewable content associated with a tab.
--}
-type alias Ventanas =
-    Dict TabPath Ventana
-
-
-{-| Viewable content.
--}
-type alias Vista =
-    { project : String
-    , kind : String
-    , identifier : String
-    , content : Content
-    }
-
-
-type alias Vistas =
-    Dict String Vista
-
-
-{-| The path to a tab, used for operations on tabs.
--}
-type alias TabPath =
-    ( Int, ( Int, Int ) )
-
-
-{-| Currently visible Ventanas.
--}
-type alias VisVentanas =
-    Dict ( Int, Int ) Int
-
-
-type alias GlobalConfig =
-    { projects : List ProjectInfo
-    , name : Maybe String
-    , email : Maybe String
-    }
-
-
-{-| This is the subset of global configuration that is not specific to
-a project.
--}
-type alias GlobalSettings =
-    { name : String
-    , email : String
-    }
-
-
-type alias ProjectInfo =
-    { title : String
-    , identifier : String
-    , enabled : Bool
-    , url : Maybe String
     }
 
 
@@ -216,49 +143,6 @@ docReqEncode dr =
         ]
 
 
-type alias FormData =
-    { fields : Field FieldKind
-    , submitted : Bool
-    , result : Maybe (Result (FError.Error FieldKind) Content)
-    }
-
-
-type Direction
-    = Left
-    | Right
-    | Up
-    | Down
-
-
-type FieldKind
-    = ProjectIdentifier
-    | ProjectTitle
-    | ProjectEnabled
-    | ProjectUrl
-    | GlobalName
-    | GlobalEmail
-    | GlobalUUID
-
-
-type Content
-    = TranslationContent Translation
-    | TranslationsContent (List Translation)
-    | InterlinearsContent (List Interlinear)
-    | DocContent { view : M.OneDoc, edit : Maybe CForm }
-    | NewDocContent CForm
-    | ProjectInfoContent ProjectInfo
-    | ImportOptionsContent CForm
-    | GlobalSettingsContent CForm
-    | ErrorContent Error
-
-
-type alias Translation =
-    { key : String
-    , value : String
-    , id : String
-    }
-
-
 {-| These are not specific to any project and are kept around, even
 when not in use.
 -}
@@ -287,186 +171,6 @@ globalVistas =
       )
     ]
         |> Dict.fromList
-
-
-type alias StringField =
-    { value : String
-    , valid : Bool
-    , error : String
-    , changed : Bool
-    , original : String
-    }
-
-
-type alias SelectField =
-    { value : String
-    , options : List ( String, String )
-    , valid : Bool
-    , error : String
-    , changed : Bool
-    , original : String
-    }
-
-
-type alias InterlinearAnnotationsData =
-    { breaks : StringField
-    , glosses : StringField
-    , phonemic : StringField
-    , judgment : StringField
-    }
-
-
-type alias InterlinearTranslationData =
-    { id : Int
-    , deleted : Bool
-    , translation : StringField
-    , judgment : StringField
-    }
-
-
-type alias InterlinearFormData =
-    { id : Maybe UUID.UUID
-    , rev : Maybe String
-    , version : Int
-    , changed : Bool
-    , submitted : Bool
-    , error : String
-    , valid : Bool
-    , text : StringField
-    , annotations : InterlinearAnnotationsData
-    , translations : List InterlinearTranslationData
-    , counter : Int
-    }
-
-
-type alias ImportFormData =
-    { changed : Bool
-    , submitted : Bool
-    , error : String
-    , valid : Bool
-    , filepath : String
-    , kind : SelectField
-    , project : SelectField
-    }
-
-
-type alias GlobalFormData =
-    { changed : Bool
-    , submitted : Bool
-    , error : String
-    , valid : Bool
-    , name : StringField
-    , email : StringField
-    }
-
-
-type CForm
-    = InterlinearCForm InterlinearFormData
-    | ImportCForm ImportFormData
-    | GlobalCForm GlobalFormData
-
-
-type FieldId
-    = InterlinearForm InterlinearField
-    | ImportForm ImportField
-    | GlobalForm GlobalField
-
-
-type GlobalField
-    = GlbEmailF
-    | GlbNameF
-    | GlbSaveF
-    | GlbCancelF
-
-
-type ImportField
-    = ImpKindF
-    | ImpProjectF
-    | ImpImportF
-    | ImpCancelF
-
-
-type InterlinearField
-    = IntTextF
-    | IntBreaksF
-    | IntGlossesF
-    | IntPhonemicF
-    | IntJudgmentF
-    | IntTransF
-    | IntTransTranslationF Int
-    | IntTransJudgmentF Int
-    | IntSaveF
-    | IntCancelF
-
-
-blankString : StringField
-blankString =
-    { value = ""
-    , valid = True
-    , error = ""
-    , changed = False
-    , original = ""
-    }
-
-
-blankSelect : SelectField
-blankSelect =
-    { value = ""
-    , options = []
-    , valid = True
-    , error = ""
-    , changed = False
-    , original = ""
-    }
-
-
-interlinearFormData : InterlinearFormData
-interlinearFormData =
-    { id = Nothing
-    , rev = Nothing
-    , version = 1
-    , changed = False
-    , submitted = False
-    , error = "Please fill the empty form."
-    , valid = False
-    , text = { blankString | valid = False, error = "Cannot be empty." }
-    , annotations =
-        { breaks = blankString
-        , glosses = blankString
-        , phonemic = blankString
-        , judgment = blankString
-        }
-    , translations = []
-    , counter = 0
-    }
-
-
-importFormData =
-    { changed = False
-    , submitted = False
-    , error = "Please fill the empty form."
-    , valid = False
-    , filepath = ""
-    , kind =
-        { blankSelect
-            | options =
-                [ ( "Dative Form Json"
-                  , "Dative Form Json"
-                  )
-                ]
-        }
-    , project = blankSelect
-    }
-
-
-globalFormData =
-    { changed = False
-    , submitted = False
-    , error = "Please fill the empty form."
-    , valid = False
-    , email = { blankString | valid = False, error = "Cannot be empty." }
-    , name = { blankString | valid = False, error = "Cannot be empty." }
-    }
 
 
 projectFields : ProjectInfo -> Field FieldKind
@@ -557,7 +261,7 @@ init flags =
       , focused = Nothing
       , visVentanas = Dict.empty
       , vistas = globalVistas
-      , error = Nothing
+      , error = ""
       , forms = forms
       , loading = Set.empty
       , people = Dict.empty
@@ -767,7 +471,7 @@ update msg model =
         ReceivedGlobalConfig gc ->
             case D.decodeValue globalConfigDecoder gc of
                 Err err ->
-                    ( { model | error = Just (Error (D.errorToString err)) }
+                    ( { model | error = D.errorToString err }
                     , Cmd.none
                     )
 
@@ -895,10 +599,7 @@ update msg model =
                             )
 
                         Err e ->
-                            ( { model
-                                | error =
-                                    Just <| Error <| D.errorToString e
-                              }
+                            ( { model | error = D.errorToString e }
                             , Cmd.none
                             )
 
@@ -908,9 +609,7 @@ update msg model =
         ReceivedAllDoc envelope ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
-                    ( { model
-                        | error = Just <| Error <| D.errorToString e
-                      }
+                    ( { model | error = D.errorToString e }
                     , Cmd.none
                     )
 
@@ -959,12 +658,7 @@ update msg model =
                                     ( model, Cmd.none )
 
                         Err e ->
-                            ( { model
-                                | error =
-                                    Just <|
-                                        Error <|
-                                            D.errorToString e
-                              }
+                            ( { model | error = D.errorToString e }
                             , Cmd.none
                             )
 
@@ -1326,9 +1020,9 @@ update msg model =
                                     let
                                         ( nmodel, ncmd ) =
                                             handleCFormSubmit
-                                            (Just glf)
+                                                (Just glf)
                                                 vista
-                                                    model
+                                                model
                                     in
                                     ( nmodel
                                     , Cmd.batch
@@ -1347,9 +1041,6 @@ update msg model =
                                     ( model, Cmd.none )
 
                                 Just ( ProjectInfoContent _, _ ) ->
-                                    ( model, Cmd.none )
-
-                                Just ( ErrorContent _, _ ) ->
                                     ( model, Cmd.none )
 
                                 Nothing ->
@@ -1471,7 +1162,6 @@ update msg model =
                                 ventana.vista
                                 nvista
                                 model.vistas
-                                
 
                         nglb =
                             case ncfglb of
@@ -1484,10 +1174,10 @@ update msg model =
                     in
                     ( { model | vistas = nvistas }
                     , if nglb.submitted then
-                          sendMsg (FormSubmit tp)
+                        sendMsg (FormSubmit tp)
 
                       else
-                          Cmd.none
+                        Cmd.none
                     )
 
                 Just ( ImportOptionsContent cfimp, ( vista, ventana ) ) ->
@@ -1616,9 +1306,6 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just ( ProjectInfoContent _, _ ) ->
-                    ( model, Cmd.none )
-
-                Just ( ErrorContent _, _ ) ->
                     ( model, Cmd.none )
 
 
@@ -2734,9 +2421,6 @@ maybeInitForm vid oldvistas =
         Just ( GlobalSettingsContent _, _ ) ->
             oldvistas
 
-        Just ( ErrorContent _, _ ) ->
-            oldvistas
-
         Nothing ->
             oldvistas
 
@@ -2745,7 +2429,7 @@ handleReceivedVista : E.Value -> String -> String -> Model -> ( Model, Cmd Msg )
 handleReceivedVista val short full model =
     case D.decodeValue vistaDecoder val of
         Err err ->
-            ( { model | error = Just (Error (D.errorToString err)) }
+            ( { model | error = D.errorToString err }
             , Cmd.none
             )
 
@@ -2757,7 +2441,7 @@ handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
 handleVista vista short full model =
     case getProjectTitle vista.project model of
         Nothing ->
-            ( { model | error = Just (Error "No such project") }
+            ( { model | error = "No such project" }
             , Cmd.none
             )
 
@@ -3366,9 +3050,6 @@ viewVista model tp vista =
 
         ImportOptionsContent _ ->
             Html.text "no such form"
-
-        ErrorContent err ->
-            viewError model err
 
 
 viewNewDocContentVista :
@@ -4549,19 +4230,6 @@ projectInfoDecoder =
         (D.field "url" (D.nullable D.string))
 
 
-translationsDecoder : D.Decoder (List Translation)
-translationsDecoder =
-    D.list translationDecoder
-
-
-translationDecoder : D.Decoder Translation
-translationDecoder =
-    D.map3 Translation
-        (D.field "key" D.string)
-        (D.field "value" D.string)
-        (D.field "id" D.string)
-
-
 projectParser : FParse.Parser FieldKind ProjectInfo
 projectParser =
     FParse.map4 ProjectInfo
@@ -4644,35 +4312,6 @@ getProjectTitle projid model =
         |> Maybe.map .title
 
 
-maybeIf : (a -> Bool) -> a -> Maybe a
-maybeIf pred a =
-    if pred a then
-        Just a
-
-    else
-        Nothing
-
-
-resultToList : Result a (List b) -> List b
-resultToList res =
-    case res of
-        Ok l ->
-            l
-
-        Err _ ->
-            []
-
-
-all3 : ( Maybe a, Maybe b, Maybe c ) -> Maybe ( a, b, c )
-all3 triple =
-    case triple of
-        ( Just one, Just two, Just three ) ->
-            Just ( one, two, three )
-
-        _ ->
-            Nothing
-
-
 reduceDoc : Envelope -> Result D.Error M.OneDoc
 reduceDoc env =
     let
@@ -4684,38 +4323,10 @@ reduceDoc env =
     in
     case content of
         Ok content_ ->
-            Ok <| List.foldl oneBuilder initial content_
+            Ok <| List.foldl M.oneBuilder initial content_
 
         Err e ->
             Err e
-
-
-oneBuilder : M.Value -> M.OneDoc -> M.OneDoc
-oneBuilder v od =
-    case v of
-        M.MyTag t ->
-            { od | tags = t :: od.tags }
-
-        M.MyProperty p ->
-            { od | properties = p :: od.properties }
-
-        M.MyDescription d ->
-            { od | descriptions = d :: od.descriptions }
-
-        M.MyModification m ->
-            { od | modifications = m :: od.modifications }
-
-        M.MyUtility _ ->
-            od
-
-        other ->
-            { od | doc = Just other }
-
-
-sendMsg : Msg -> Cmd Msg
-sendMsg msg =
-    Task.succeed msg
-        |> Task.perform identity
 
 
 
