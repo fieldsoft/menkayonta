@@ -2865,36 +2865,6 @@ handleProjectSubmit ident fd model =
             ( { model | forms = forms }, Cmd.none )
 
 
-
--- handleGlobalSubmit : FormData -> Model -> ( Model, Cmd Msg )
--- handleGlobalSubmit fd model =
---     case FParse.parseValidate FParse.json fd.fields of
---         ( _, Ok jsonValue ) ->
---             let
---                 gs =
---                     GlobalSettings "" "" Nothing
---                 gsf =
---                     { fd | fields = globalSettingsFields gs }
---                 forms =
---                     Dict.insert "global-settings" gsf model.forms
---             in
---             ( closeAll "global-settings" { model | forms = forms }
---             , updateGlobalSettings jsonValue
---             )
---         ( fields, Err e ) ->
---             let
---                 gsf =
---                     { fd
---                         | fields = fields
---                         , submitted = False
---                         , result = Just (Err e)
---                     }
---                 forms =
---                     Dict.insert "global-settings" gsf model.forms
---             in
---             ( { model | forms = forms }, Cmd.none )
-
-
 {-| insertTabPath, newTabPath, and createNecessary are all helpers for
 Move Direction. Each provides Direction specific code for some
 aspect of the Move operation. This is for the case when movement
