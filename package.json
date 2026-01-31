@@ -18,7 +18,8 @@
     "lint": "eslint",
     "test": "NODE_ENV=testing elm-test && NODE_OPTIONS='--localstorage-file=./tests/jest-storage' jest",
     "prestart": "elm make src-elm/Converter.elm --output src/conv.js",
-    "start": "NODE_ENV=development run-pty run-pty-dev.json"
+    "start": "NODE_ENV=development run-pty run-pty-dev.json",
+    "dependencies": "electron-rebuild"
   },
   "devDependencies": {
     "@electron/packager": "^19.0.1",
