@@ -20,6 +20,5 @@ type alias GlobalSettings =
 type alias ProjectInfo =
     { title : String
     , identifier : String
-    , enabled : Bool
     , url : Maybe String
     }

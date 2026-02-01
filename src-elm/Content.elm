@@ -11,7 +11,7 @@ type Content
     | InterlinearsContent (List Interlinear)
     | DocContent { view : OneDoc, edit : Maybe CForm }
     | NewDocContent CForm
-    | ProjectInfoContent ProjectInfo
+    | ProjectInfoContent CForm
     | ImportOptionsContent CForm
     | GlobalSettingsContent CForm
 

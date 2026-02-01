@@ -80,9 +80,6 @@ const handleProjectMessage = (m) => {
     case 'error':
       m.error.message = `Child ${m.identifier}: ${m.error.message}`
       throw m.error
-    case 'received-trans-index':
-      gvs.webContents.send(m.command, m)
-      break
     case 'received-person-index':
       gvs.webContents.send(m.command, m)
       break
@@ -388,15 +385,16 @@ const openGlobalConf = async () => {
   }
 }
 
-// Create a new project and return updated configuration.
+// Create or update a project and return updated configuration.
 // This requires the following:
 // 1. Retrieve the current global config
-// 2. Check that the new project id is not already present
-// 3. Create the new project directory structure
-// 4. Create the new project config file
-// 5. Initialize a database
-// 6. Send the globabl config to the renderer
-const createProject = async (_event, data) => {
+// 2. Check whether the project id is present
+// 3. If so, branch to a helper function, if not, continue.
+// 4. Create the new project directory structure
+// 5. Create the new project config file
+// 6. Initialize a database
+// 7. Send the globabl config to the renderer
+const updateProject = async (_event, data) => {
   const projectInfo = data.project
   const seed = data.seed
   const projPath = path.join(gvs.projectsPath, projectInfo.identifier)
@@ -407,7 +405,7 @@ const createProject = async (_event, data) => {
   await readGlobalConf()
 
   if (gvs.globalConf.projects.some(equalsCurrent)) {
-    throw new Error('Project ID exists')
+    updateProjectHelper(projectInfo)
   }
 
   await fs.mkdir(projSharePath, { recursive: true })
@@ -430,14 +428,12 @@ const createProject = async (_event, data) => {
   return gvs.globalConf
 }
 
-const updateProject = async (_event, projectInfo) => {
+const updateProjectHelper = async (projectInfo) => {
   const equalsCurrent = (p) => p.identifier === projectInfo.identifier
 
   await readGlobalConf()
 
   const curr = gvs.globalConf.projects.findIndex(equalsCurrent)
-
-  console.log(curr)
 
   if (!isNaN(curr)) {
     gvs.globalConf.projects[curr] = projectInfo
@@ -574,7 +570,6 @@ const init = async () => {
     ipcMain.handle('request-person-index', requestPersonIndex)
     ipcMain.handle('request-all-docid', requestDocId)
     ipcMain.handle('request-docid', requestDocId)
-    ipcMain.handle('create-project', createProject)
     ipcMain.handle('update-project', updateProject)
     ipcMain.handle('import-file', importFile)
     ipcMain.handle('update-global-settings', updateGlobalSettings)

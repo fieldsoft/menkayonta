@@ -9,10 +9,13 @@ module Content.Form exposing
     , InterlinearField(..)
     , InterlinearFormData
     , InterlinearTranslationData
+    , ProjectField(..)
+    , ProjectFormData
     , blankString
     , globalFormData
     , importFormData
     , interlinearFormData
+    , projectFormData
     , blankSelect
     )
 
@@ -23,42 +26,19 @@ type CForm
     = InterlinearCForm InterlinearFormData
     | ImportCForm ImportFormData
     | GlobalCForm GlobalFormData
+    | ProjectCForm ProjectFormData
 
 
-type alias StringField =
-    { value : String
-    , valid : Bool
+type alias ProjectFormData =
+    { changed : Bool
+    , submitted : Bool
     , error : String
-    , changed : Bool
-    , original : String
-    }
-
-
-type alias SelectField =
-    { value : String
-    , options : List ( String, String )
     , valid : Bool
-    , error : String
-    , changed : Bool
-    , original : String
+    , identifier : String
+    , title : StringField
+    , url : StringField
     }
-
-
-type alias InterlinearAnnotationsData =
-    { breaks : StringField
-    , glosses : StringField
-    , phonemic : StringField
-    , judgment : StringField
-    }
-
-
-type alias InterlinearTranslationData =
-    { id : Int
-    , deleted : Bool
-    , translation : StringField
-    , judgment : StringField
-    }
-
+    
 
 type alias InterlinearFormData =
     { id : Maybe UUID.UUID
@@ -96,10 +76,46 @@ type alias GlobalFormData =
     }
 
 
+type alias StringField =
+    { value : String
+    , valid : Bool
+    , error : String
+    , changed : Bool
+    , original : String
+    }
+
+
+type alias SelectField =
+    { value : String
+    , options : List ( String, String )
+    , valid : Bool
+    , error : String
+    , changed : Bool
+    , original : String
+    }
+
+
+type alias InterlinearAnnotationsData =
+    { breaks : StringField
+    , glosses : StringField
+    , phonemic : StringField
+    , judgment : StringField
+    }
+
+
+type alias InterlinearTranslationData =
+    { id : Int
+    , deleted : Bool
+    , translation : StringField
+    , judgment : StringField
+    }
+
+
 type FieldId
     = InterlinearForm InterlinearField
     | ImportForm ImportField
     | GlobalForm GlobalField
+    | ProjectForm ProjectField
 
 
 type GlobalField
@@ -107,6 +123,13 @@ type GlobalField
     | GlbNameF
     | GlbSaveF
     | GlbCancelF
+
+
+type ProjectField
+    = PrjTitleF
+    | PrjUrlF
+    | PrjSaveF
+    | PrjCancelF
 
 
 type ImportField
@@ -196,4 +219,15 @@ globalFormData =
     , valid = False
     , email = { blankString | valid = False, error = "Cannot be empty." }
     , name = { blankString | valid = False, error = "Cannot be empty." }
+    }
+
+
+projectFormData =
+    { changed = False
+    , submitted = False
+    , error = "Please fill the empty form."
+    , valid = False
+    , identifier = ""
+    , title = { blankString | valid = False, error = "Cannot be empty." }
+    , url = blankString
     }

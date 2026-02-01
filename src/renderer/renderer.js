@@ -44,17 +44,6 @@ app.ports.requestAllDocId.subscribe((message) => {
   window.electronAPI.requestAllDocId(message)
 })
 
-window.electronAPI.onReceivedTransIndex((data) => {
-  const vista = {
-    project: data.identifier,
-    kind: 'all-translations',
-    identifier: `all-translations::${data.identifier}`,
-    content: data.payload.rows,
-  }
-
-  app.ports.receivedProjectIndex.send(vista)
-})
-
 window.electronAPI.onReceivedPersonIndex((data) => {
   app.ports.receivedPersonIndex.send(data)
 })
@@ -76,11 +65,6 @@ window.electronAPI.onReceivedDoc((data) => {
 
 window.electronAPI.onReceivedAllDoc((data) => {
   app.ports.receivedAllDoc.send(data)
-})
-
-app.ports.createProject.subscribe(async (projectInfo) => {
-  const gconfig = await window.electronAPI.createProject(projectInfo)
-  app.ports.receivedGlobalConfig.send(gconfig)
 })
 
 app.ports.updateProject.subscribe(async (projectInfo) => {

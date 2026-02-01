@@ -17,8 +17,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('global-settings', (_event, globalConf) =>
       callback(globalConf),
     ),
-  onReceivedTransIndex: (callback) =>
-    ipcRenderer.on('received-trans-index', (_event, data) => callback(data)),
   onReceivedInterlinearIndex: (callback) =>
     ipcRenderer.on('received-interlinear-index', (_event, data) =>
       callback(data),
@@ -39,8 +37,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   requestDocId: (message) => ipcRenderer.invoke('request-docid', message),
   requestAllDocId: (message) =>
     ipcRenderer.invoke('request-all-docid', message),
-  createProject: (projectInfo) =>
-    ipcRenderer.invoke('create-project', projectInfo),
   updateProject: (projectInfo) =>
     ipcRenderer.invoke('update-project', projectInfo),
   importFile: (importOptions) =>

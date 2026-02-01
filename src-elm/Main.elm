@@ -21,18 +21,17 @@ import Content.Form
         , InterlinearField(..)
         , InterlinearFormData
         , InterlinearTranslationData
+        , ProjectField(..)
+        , ProjectFormData
         , blankSelect
         , blankString
         , globalFormData
         , importFormData
         , interlinearFormData
+        , projectFormData
         )
 import Dict exposing (Dict)
 import Email exposing (Email)
-import FormToolkit.Error as FError
-import FormToolkit.Field as Field exposing (Field)
-import FormToolkit.Parse as FParse
-import FormToolkit.Value as Value
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
@@ -74,7 +73,6 @@ type alias Model =
     , visVentanas : VisVentanas
     , vistas : Vistas
     , error : String
-    , forms : Dict String FormData
     , loading : Set String
     , people : Dict String (Dict String M.Person)
     , seeds : UUID.Seeds
@@ -152,7 +150,7 @@ globalVistas =
       , { project = "global"
         , kind = "new-project"
         , identifier = "new-project"
-        , content = ProjectInfoContent (ProjectInfo "" "" True Nothing)
+        , content = ProjectInfoContent (ProjectCForm projectFormData)
         }
       )
     , ( "import-options"
@@ -171,41 +169,6 @@ globalVistas =
       )
     ]
         |> Dict.fromList
-
-
-projectFields : ProjectInfo -> Field FieldKind
-projectFields pi =
-    Field.group []
-        [ Field.text
-            [ Field.label "Identifier"
-            , Field.required True
-            , Field.disabled True
-            , Field.identifier ProjectIdentifier
-            , Field.name "identifier"
-            , Field.value (Value.string pi.identifier)
-            ]
-        , Field.text
-            [ Field.label "Title"
-            , Field.required True
-            , Field.identifier ProjectTitle
-            , Field.name "title"
-            , Field.value (Value.string pi.title)
-            ]
-        , Field.checkbox
-            [ Field.label "Enable"
-            , Field.identifier ProjectEnabled
-            , Field.name "enabled"
-            , Field.hint "Be careful! Disabling a project will hide it."
-            , Field.value (Value.bool pi.enabled)
-            ]
-        , Field.text
-            [ Field.label "Url"
-            , Field.required False
-            , Field.identifier ProjectUrl
-            , Field.name "url"
-            , Field.value (Value.string <| Maybe.withDefault "" pi.url)
-            ]
-        ]
 
 
 main : Program Flags Model Msg
@@ -243,16 +206,6 @@ init flags =
             , seed3 = Random.initialSeed flags.seed3
             , seed4 = Random.initialSeed flags.seed4
             }
-
-        newProjectForm =
-            { fields = projectFields <| ProjectInfo "" "" True Nothing
-            , submitted = False
-            , result = Nothing
-            }
-
-        forms =
-            Dict.empty
-                |> Dict.insert "new-project" newProjectForm
     in
     ( { gconfig = Nothing
       , me = Nothing
@@ -262,7 +215,6 @@ init flags =
       , visVentanas = Dict.empty
       , vistas = globalVistas
       , error = ""
-      , forms = forms
       , loading = Set.empty
       , people = Dict.empty
       , seeds = seeds
@@ -554,9 +506,6 @@ update msg model =
             in
             ( model, requestAllDocId payload )
 
-        ReceivedProjectIndex pi ->
-            handleReceivedVista pi "Index" "Index" model
-
         ReceivedInterlinearIndex ii ->
             handleReceivedVista ii "Glosses" "Glosses" model
 
@@ -669,79 +618,6 @@ update msg model =
             -- named) ReceivedAllDoc is used.
             ( model, Cmd.none )
 
-        -- Open or focus the New Project form.
-        NewProjectMenu ident ->
-            let
-                pi =
-                    ProjectInfo "" ident True Nothing
-
-                pif =
-                    { fields = projectFields pi
-                    , submitted = False
-                    , result = Just (Ok (ProjectInfoContent pi))
-                    }
-
-                forms =
-                    Dict.insert "new-project" pif model.forms
-
-                newVentana =
-                    Ventana "New Project" "New Project" "new-project" defVParams
-
-                newmodel =
-                    { model | forms = forms }
-            in
-            case getByVista "new-project" model.ventanas of
-                Nothing ->
-                    update (NewTab newVentana) newmodel
-
-                Just tp ->
-                    update (FocusTab tp) newmodel
-
-        ProjectSettingsEdit pi ->
-            let
-                piid =
-                    "edit-project::" ++ pi.identifier
-
-                pif =
-                    { fields = projectFields pi
-                    , submitted = False
-                    , result = Nothing
-                    }
-
-                tabtitle =
-                    pi.title ++ " Settings"
-
-                newVentana =
-                    Ventana tabtitle tabtitle piid defVParams
-
-                newVista =
-                    { project = pi.identifier
-                    , kind = "edit-project"
-                    , identifier = piid
-                    , content = ProjectInfoContent pi
-                    }
-
-                vistas =
-                    Dict.insert piid newVista model.vistas
-
-                forms =
-                    case Dict.get piid model.forms of
-                        Nothing ->
-                            Dict.insert piid pif model.forms
-
-                        _ ->
-                            model.forms
-
-                newmodel =
-                    { model | forms = forms, vistas = vistas }
-            in
-            case getByVista piid model.ventanas of
-                Nothing ->
-                    update (NewTab newVentana) newmodel
-
-                Just tp ->
-                    update (FocusTab tp) newmodel
-
         -- Open or focus the Import Options form with a filename.
         ImportOptionsFileMenu filepath ->
             let
@@ -793,7 +669,7 @@ update msg model =
             case getByVista "import-options" model.ventanas of
                 Nothing ->
                     let
-                        newVentana =
+                        ventana =
                             { title = "Import Options"
                             , fullTitle = "Import Options"
                             , vista = "import-options"
@@ -801,7 +677,7 @@ update msg model =
                             }
                     in
                     ( newmodel
-                    , sendMsg (NewTab newVentana)
+                    , sendMsg (NewTab ventana)
                     )
 
                 Just tp ->
@@ -866,46 +742,84 @@ update msg model =
                             , sendMsg (GotoTab tp)
                             )
 
-        ProjectInfoFormChange tp mesg ->
-            let
-                ident =
-                    Dict.get tp model.ventanas
-                        |> Maybe.map .vista
-                        |> Maybe.withDefault "bad-identifier"
-            in
-            case Dict.get ident model.forms of
-                Just fd ->
-                    let
-                        ( fields, result ) =
-                            FParse.parseUpdate projectParser mesg fd.fields
-
-                        result_ =
-                            case result of
-                                Ok r ->
-                                    Ok (ProjectInfoContent r)
-
-                                Err e ->
-                                    Err e
-
-                        pif =
-                            { fd
-                                | fields = fields
-                                , result = Just result_
-                            }
-
-                        forms =
-                            Dict.insert ident pif model.forms
-                    in
-                    ( { model | forms = forms }, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
         FormInit _ (ImportCForm imp) ->
             ( model, Cmd.none )
 
         FormInit _ (GlobalCForm imp) ->
             ( model, Cmd.none )
+
+        FormInit "" (ProjectCForm prj) ->
+            let
+                ( uuid, seeds ) =
+                    UUID.step model.seeds
+
+                prj_ =
+                    { prj | identifier = UUID.toString uuid }
+
+                vista =
+                    { project = "global"
+                    , kind = "new-project"
+                    , identifier = "new-project"
+                    , content =
+                        ProjectInfoContent (ProjectCForm prj_)
+                    }
+
+                vistas =
+                    Dict.insert "new-project" vista model.vistas
+
+                newmodel =
+                    { model | vistas = vistas }
+            in
+            case getByVista "new-project" model.ventanas of
+                Nothing ->
+                    let
+                        ventana =
+                            { title = "New Project"
+                            , fullTitle = "New Project"
+                            , vista = "new-project"
+                            , params = defVParams
+                            }
+                    in
+                    ( newmodel, sendMsg (NewTab ventana) )
+
+                Just tp ->
+                    ( newmodel, sendMsg (GotoTab tp) )
+
+        FormInit project (ProjectCForm prj) ->
+            let
+                piid =
+                    "edit-project::" ++ project
+
+                tabtitle =
+                    prj.title.value ++ " Settings"
+
+                vista =
+                    { project = project
+                    , kind = "edit-project"
+                    , identifier = piid
+                    , content = ProjectInfoContent (ProjectCForm prj)
+                    }
+
+                vistas =
+                    Dict.insert piid vista model.vistas
+
+                newmodel =
+                    { model | vistas = vistas }
+            in
+            case getByVista piid model.ventanas of
+                Nothing ->
+                    let
+                        ventana =
+                            { title = tabtitle
+                            , fullTitle = tabtitle
+                            , vista = piid
+                            , params = defVParams
+                            }
+                    in
+                    ( newmodel, sendMsg (NewTab ventana) )
+
+                Just tp ->
+                    ( newmodel, sendMsg (GotoTab tp) )
 
         FormInit project (InterlinearCForm int) ->
             let
@@ -967,94 +881,94 @@ update msg model =
             in
             case formid of
                 Just ident ->
-                    case Dict.get ident model.forms of
+                    let
+                        contentVista =
+                            getContentVistaFromVistas
+                                ident
+                                model.vistas
+                    in
+                    case contentVista of
+                        Just ( DocContent dc, vista ) ->
+                            let
+                                ( nmodel, ncmd ) =
+                                    handleCFormSubmit
+                                        dc.edit
+                                        vista
+                                        model
+                            in
+                            ( nmodel, ncmd )
+
+                        Just ( NewDocContent fd, vista ) ->
+                            let
+                                ( nmodel, ncmd ) =
+                                    handleCFormSubmit
+                                        (Just fd)
+                                        vista
+                                        model
+                            in
+                            ( nmodel
+                            , Cmd.batch
+                                [ sendMsg CloseTab
+                                , ncmd
+                                ]
+                            )
+
+                        Just ( ImportOptionsContent imf, vista ) ->
+                            let
+                                ( nmodel, ncmd ) =
+                                    handleCFormSubmit
+                                        (Just imf)
+                                        vista
+                                        model
+                            in
+                            ( nmodel
+                            , Cmd.batch
+                                [ sendMsg CloseTab
+                                , ncmd
+                                ]
+                            )
+
+                        Just ( GlobalSettingsContent glf, vista ) ->
+                            let
+                                ( nmodel, ncmd ) =
+                                    handleCFormSubmit
+                                        (Just glf)
+                                        vista
+                                        model
+                            in
+                            ( nmodel
+                            , Cmd.batch
+                                [ sendMsg CloseTab
+                                , ncmd
+                                ]
+                            )
+
+                        Just ( ProjectInfoContent prj, vista ) ->
+                            let
+                                ( nmodel, ncmd ) =
+                                    handleCFormSubmit
+                                        (Just prj)
+                                        vista
+                                        model
+                            in
+                            ( nmodel
+                            , Cmd.batch
+                                [ sendMsg CloseTab
+                                , ncmd
+                                ]
+                            )
+
+                        Just ( TranslationContent _, _ ) ->
+                            ( model, Cmd.none )
+
+                        Just ( TranslationsContent _, _ ) ->
+                            ( model, Cmd.none )
+
+                        Just ( InterlinearsContent _, _ ) ->
+                            ( model, Cmd.none )
+
                         Nothing ->
-                            let
-                                contentVista =
-                                    getContentVistaFromVistas
-                                        ident
-                                        model.vistas
-                            in
-                            case contentVista of
-                                Just ( DocContent dc, vista ) ->
-                                    let
-                                        ( nmodel, ncmd ) =
-                                            handleCFormSubmit
-                                                dc.edit
-                                                vista
-                                                model
-                                    in
-                                    ( nmodel, ncmd )
-
-                                Just ( NewDocContent fd, vista ) ->
-                                    let
-                                        ( nmodel, ncmd ) =
-                                            handleCFormSubmit
-                                                (Just fd)
-                                                vista
-                                                model
-                                    in
-                                    ( nmodel
-                                    , Cmd.batch
-                                        [ sendMsg CloseTab
-                                        , ncmd
-                                        ]
-                                    )
-
-                                Just ( ImportOptionsContent imf, vista ) ->
-                                    let
-                                        ( nmodel, ncmd ) =
-                                            handleCFormSubmit
-                                                (Just imf)
-                                                vista
-                                                model
-                                    in
-                                    ( nmodel
-                                    , Cmd.batch
-                                        [ sendMsg CloseTab
-                                        , ncmd
-                                        ]
-                                    )
-
-                                Just ( GlobalSettingsContent glf, vista ) ->
-                                    let
-                                        ( nmodel, ncmd ) =
-                                            handleCFormSubmit
-                                                (Just glf)
-                                                vista
-                                                model
-                                    in
-                                    ( nmodel
-                                    , Cmd.batch
-                                        [ sendMsg CloseTab
-                                        , ncmd
-                                        ]
-                                    )
-
-                                Just ( TranslationContent _, _ ) ->
-                                    ( model, Cmd.none )
-
-                                Just ( TranslationsContent _, _ ) ->
-                                    ( model, Cmd.none )
-
-                                Just ( InterlinearsContent _, _ ) ->
-                                    ( model, Cmd.none )
-
-                                Just ( ProjectInfoContent _, _ ) ->
-                                    ( model, Cmd.none )
-
-                                Nothing ->
-                                    ( model, Cmd.none )
-
-                        Just fd ->
-                            let
-                                divid =
-                                    String.split "::" ident
-
-                                ( nm, cmd ) =
-                                    handleSubmit divid fd model
-                            in
-                            ( nm, cmd )
+                            ( model, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -1312,6 +1226,29 @@ update msg model =
 handleCFormSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
 handleCFormSubmit edit vista model =
     case edit of
+        Just (ProjectCForm prj) ->
+            let
+                jsonValue =
+                    E.object
+                        [ ( "identifier", E.string prj.identifier )
+                        , ( "enabled", E.bool True )
+                        , ( "title", E.string prj.title.value )
+                        , ( "url", E.string prj.url.value )
+                        ]
+
+                nvista =
+                    { vista
+                        | content =
+                            ProjectInfoContent (ProjectCForm projectFormData)
+                    }
+
+                nvistas =
+                    Dict.insert nvista.identifier nvista model.vistas
+            in
+            ( { model | vistas = nvistas }
+            , updateProject jsonValue
+            )
+
         Just (GlobalCForm glb) ->
             let
                 jsonValue =
@@ -1468,6 +1405,9 @@ handleCFChange fid str data =
         GlobalForm field ->
             handleCFGlbChange field str data
 
+        ProjectForm field ->
+            handleCFPrjChange field str data
+
         InterlinearForm field ->
             handleCFIntChange field str data
 
@@ -1480,6 +1420,16 @@ handleCFGlbChange fid str cfglb =
 
         _ ->
             cfglb
+
+
+handleCFPrjChange : ProjectField -> String -> CForm -> CForm
+handleCFPrjChange fid str cfprj =
+    case cfprj of
+        ProjectCForm prj ->
+            handleCFPrjChange_ fid str prj |> ProjectCForm
+
+        _ ->
+            cfprj
 
 
 handleCFImpChange : ImportField -> String -> CForm -> CForm
@@ -1600,6 +1550,103 @@ handleCFGlbChange_ fid str glb =
 
         GlbCancelF ->
             globalFormData
+
+
+handleCFPrjChange_ : ProjectField -> String -> ProjectFormData -> ProjectFormData
+handleCFPrjChange_ fid str prj =
+    let
+        title =
+            prj.title
+
+        url =
+            prj.url
+
+        toperr =
+            "Please correct form."
+
+        valid prj_ =
+            List.all identity
+                [ prj_.title.valid
+                , prj_.url.valid
+                ]
+
+        defPrj prj_ =
+            let
+                valid_ =
+                    valid prj_
+            in
+            { prj_
+                | changed = True
+                , valid = valid_
+                , error =
+                    if valid_ then
+                        ""
+
+                    else
+                        toperr
+            }
+    in
+    case fid of
+        PrjTitleF ->
+            if String.isEmpty str then
+                { prj
+                    | title =
+                        { title
+                            | value = str
+                            , valid = False
+                            , error = "A title is required."
+                            , changed = True
+                        }
+                }
+                    |> defPrj
+
+            else
+                { prj
+                    | title =
+                        { title
+                            | value = str
+                            , valid = True
+                            , error = ""
+                            , changed = True
+                        }
+                }
+                    |> defPrj
+
+        PrjUrlF ->
+            case ( String.isEmpty str, Url.fromString str ) of
+                ( False, Nothing ) ->
+                    { prj
+                        | url =
+                            { url
+                                | value = str
+                                , valid = False
+                                , error = "A URL is not required, but it must be valid if provided."
+                                , changed = True
+                            }
+                    }
+                        |> defPrj
+
+                _ ->
+                    { prj
+                        | url =
+                            { url
+                                | value = str
+                                , valid = True
+                                , error = ""
+                                , changed = True
+                            }
+                    }
+                        |> defPrj
+
+        PrjSaveF ->
+            if defPrj prj |> .valid then
+                { prj | submitted = True }
+
+            else
+                prj
+
+        PrjCancelF ->
+            projectFormData
 
 
 handleCFImpChange_ : ImportField -> String -> ImportFormData -> ImportFormData
@@ -2392,15 +2439,8 @@ maybeInitForm vid oldvistas =
                 _ ->
                     oldvistas
 
-        Just ( NewDocContent (InterlinearCForm int), vista ) ->
-            oldvistas
-
-        -- This form cannot be used to create new content.
-        Just ( NewDocContent (ImportCForm _), _ ) ->
-            oldvistas
-
-        -- This form cannot be used to create new content.
-        Just ( NewDocContent (GlobalCForm _), _ ) ->
+        -- NewDocContent is specific to the Menkayonta notion of Doc.
+        Just ( NewDocContent _, _ ) ->
             oldvistas
 
         Just ( TranslationContent _, _ ) ->
@@ -2477,76 +2517,6 @@ handleVista vista short full model =
 
                 Just tp ->
                     ( newmodel, sendMsg (FocusTab tp) )
-
-
-handleSubmit : List String -> FormData -> Model -> ( Model, Cmd Msg )
-handleSubmit ident fd model =
-    let
-        strIdent =
-            String.join "::" ident
-    in
-    case ident of
-        "new-project" :: _ ->
-            handleProjectSubmit strIdent fd model
-
-        "edit-project" :: _ ->
-            handleProjectSubmit strIdent fd model
-
-        _ ->
-            -- This shouldn't be possible
-            ( model, Cmd.none )
-
-
-handleProjectSubmit : String -> FormData -> Model -> ( Model, Cmd Msg )
-handleProjectSubmit ident fd model =
-    case FParse.parseValidate FParse.json fd.fields of
-        ( _, Ok jsonValue ) ->
-            let
-                forms =
-                    Dict.remove ident model.forms
-
-                jsonValue_ =
-                    model.me
-                        |> Maybe.map M.MyPerson
-                        |> Maybe.map M.encoder
-                        |> (\p ->
-                                E.object
-                                    [ ( "project", jsonValue )
-
-                                    -- "seed" is for database seed
-                                    -- data.  Not to be confused with
-                                    -- the random seeds used for UUID
-                                    -- generation.
-                                    , ( "seed"
-                                      , E.list (EE.maybe identity) [ p ]
-                                      )
-                                    ]
-                           )
-
-                command =
-                    if ident == "new-project" then
-                        createProject jsonValue_
-
-                    else
-                        updateProject jsonValue
-            in
-            ( closeAll ident { model | forms = forms }
-            , command
-            )
-
-        ( fields, Err e ) ->
-            let
-                pif =
-                    { fd
-                        | fields = fields
-                        , submitted = False
-                        , result = Just (Err e)
-                    }
-
-                forms =
-                    Dict.insert ident pif model.forms
-            in
-            ( { model | forms = forms }, Cmd.none )
 
 
 {-| insertTabPath, newTabPath, and createNecessary are all helpers for
@@ -2639,12 +2609,11 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
-        , receivedProjectIndex ReceivedProjectIndex
         , receivedInterlinearIndex ReceivedInterlinearIndex
         , receivedPersonIndex ReceivedPersonIndex
         , receivedAllDoc ReceivedAllDoc
         , receivedDoc ReceivedDoc
-        , newProject NewProjectMenu
+        , newProject (\_ -> FormInit "" (ProjectCForm projectFormData))
         , importOptions ImportOptionsFileMenu
         , globalSettings GlobalSettingsMenu
         , moveLeft_ (\_ -> Move Left)
@@ -2839,16 +2808,19 @@ viewLoadingProject model p =
 viewProject : Model -> ProjectInfo -> Html.Html Msg
 viewProject model p =
     Html.li []
-        [ Html.a
-            [ Attr.href "#"
-            , Event.onClick <| RequestProjectIndex p.identifier
-            ]
-            [ viewLoadingProject model p ]
+        [ viewLoadingProject model p
         , Html.ul []
             [ Html.li []
                 [ Html.a
                     [ Attr.href "#"
-                    , Event.onClick <| ProjectSettingsEdit p
+                    , Event.onClick <|
+                        FormInit p.identifier <|
+                            ProjectCForm
+                                { projectFormData
+                                    | identifier = p.identifier
+                                    , title = { blankString | value = p.title }
+                                    , url = { blankString | value = Maybe.withDefault "" p.url }
+                                }
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Settings" ]
@@ -2878,50 +2850,11 @@ viewProject model p =
 viewVista : Model -> TabPath -> Vista -> Html Msg
 viewVista model tp vista =
     case vista.content of
+        ProjectInfoContent (ProjectCForm prj) ->
+            viewDocContentEditVista tp (ProjectCForm prj)
+
         ProjectInfoContent _ ->
-            case Dict.get vista.identifier model.forms of
-                Just f ->
-                    let
-                        errorsExist =
-                            case f.result of
-                                Just (Err _) ->
-                                    True
-
-                                _ ->
-                                    False
-                    in
-                    Html.form [ Event.onSubmit (FormSubmit tp) ]
-                        [ Field.toHtml (ProjectInfoFormChange tp) f.fields
-                        , Html.button
-                            [ Event.onClick (FormSubmit tp)
-                            , Attr.disabled errorsExist
-                            ]
-                            [ Html.text "Save" ]
-                        , Html.button
-                            [ Event.onClick CloseTab
-                            , Attr.class "secondary"
-                            ]
-                            [ Html.text "Cancel" ]
-                        , case f.result of
-                            Just (Err e) ->
-                                Html.div []
-                                    [ Html.text "There were errors"
-                                    , Html.ul []
-                                        (FError.toList e
-                                            |> List.map
-                                                (\e_ ->
-                                                    Html.li []
-                                                        [ Html.text (FError.toEnglish e_) ]
-                                                )
-                                        )
-                                    ]
-
-                            _ ->
-                                Html.text ""
-                        ]
-
-                Nothing ->
-                    Html.text "No such form."
+            Html.text "no such form"
 
         GlobalSettingsContent (GlobalCForm glb) ->
             viewDocContentEditVista tp (GlobalCForm glb)
@@ -3147,6 +3080,17 @@ viewDocContentEditVista tp cform =
 
             else
                 viewCFGlobalVista tp glb
+
+        ProjectCForm prj ->
+            if prj.submitted then
+                -- Normally, the form is closed immediately after
+                -- submitting.
+                Html.span
+                    [ Attr.attribute "aria-busy" "true" ]
+                    [ Html.text "Saving changes." ]
+
+            else
+                viewCFProjectVista tp prj
 
 
 type alias FieldDescription =
@@ -3549,6 +3493,91 @@ viewCFGlobalVista tp glb =
             , Event.onClick <|
                 MultiMsg
                     [ FormChange tp (GlobalForm GlbCancelF) ""
+                    , CloseTab
+                    ]
+            ]
+            [ Html.text "Cancel" ]
+        ]
+
+
+viewCFProjectVista : TabPath -> ProjectFormData -> Html.Html Msg
+viewCFProjectVista tp prj =
+    Html.form []
+        [ viewCField
+            { formname = "projectconf"
+            , label = "Identifier"
+            , kind = Html.input
+            , oninput = \_ -> None
+            , name = "identifier"
+            , value = prj.identifier
+            , original = prj.identifier
+            , changed = False
+            , valid = True
+            , help = "A unique identifier for the project."
+            , error = ""
+            , disabled = True
+            , deleted = False
+            , spellcheck = False
+            , options = []
+            , id = Nothing
+            }
+        , viewCField
+            { formname = "projectconf"
+            , label = "Project Title"
+            , kind = Html.input
+            , oninput = FormChange tp (ProjectForm PrjTitleF)
+            , name = "title"
+            , value = prj.title.value
+            , original = prj.title.original
+            , changed = prj.title.changed
+            , valid = prj.title.valid
+            , help = "A short title for the project."
+            , error = prj.title.error
+            , disabled = False
+            , deleted = False
+            , spellcheck = True
+            , options = []
+            , id = Nothing
+            }
+        , viewCField
+            { formname = "projectcof"
+            , label = "Server Url"
+            , kind = Html.input
+            , oninput = FormChange tp (ProjectForm PrjUrlF)
+            , name = "url"
+            , value = prj.url.value
+            , original = prj.url.original
+            , changed = prj.url.changed
+            , valid = prj.url.valid
+            , help = "A URL to a server to work with others."
+            , error = prj.url.error
+            , disabled = False
+            , deleted = False
+            , spellcheck = False
+            , options = []
+            , id = Nothing
+            }
+        , Html.button
+            (if prj.valid then
+                [ Event.onClick <|
+                    FormChange tp (ProjectForm PrjSaveF) ""
+                , Attr.type_ "button"
+                ]
+
+             else
+                [ Attr.attribute "data-tooltip" prj.error
+                , Attr.attribute "data-placement" "right"
+                , Attr.type_ "button"
+                , Event.onClick None
+                ]
+            )
+            [ Html.text "Save" ]
+        , Html.button
+            [ Attr.class "secondary"
+            , Attr.type_ "button"
+            , Event.onClick <|
+                MultiMsg
+                    [ FormChange tp (ProjectForm PrjCancelF) ""
                     , CloseTab
                     ]
             ]
@@ -4201,10 +4230,9 @@ contentDecoder kind =
             D.map TranslationsContent
                 (D.field "content" translationsDecoder)
 
-        "new-project" ->
-            D.map ProjectInfoContent
-                (D.field "content" projectInfoDecoder)
-
+        -- "new-project" ->
+        --     D.map ProjectInfoContent
+        --         (D.field "content" projectInfoDecoder)
         "all-interlinears" ->
             D.map InterlinearsContent
                 (D.field "content" <| D.list interlinearDecoder)
@@ -4223,50 +4251,10 @@ globalConfigDecoder =
 
 projectInfoDecoder : D.Decoder ProjectInfo
 projectInfoDecoder =
-    D.map4 ProjectInfo
+    D.map3 ProjectInfo
         (D.field "title" D.string)
         (D.field "identifier" D.string)
-        (D.field "enabled" D.bool)
         (D.field "url" (D.nullable D.string))
-
-
-projectParser : FParse.Parser FieldKind ProjectInfo
-projectParser =
-    FParse.map4 ProjectInfo
-        (FParse.field ProjectIdentifier uuidStringParser)
-        (FParse.field ProjectTitle FParse.string)
-        (FParse.field ProjectEnabled FParse.bool)
-        (FParse.field ProjectUrl (FParse.maybe urlStringParser))
-
-
-urlStringParser : FParse.Parser FieldKind String
-urlStringParser =
-    FParse.string
-        |> FParse.andThen
-            (\str ->
-                case Url.fromString str of
-                    Nothing ->
-                        FParse.fail
-                            "Invalide URL Format"
-
-                    Just _ ->
-                        FParse.succeed str
-            )
-
-
-uuidStringParser : FParse.Parser FieldKind String
-uuidStringParser =
-    FParse.string
-        |> FParse.andThen
-            (\str ->
-                case UUID.fromString str of
-                    Err _ ->
-                        FParse.fail
-                            "Invalid Identifer Format"
-
-                    Ok _ ->
-                        FParse.succeed str
-            )
 
 
 getVistaVentana : TabPath -> Model -> Maybe ( Vista, Ventana )
@@ -4375,13 +4363,6 @@ port indicates that the global configuration was received.
 port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
 
 
-{-| The project index is a listing of all translated items with their
-translations, which serves as an entry point to a project. This port
-indicates that the index was received.
--}
-port receivedProjectIndex : (E.Value -> msg) -> Sub msg
-
-
 port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
 
 
@@ -4407,11 +4388,6 @@ port globalSettings : (E.Value -> msg) -> Sub msg
 {-| The "Import File" menu item was clicked.
 -}
 port importOptions : (String -> msg) -> Sub msg
-
-
-{-| Send ProjectInfo to the backend for creation.
--}
-port createProject : E.Value -> Cmd msg
 
 
 {-| Send ProjectInfo to the backend for update.
