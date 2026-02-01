@@ -2,29 +2,24 @@ module Msg exposing (Msg(..), sendMsg)
 
 import Content exposing (Content)
 import Config exposing (ProjectInfo)
-import Tab exposing (TabPath, Direction, Ventana)
+import Tab exposing (Direction, Ventana)
 import Task
 import Time
-import Form exposing (FieldId, CForm)
+import Form exposing (Field, CForm)
 import Json.Encode as E
 
 
 type Msg
-    = ChangeEditParam TabPath
-    | ChangeLengthParam TabPath String
-    | ChangeSearchParam TabPath String
-    | CloneTab
-    | CloseTab
-    | FocusTab TabPath
-    | FormChange TabPath FieldId String
+    = ChangeEditParam Tab.Path
+    | ChangeLengthParam Tab.Path String
+    | ChangeSearchParam Tab.Path String
+    | Tab Tab.Msg
+    | FormChange Tab.Path Field String
     | FormInit String CForm
-    | FormSubmit TabPath
+    | FormSubmit Tab.Path
     | GlobalSettingsMenu E.Value
-    | GotoTab TabPath
     | ImportOptionsFileMenu String
-    | Move Direction
     | MultiMsg (List Msg)
-    | NewTab Ventana
     | None
     | ReceivedAllDoc E.Value
     | ReceivedDoc E.Value

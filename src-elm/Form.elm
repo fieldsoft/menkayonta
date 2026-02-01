@@ -1,26 +1,30 @@
 module Form exposing
     ( CForm(..)
-    , FieldId(..)
-    , GlobalField(..)
-    , GlobalFormData
+    , Field(..)
     , ImportField(..)
     , ImportFormData
     , ProjectField(..)
     , ProjectFormData
-    , globalFormData
     , importFormData
     , projectFormData
     )
 
-import UUID
+import Form.Global
 import Form.Interlinear
-import Form.Shared exposing (StringField, SelectField, blankString, blankSelect)
+import Form.Shared
+    exposing
+        ( SelectField
+        , StringField
+        , blankSelect
+        , blankString
+        )
+import UUID
 
 
 type CForm
     = InterlinearCForm Form.Interlinear.Data
     | ImportCForm ImportFormData
-    | GlobalCForm GlobalFormData
+    | GlobalCForm Form.Global.Data
     | ProjectCForm ProjectFormData
 
 
@@ -46,28 +50,11 @@ type alias ImportFormData =
     }
 
 
-type alias GlobalFormData =
-    { changed : Bool
-    , submitted : Bool
-    , error : String
-    , valid : Bool
-    , name : StringField
-    , email : StringField
-    }
-
-
-type FieldId
+type Field
     = InterlinearForm Form.Interlinear.Field
     | ImportForm ImportField
-    | GlobalForm GlobalField
+    | GlobalForm Form.Global.Field
     | ProjectForm ProjectField
-
-
-type GlobalField
-    = GlbEmailF
-    | GlbNameF
-    | GlbSaveF
-    | GlbCancelF
 
 
 type ProjectField
@@ -99,16 +86,6 @@ importFormData =
                 ]
         }
     , project = blankSelect
-    }
-
-
-globalFormData =
-    { changed = False
-    , submitted = False
-    , error = "Please fill the empty form."
-    , valid = False
-    , email = { blankString | valid = False, error = "Cannot be empty." }
-    , name = { blankString | valid = False, error = "Cannot be empty." }
     }
 
 

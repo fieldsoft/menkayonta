@@ -65,6 +65,13 @@ type Field
     | None
 
 
+{-| Alias for callbacks sent when display is called. -}
+type alias Callbacks msg =
+    { close : Field -> String -> msg
+    , change : Field -> String -> msg
+    }
+
+    
 {-| Annotations are the non-translation annotations.
 -}
 type alias Annotations =
@@ -801,15 +808,15 @@ change fid str d =
 relevant to the form logic but that result in changes that are handled
 in `change`
 -}
-display : Data -> (Field -> String -> msg) -> Html.Html msg
-display d f =
+display : Data -> Callbacks msg -> Html.Html msg
+display d c =
     Html.form []
         [ Html.fieldset []
             [ displayField
                 { formname = "interlinear"
                 , label = "Text"
                 , kind = Html.textarea
-                , oninput = f Text
+                , oninput = c.change Text
                 , name = "text"
                 , value = d.text.value
                 , original = d.text.original
@@ -829,7 +836,7 @@ display d f =
                 { formname = "interlinear"
                 , label = "Text Judgment"
                 , kind = Html.input
-                , oninput = f Judgment
+                , oninput = c.change Judgment
                 , name = "judgement"
                 , value = d.annotations.judgment.value
                 , original = d.annotations.judgment.original
@@ -847,7 +854,7 @@ display d f =
                 { formname = "interlinear"
                 , label = "Phonemic Transcription"
                 , kind = Html.textarea
-                , oninput = f Phonemic
+                , oninput = c.change Phonemic
                 , name = "phonemic"
                 , value = d.annotations.phonemic.value
                 , original = d.annotations.phonemic.original
@@ -865,7 +872,7 @@ display d f =
                 { formname = "interlinear"
                 , label = "Affix Breaks"
                 , kind = Html.textarea
-                , oninput = f Breaks
+                , oninput = c.change Breaks
                 , name = "breaks"
                 , value = d.annotations.breaks.value
                 , original = d.annotations.breaks.original
@@ -887,7 +894,7 @@ display d f =
                 { formname = "interlinear"
                 , label = "Affix Glosses"
                 , kind = Html.textarea
-                , oninput = f Glosses
+                , oninput = c.change Glosses
                 , name = "glosses"
                 , value = d.annotations.glosses.value
                 , original = d.annotations.glosses.original
@@ -905,10 +912,10 @@ display d f =
         , Html.fieldset [] <|
             List.concat
                 [ [ Html.legend [] [ Html.text "Translations" ] ]
-                , List.map (displayTrans f) d.translations
+                , List.map (displayTrans c.change) d.translations
                 , [ Html.a
                         [ Event.onClick <|
-                            f Trans "add"
+                            c.change Trans "add"
                         , Attr.href "#"
                         ]
                         [ Html.text "+ Add Translation" ]
@@ -917,7 +924,7 @@ display d f =
         , Html.button
             (if d.valid then
                 [ Event.onClick <|
-                    f Save ""
+                    c.change Save ""
                 , Attr.type_ "button"
                 ]
 
@@ -925,7 +932,7 @@ display d f =
                 [ Attr.attribute "data-tooltip" d.error
                 , Attr.attribute "data-placement" "right"
                 , Attr.type_ "button"
-                , Event.onClick <| f None ""
+                , Event.onClick <| c.change None ""
                 ]
             )
             [ Html.text "Save" ]
@@ -934,7 +941,7 @@ display d f =
             , Attr.attribute "data-tooltip" "This will erase all changes!"
             , Attr.attribute "data-placement" "right"
             , Attr.type_ "button"
-            , Event.onClick <| f Cancel ""
+            , Event.onClick <| c.change Cancel ""
             ]
             [ Html.text "Cancel" ]
         ]

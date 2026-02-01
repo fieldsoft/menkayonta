@@ -12,17 +12,15 @@ import Content
 import Dict exposing (Dict)
 import Email exposing (Email)
 import Form.Interlinear
+import Form.Global
 import Form
     exposing
         ( CForm(..)
-        , FieldId(..)
-        , GlobalField(..)
-        , GlobalFormData
+        , Field(..)
         , ProjectField(..)
         , ProjectFormData
         , ImportFormData
         , ImportField(..)
-        , globalFormData
         , projectFormData
         , importFormData
         )
@@ -45,7 +43,6 @@ import Set exposing (Set)
 import Tab
     exposing
         ( Direction(..)
-        , TabPath
         , Ventana
         , VentanaParams
         , Ventanas
@@ -64,7 +61,7 @@ type alias Model =
     , me : Maybe M.Person
     , counter : Int
     , ventanas : Ventanas
-    , focused : Maybe TabPath
+    , focused : Maybe Tab.Path
     , visVentanas : VisVentanas
     , vistas : Vistas
     , error : String
@@ -159,7 +156,7 @@ globalVistas =
       , { project = "global"
         , kind = "global-settings"
         , identifier = "global-settings"
-        , content = GlobalSettingsContent (GlobalCForm globalFormData)
+        , content = GlobalSettingsContent (GlobalCForm Form.Global.initData)
         }
       )
     ]
@@ -236,7 +233,7 @@ update msg model =
         SetTime time ->
             ( { model | time = time }, Cmd.none )
 
-        NewTab ventana ->
+        Tab (Tab.New ventana) ->
             if Dict.isEmpty model.ventanas then
                 let
                     c =
@@ -294,7 +291,7 @@ update msg model =
                 in
                 ( newmodel, Cmd.none )
 
-        GotoTab tp ->
+        Tab (Tab.Goto tp) ->
             let
                 id =
                     tpToS tp
@@ -307,11 +304,11 @@ update msg model =
                             Dom.setViewport el.element.x el.element.y
                         )
                     |> Task.attempt (\_ -> None)
-                , sendMsg (FocusTab tp)
+                , sendMsg (Tab <| Tab.Focus tp)
                 ]
             )
 
-        FocusTab tp ->
+        Tab (Tab.Focus tp) ->
             let
                 title =
                     Dict.get tp model.ventanas
@@ -325,14 +322,14 @@ update msg model =
             , setWindowTitle ("Menkayonta: " ++ title)
             )
 
-        CloseTab ->
+        Tab Tab.Close ->
             let
                 tp =
                     Maybe.withDefault (tabpath -1 -1 -1) <| model.focused
             in
             ( closeTab True tp model, Cmd.none )
 
-        CloneTab ->
+        Tab Tab.Clone ->
             let
                 ventana =
                     model.focused
@@ -344,9 +341,9 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just v ->
-                    update (NewTab v) model
+                    update (Tab <| Tab.New v) model
 
-        Move dir ->
+        Tab (Tab.Move dir) ->
             {- If there is more than one tab, and one is focused,
                which always should be the case, see if there is more
                than one tab in the row of the focused tab. If there is
@@ -672,12 +669,12 @@ update msg model =
                             }
                     in
                     ( newmodel
-                    , sendMsg (NewTab ventana)
+                    , sendMsg (Tab <| Tab.New ventana)
                     )
 
                 Just tp ->
                     ( newmodel
-                    , sendMsg (GotoTab tp)
+                    , sendMsg (Tab <| Tab.Goto tp)
                     )
 
         -- Open or focus the Global Settings form with updated global
@@ -694,8 +691,11 @@ update msg model =
                                 (Maybe.withDefault "" gf.name)
                                 (Maybe.withDefault "" gf.email)
 
+                        initData =
+                            Form.Global.initData
+
                         formData =
-                            { globalFormData
+                            { initData
                                 | email =
                                     { blankString | value = gs.email }
                                 , name =
@@ -729,12 +729,12 @@ update msg model =
                                     }
                             in
                             ( newmodel
-                            , sendMsg (NewTab newVentana)
+                            , sendMsg (Tab <| Tab.New newVentana)
                             )
 
                         Just tp ->
                             ( newmodel
-                            , sendMsg (GotoTab tp)
+                            , sendMsg (Tab <| Tab.Goto tp)
                             )
 
         FormInit _ (ImportCForm imp) ->
@@ -775,10 +775,10 @@ update msg model =
                             , params = defVParams
                             }
                     in
-                    ( newmodel, sendMsg (NewTab ventana) )
+                    ( newmodel, sendMsg (Tab <| Tab.New ventana) )
 
                 Just tp ->
-                    ( newmodel, sendMsg (GotoTab tp) )
+                    ( newmodel, sendMsg (Tab <| Tab.Goto tp) )
 
         FormInit project (ProjectCForm prj) ->
             let
@@ -811,10 +811,10 @@ update msg model =
                             , params = defVParams
                             }
                     in
-                    ( newmodel, sendMsg (NewTab ventana) )
+                    ( newmodel, sendMsg (Tab <| Tab.New ventana) )
 
                 Just tp ->
-                    ( newmodel, sendMsg (GotoTab tp) )
+                    ( newmodel, sendMsg (Tab <| Tab.Goto tp) )
 
         FormInit project (InterlinearCForm int) ->
             let
@@ -853,7 +853,7 @@ update msg model =
                 | seeds = seeds
                 , vistas = Dict.insert nid vista model.vistas
               }
-            , sendMsg (NewTab ventana)
+            , sendMsg (Tab <| Tab.New ventana)
             )
 
         FormSubmit tp ->
@@ -890,7 +890,7 @@ update msg model =
                             in
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg CloseTab
+                                [ sendMsg (Tab Tab.Close)
                                 , ncmd
                                 ]
                             )
@@ -905,7 +905,7 @@ update msg model =
                             in
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg CloseTab
+                                [ sendMsg (Tab Tab.Close)
                                 , ncmd
                                 ]
                             )
@@ -920,7 +920,7 @@ update msg model =
                             in
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg CloseTab
+                                [ sendMsg (Tab Tab.Close)
                                 , ncmd
                                 ]
                             )
@@ -935,7 +935,7 @@ update msg model =
                             in
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg CloseTab
+                                [ sendMsg (Tab Tab.Close)
                                 , ncmd
                                 ]
                             )
@@ -1100,7 +1100,7 @@ update msg model =
 
                                 -- This shouldn't happen.
                                 _ ->
-                                    globalFormData
+                                    Form.Global.initData
                     in
                     ( { model | vistas = nvistas }
                     , if nglb.submitted then
@@ -1273,7 +1273,7 @@ handleCFormSubmit edit vista model =
                 nvista =
                     { vista
                         | content =
-                            GlobalSettingsContent (GlobalCForm globalFormData)
+                            GlobalSettingsContent (GlobalCForm Form.Global.initData)
                     }
 
                 nvistas =
@@ -1409,7 +1409,7 @@ handleCFormSubmit edit vista model =
             ( model, Cmd.none )
 
 
-handleCFChange : FieldId -> String -> CForm -> CForm
+handleCFChange : Form.Field -> String -> CForm -> CForm
 handleCFChange fid str data =
     case fid of
         ImportForm field ->
@@ -1425,11 +1425,11 @@ handleCFChange fid str data =
             handleCFIntChange field str data
 
 
-handleCFGlbChange : GlobalField -> String -> CForm -> CForm
+handleCFGlbChange : Form.Global.Field -> String -> CForm -> CForm
 handleCFGlbChange fid str cfglb =
     case cfglb of
         GlobalCForm glb ->
-            handleCFGlbChange_ fid str glb |> GlobalCForm
+            Form.Global.change fid str glb |> GlobalCForm
 
         _ ->
             cfglb
@@ -1453,116 +1453,6 @@ handleCFImpChange fid str cfimp =
 
         _ ->
             cfimp
-
-
-handleCFGlbChange_ : GlobalField -> String -> GlobalFormData -> GlobalFormData
-handleCFGlbChange_ fid str glb =
-    let
-        email =
-            glb.email
-
-        name =
-            glb.name
-
-        toperr =
-            "Please correct form."
-
-        valid glb_ =
-            List.all identity
-                [ glb_.email.valid
-                , glb_.name.valid
-                ]
-
-        defGlb glb_ =
-            let
-                valid_ =
-                    valid glb_
-            in
-            { glb_
-                | changed = True
-                , valid = valid_
-                , error =
-                    if valid_ then
-                        ""
-
-                    else
-                        toperr
-            }
-    in
-    case fid of
-        GlbEmailF ->
-            if String.isEmpty str then
-                { glb
-                    | email =
-                        { email
-                            | value = str
-                            , valid = False
-                            , error = "An email address is required."
-                            , changed = True
-                        }
-                }
-                    |> defGlb
-
-            else
-                case Email.fromString str of
-                    Nothing ->
-                        { glb
-                            | email =
-                                { email
-                                    | value = str
-                                    , valid = False
-                                    , error = "Invalid email address."
-                                    , changed = True
-                                }
-                        }
-                            |> defGlb
-
-                    Just _ ->
-                        { glb
-                            | email =
-                                { email
-                                    | value = str
-                                    , valid = True
-                                    , error = ""
-                                    , changed = True
-                                }
-                        }
-                            |> defGlb
-
-        GlbNameF ->
-            if String.isEmpty str then
-                { glb
-                    | name =
-                        { name
-                            | value = str
-                            , valid = False
-                            , error = "A name is required."
-                            , changed = True
-                        }
-                }
-                    |> defGlb
-
-            else
-                { glb
-                    | name =
-                        { name
-                            | value = str
-                            , valid = True
-                            , error = ""
-                            , changed = True
-                        }
-                }
-                    |> defGlb
-
-        GlbSaveF ->
-            if defGlb glb |> .valid then
-                { glb | submitted = True }
-
-            else
-                glb
-
-        GlbCancelF ->
-            globalFormData
 
 
 handleCFPrjChange_ : ProjectField -> String -> ProjectFormData -> ProjectFormData
@@ -1768,15 +1658,10 @@ handleCFIntChange : Form.Interlinear.Field -> String -> CForm -> CForm
 handleCFIntChange fid str cfint =
     case cfint of
         InterlinearCForm int ->
-            handleCFIntChange_ fid str int |> InterlinearCForm
+            Form.Interlinear.change fid str int |> InterlinearCForm
 
         _ ->
             cfint
-
-
-handleCFIntChange_ : Form.Interlinear.Field -> String -> Form.Interlinear.Data -> Form.Interlinear.Data
-handleCFIntChange_ fid str int =
-    Form.Interlinear.change fid str int
         
 
 maybeInitForm : String -> Vistas -> Vistas
@@ -1881,18 +1766,18 @@ handleVista vista short full model =
                             , params = { defVParams | length = 20 }
                             }
                     in
-                    ( newmodel, sendMsg (NewTab vt) )
+                    ( newmodel, sendMsg (Tab <| Tab.New vt) )
 
                 Just tp ->
-                    ( newmodel, sendMsg (FocusTab tp) )
+                    ( newmodel, sendMsg (Tab <| Tab.Focus tp) )
 
 
-{-| insertTabPath, newTabPath, and createNecessary are all helpers for
+{-| insertTab.Path, newTab.Path, and createNecessary are all helpers for
 Move Direction. Each provides Direction specific code for some
 aspect of the Move operation. This is for the case when movement
 places the focused tab in a preexisting row with tabs.
 -}
-insertTabPath : Direction -> TabPath -> ( List Int, List Int ) -> List TabPath -> TabPath
+insertTabPath : Direction -> Tab.Path -> ( List Int, List Int ) -> List Tab.Path -> Tab.Path
 insertTabPath dir tp ( cols, rows ) keys =
     case dir of
         Right ->
@@ -1934,10 +1819,10 @@ insertTabPath dir tp ( cols, rows ) keys =
             tabpath (tcolumn tp) row (ttab tp)
 
 
-{-| Use the counter (c) to provide new TabPaths that will be rendered
+{-| Use the counter (c) to provide new Tab.Paths that will be rendered
 below, above, to the left or right of the focused tab.
 -}
-newTabPath : Direction -> TabPath -> Int -> TabPath
+newTabPath : Direction -> Tab.Path -> Int -> Tab.Path
 newTabPath dir tp c =
     case dir of
         Right ->
@@ -1957,7 +1842,7 @@ newTabPath dir tp c =
 columns or rows to determine if the current item is on the border
 of a column or row structure.
 -}
-createNecessary : Direction -> TabPath -> ( List Int, List Int ) -> Bool
+createNecessary : Direction -> Tab.Path -> ( List Int, List Int ) -> Bool
 createNecessary dir tp ( cols, rows ) =
     case dir of
         Right ->
@@ -1984,12 +1869,12 @@ subscriptions _ =
         , newProject (\_ -> FormInit "" (ProjectCForm projectFormData))
         , importOptions ImportOptionsFileMenu
         , globalSettings GlobalSettingsMenu
-        , moveLeft_ (\_ -> Move Left)
-        , moveRight_ (\_ -> Move Right)
-        , moveUp_ (\_ -> Move Up)
-        , moveDown_ (\_ -> Move Down)
-        , closeTab_ (\_ -> CloseTab)
-        , cloneTab_ (\_ -> CloneTab)
+        , moveLeft_ (\_ -> Tab <| Tab.Move Left)
+        , moveRight_ (\_ -> Tab <| Tab.Move Right)
+        , moveUp_ (\_ -> Tab <| Tab.Move Up)
+        , moveDown_ (\_ -> Tab <| Tab.Move Down)
+        , closeTab_ (\_ -> Tab Tab.Close)
+        , cloneTab_ (\_ -> Tab Tab.Clone)
         ]
 
 
@@ -2080,7 +1965,7 @@ viewRow model col _ row tabs =
         ]
 
 
-viewTabHeader : Model -> TabPath -> Html.Html Msg
+viewTabHeader : Model -> Tab.Path -> Html.Html Msg
 viewTabHeader model tp =
     let
         ventana =
@@ -2099,7 +1984,7 @@ viewTabHeader model tp =
             visMember tp model.visVentanas
     in
     Html.button
-        [ Event.onClick (FocusTab tp)
+        [ Event.onClick (Tab <| Tab.Focus tp)
         , Attr.id (tpToS tp)
         , Attr.classList
             [ ( "focused", focused )
@@ -2111,7 +1996,7 @@ viewTabHeader model tp =
         [ Html.text ventana.title ]
 
 
-viewTab : Model -> TabPath -> Html.Html Msg
+viewTab : Model -> Tab.Path -> Html.Html Msg
 viewTab model tp =
     Html.div
         [ Attr.classList
@@ -2147,12 +2032,12 @@ viewTabList ventanas =
         |> Html.ul []
 
 
-viewTabListItem : TabPath -> Ventana -> Html.Html Msg
+viewTabListItem : Tab.Path -> Ventana -> Html.Html Msg
 viewTabListItem tp ventana =
     Html.li []
         [ Html.a
             [ Attr.href "#"
-            , Event.onClick <| GotoTab tp
+            , Event.onClick <| Tab <| Tab.Goto tp
             , Attr.class "secondary"
             ]
             [ Html.text ventana.fullTitle ]
@@ -2215,7 +2100,7 @@ viewProject model p =
         ]
 
 
-viewVista : Model -> TabPath -> Vista -> Html Msg
+viewVista : Model -> Tab.Path -> Vista -> Html Msg
 viewVista model tp vista =
     case vista.content of
         ProjectInfoContent (ProjectCForm prj) ->
@@ -2355,7 +2240,7 @@ viewVista model tp vista =
 
 viewNewDocContentVista :
     { vista : Vista
-    , tp : TabPath
+    , tp : Tab.Path
     , fd : CForm
     , model : Model
     }
@@ -2366,7 +2251,7 @@ viewNewDocContentVista { vista, tp, fd, model } =
 
 viewDocContentVista :
     { vista : Vista
-    , tp : TabPath
+    , tp : Tab.Path
     , od : { view : M.OneDoc, edit : Maybe CForm }
     , model : Model
     }
@@ -2419,7 +2304,7 @@ viewDocContentVista { vista, tp, od, model } =
             Html.div [] [ Html.text "doc not supported" ]
 
 
-viewDocContentEditVista : TabPath -> CForm -> Html.Html Msg
+viewDocContentEditVista : Tab.Path -> CForm -> Html.Html Msg
 viewDocContentEditVista tp cform =
     case cform of
         InterlinearCForm int ->
@@ -2607,79 +2492,48 @@ viewCSelectField fd =
         ]
 
 
-viewCFInterlinearVista : TabPath -> Form.Interlinear.Data -> Html.Html Msg
+formClose : Tab.Path -> (f -> Form.Field) -> f -> String -> Msg
+formClose tp form =
+    (\field str -> MultiMsg [ (FormChange tp <| form field) str
+                            , (\_ -> Tab Tab.Close) str
+                            ]
+    )
+
+
+fieldChange : Tab.Path -> (f -> Form.Field) -> f -> String -> Msg
+fieldChange tp form =
+    (\field -> FormChange tp <| form field)
+        
+
+viewCFInterlinearVista : Tab.Path -> Form.Interlinear.Data -> Html.Html Msg
 viewCFInterlinearVista tp int =
-    Form.Interlinear.display int (\field -> FormChange tp (InterlinearForm field))
+    let
+        callbacks : { close : Form.Interlinear.Field -> String -> Msg
+                    , change : Form.Interlinear.Field -> String -> Msg
+                    }
+        callbacks =
+            { close = formClose tp InterlinearForm
+            , change = fieldChange tp InterlinearForm
+            }
+    in
+    Form.Interlinear.display int callbacks
 
 
-viewCFGlobalVista : TabPath -> GlobalFormData -> Html.Html Msg
+viewCFGlobalVista : Tab.Path -> Form.Global.Data -> Html.Html Msg
 viewCFGlobalVista tp glb =
-    Html.form []
-        [ viewCField
-            { formname = "globalsettings"
-            , label = "Email Address"
-            , kind = Html.input
-            , oninput = FormChange tp (GlobalForm GlbEmailF)
-            , name = "email"
-            , value = glb.email.value
-            , original = glb.email.original
-            , changed = glb.email.changed
-            , valid = glb.email.valid
-            , help = "Your email address."
-            , error = glb.email.error
-            , disabled = False
-            , deleted = False
-            , spellcheck = False
-            , options = []
-            , id = Nothing
+    let
+        callbacks : { close : Form.Global.Field -> String -> Msg
+                    , change : Form.Global.Field -> String -> Msg
+                    }
+        callbacks =
+            { close = formClose tp GlobalForm
+            , change = fieldChange tp GlobalForm
             }
-        , viewCField
-            { formname = "globalsettings"
-            , label = "Name"
-            , kind = Html.input
-            , oninput = FormChange tp (GlobalForm GlbNameF)
-            , name = "name"
-            , value = glb.name.value
-            , original = glb.name.original
-            , changed = glb.name.changed
-            , valid = glb.name.valid
-            , help = "Your name."
-            , error = glb.name.error
-            , disabled = False
-            , deleted = False
-            , spellcheck = False
-            , options = []
-            , id = Nothing
-            }
-        , Html.button
-            (if glb.valid then
-                [ Event.onClick <|
-                    FormChange tp (GlobalForm GlbSaveF) ""
-                , Attr.type_ "button"
-                ]
-
-             else
-                [ Attr.attribute "data-tooltip" glb.error
-                , Attr.attribute "data-placement" "right"
-                , Attr.type_ "button"
-                , Event.onClick None
-                ]
-            )
-            [ Html.text "Save" ]
-        , Html.button
-            [ Attr.class "secondary"
-            , Attr.type_ "button"
-            , Event.onClick <|
-                MultiMsg
-                    [ FormChange tp (GlobalForm GlbCancelF) ""
-                    , CloseTab
-                    ]
-            ]
-            [ Html.text "Cancel" ]
-        ]
+    in
+    Form.Global.display glb callbacks
 
 
-viewCFProjectVista : TabPath -> ProjectFormData -> Html.Html Msg
+viewCFProjectVista : Tab.Path -> ProjectFormData -> Html.Html Msg
 viewCFProjectVista tp prj =
     Html.form []
         [ viewCField
@@ -2757,14 +2611,14 @@ viewCFProjectVista tp prj =
             , Event.onClick <|
                 MultiMsg
                     [ FormChange tp (ProjectForm PrjCancelF) ""
-                    , CloseTab
+                    , Tab Tab.Close
                     ]
             ]
             [ Html.text "Cancel" ]
         ]
 
 
-viewCFImportVista : TabPath -> ImportFormData -> Html.Html Msg
+viewCFImportVista : Tab.Path -> ImportFormData -> Html.Html Msg
 viewCFImportVista tp imp =
     Html.form []
         [ Html.fieldset []
@@ -2844,7 +2698,7 @@ viewCFImportVista tp imp =
             , Event.onClick <|
                 MultiMsg
                     [ FormChange tp (ImportForm ImpCancelF) ""
-                    , CloseTab
+                    , Tab Tab.Close
                     ]
             ]
             [ Html.text "Cancel" ]
@@ -3108,9 +2962,9 @@ viewTranslation _ dc =
         ]
 
 
-{-| Return the TabPaths for the tabs in the same row.
+{-| Return the Tab.Paths for the tabs in the same row.
 -}
-sharesRow : TabPath -> Model -> List TabPath
+sharesRow : Tab.Path -> Model -> List Tab.Path
 sharesRow tp model =
     let
         matchrow tp2 =
@@ -3125,7 +2979,7 @@ tab should become open and focused when the focused one
 closes. Intuitively, this should be the one that is nearest the
 closed tab.
 -}
-nearest : TabPath -> Model -> Maybe TabPath
+nearest : Tab.Path -> Model -> Maybe Tab.Path
 nearest tp model =
     let
         toV3 ( column, ( row, tab ) ) =
@@ -3156,7 +3010,7 @@ nearest tp model =
 
 {-| This will close a tab and set the nearest tab to focused.
 -}
-closeTab : Bool -> TabPath -> Model -> Model
+closeTab : Bool -> Tab.Path -> Model -> Model
 closeTab closevista tp model =
     let
         gvistas =
@@ -3209,7 +3063,7 @@ closeAll vista model =
 
 {-| Assign a ventana to a new tab.
 -}
-reassign : TabPath -> TabPath -> Model -> Model
+reassign : Tab.Path -> Tab.Path -> Model -> Model
 reassign old new model =
     let
         closed =
@@ -3242,10 +3096,10 @@ getNext curr others =
         |> Maybe.withDefault curr
 
 
-{-| Create a tree structure from the flat path listing of TabPaths to
+{-| Create a tree structure from the flat path listing of Tab.Paths to
 be used by the view function.
 -}
-treeifyTabs : List TabPath -> Dict Int (Dict Int (Set Int))
+treeifyTabs : List Tab.Path -> Dict Int (Dict Int (Set Int))
 treeifyTabs tps =
     List.foldl
         (\tp tr ->
@@ -3292,41 +3146,41 @@ treeifyTabs tps =
 
 
 
-{- TabPath helper functions are mostly used to help document the
+{- Tab.Path helper functions are mostly used to help document the
    intention of working with the integer tuple.
 -}
 
 
-tabpath : Int -> Int -> Int -> TabPath
+tabpath : Int -> Int -> Int -> Tab.Path
 tabpath c r t =
     ( c, ( r, t ) )
 
 
-tpToS : TabPath -> String
+tpToS : Tab.Path -> String
 tpToS ( c, ( r, t ) ) =
     [ c, r, t ]
         |> List.map String.fromInt
         |> String.join ","
 
 
-tcolumn : TabPath -> Int
+tcolumn : Tab.Path -> Int
 tcolumn tp =
     Tuple.first tp
 
 
-trow : TabPath -> Int
+trow : Tab.Path -> Int
 trow tp =
     tp |> Tuple.second |> Tuple.first
 
 
-ttab : TabPath -> Int
+ttab : Tab.Path -> Int
 ttab tp =
     tp |> Tuple.second |> Tuple.second
 
 
 {-| All columns in order
 -}
-tcolumns : List TabPath -> List Int
+tcolumns : List Tab.Path -> List Int
 tcolumns tps =
     List.map tcolumn tps
         |> LE.unique
@@ -3335,7 +3189,7 @@ tcolumns tps =
 
 {-| Rows for a column in order
 -}
-trows : Int -> List TabPath -> List Int
+trows : Int -> List Tab.Path -> List Int
 trows column tps =
     List.filter (\tp -> tcolumn tp == column) tps
         |> List.map trow
@@ -3345,25 +3199,25 @@ trows column tps =
 
 {-| Insert a tab into VisVentanas
 -}
-visInsert : TabPath -> VisVentanas -> VisVentanas
+visInsert : Tab.Path -> VisVentanas -> VisVentanas
 visInsert tp vv =
     Dict.insert ( tcolumn tp, trow tp ) (ttab tp) vv
 
 
 {-| Insert a tab into VisVentanas
 -}
-visRemove : TabPath -> VisVentanas -> VisVentanas
+visRemove : Tab.Path -> VisVentanas -> VisVentanas
 visRemove tp vv =
     Dict.remove ( tcolumn tp, trow tp ) vv
 
 
-visToList : VisVentanas -> List TabPath
+visToList : VisVentanas -> List Tab.Path
 visToList vv =
     Dict.toList vv
         |> List.map (\( ( c, r ), t ) -> ( c, ( r, t ) ))
 
 
-visMember : TabPath -> VisVentanas -> Bool
+visMember : Tab.Path -> VisVentanas -> Bool
 visMember ( col, ( row, tab ) ) vv =
     case Dict.get ( col, row ) vv of
         Nothing ->
@@ -3436,7 +3290,7 @@ projectInfoDecoder =
         (D.field "url" (D.nullable D.string))
 
 
-getVistaVentana : TabPath -> Model -> Maybe ( Vista, Ventana )
+getVistaVentana : Tab.Path -> Model -> Maybe ( Vista, Ventana )
 getVistaVentana tp model =
     Dict.get tp model.ventanas
         |> Maybe.andThen
@@ -3446,7 +3300,7 @@ getVistaVentana tp model =
             )
 
 
-getContentVistaVentana : TabPath -> Model -> Maybe ( Content, ( Vista, Ventana ) )
+getContentVistaVentana : Tab.Path -> Model -> Maybe ( Content, ( Vista, Ventana ) )
 getContentVistaVentana tp model =
     getVistaVentana tp model
         |> Maybe.map (\( vis, ven ) -> ( vis.content, ( vis, ven ) ))
@@ -3458,12 +3312,12 @@ getContentVistaFromVistas vid vistas =
         |> Maybe.map (\vista -> ( vista.content, vista ))
 
 
-getByVista : String -> Dict TabPath Ventana -> Maybe TabPath
+getByVista : String -> Dict Tab.Path Ventana -> Maybe Tab.Path
 getByVista vista ventanas =
     List.head <| getAllByVista vista ventanas
 
 
-getAllByVista : String -> Dict TabPath Ventana -> List TabPath
+getAllByVista : String -> Dict Tab.Path Ventana -> List Tab.Path
 getAllByVista vista ventanas =
     -- TODO use Dict.filter (this may not warrant being a helper
     -- function.)
