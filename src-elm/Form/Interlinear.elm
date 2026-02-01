@@ -1,14 +1,13 @@
 module Form.Interlinear exposing
-    ( Annotations
-    , Data
+    ( Data
     , Field
-    , Translation
     , change
     , display
     , init
     , initData
     )
 
+import Dict
 import Form.Shared
     exposing
         ( FieldDescription
@@ -29,11 +28,11 @@ import Menkayonta
         , identifierToString
         )
 import UUID
-import Dict
 
 
 {-| The Data type alias describes a form representation of the
-Interlinear type from Menkayonta. -}
+Interlinear type from Menkayonta.
+-}
 type alias Data =
     { id : Maybe UUID.UUID
     , rev : Maybe String
@@ -47,10 +46,11 @@ type alias Data =
     , translations : List Translation
     , counter : Int
     }
-    
+
 
 {-| These are the fields of the form. Buttons are considered a field,
-as are groupings, where Trans represents the group of translations. -}
+as are groupings, where Trans represents the group of translations.
+-}
 type Field
     = Text
     | Breaks
@@ -63,9 +63,10 @@ type Field
     | Save
     | Cancel
     | None
-      
 
-{-| Annotations are the non-translation annotations. -}
+
+{-| Annotations are the non-translation annotations.
+-}
 type alias Annotations =
     { breaks : StringField
     , glosses : StringField
@@ -74,7 +75,8 @@ type alias Annotations =
     }
 
 
-{-| Translations occur in a list (actually a dictionary). -}
+{-| Translations occur in a list (actually a dictionary).
+-}
 type alias Translation =
     { id : Int
     , deleted : Bool
@@ -84,100 +86,102 @@ type alias Translation =
 
 
 {-| The initialization function. This will likely be refactored to
-place more of the initialization logic in the function. -}
+place more of the initialization logic in the function.
+-}
 init : Menkayonta.Interlinear -> Data
 init int =
     let
-                        ann : Annotations
-                        ann =
-                            { breaks =
-                                { value = int.ann.breaks
-                                , valid = True
-                                , error = ""
-                                , changed = False
-                                , original = int.ann.breaks
-                                }
-                            , glosses =
-                                { value = int.ann.glosses
-                                , valid = True
-                                , error = ""
-                                , changed = False
-                                , original = int.ann.glosses
-                                }
-                            , phonemic =
-                                { value = int.ann.phonemic
-                                , valid = True
-                                , error = ""
-                                , changed = False
-                                , original = int.ann.phonemic
-                                }
-                            , judgment =
-                                { value = int.ann.judgment
-                                , valid = True
-                                , error = ""
-                                , changed = False
-                                , original = int.ann.judgment
-                                }
-                            }
+        ann : Annotations
+        ann =
+            { breaks =
+                { value = int.ann.breaks
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = int.ann.breaks
+                }
+            , glosses =
+                { value = int.ann.glosses
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = int.ann.glosses
+                }
+            , phonemic =
+                { value = int.ann.phonemic
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = int.ann.phonemic
+                }
+            , judgment =
+                { value = int.ann.judgment
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = int.ann.judgment
+                }
+            }
 
-                        trans_ :
-                            ( Int, Menkayonta.Translation )
-                            -> Translation
-                        trans_ ( k, v ) =
-                            { id = k
-                            , deleted = False
-                            , translation =
-                                { value = v.translation
-                                , valid = True
-                                , error = ""
-                                , changed = False
-                                , original = v.translation
-                                }
-                            , judgment =
-                                { value = v.judgment
-                                , valid = True
-                                , error = ""
-                                , changed = False
-                                , original = v.judgment
-                                }
-                            }
+        trans_ :
+            ( Int, Menkayonta.Translation )
+            -> Translation
+        trans_ ( k, v ) =
+            { id = k
+            , deleted = False
+            , translation =
+                { value = v.translation
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = v.translation
+                }
+            , judgment =
+                { value = v.judgment
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = v.judgment
+                }
+            }
 
-                        trans : List Translation
-                        trans =
-                            Dict.toList int.translations
-                                |> List.map trans_
+        trans : List Translation
+        trans =
+            Dict.toList int.translations
+                |> List.map trans_
 
-                        counter : Int
-                        counter =
-                            Dict.keys int.translations
-                                |> List.maximum
-                                |> Maybe.withDefault 0
+        counter : Int
+        counter =
+            Dict.keys int.translations
+                |> List.maximum
+                |> Maybe.withDefault 0
 
-                        formData : Data
-                        formData =
-                            { id = Just int.id
-                            , rev = int.rev
-                            , version = int.version
-                            , changed = False
-                            , submitted = False
-                            , error = ""
-                            , valid = True
-                            , text =
-                                { value = int.text
-                                , valid = True
-                                , error = ""
-                                , changed = False
-                                , original = int.text
-                                }
-                            , annotations = ann
-                            , translations = trans
-                            , counter = counter
-                            }
-
+        formData : Data
+        formData =
+            { id = Just int.id
+            , rev = int.rev
+            , version = int.version
+            , changed = False
+            , submitted = False
+            , error = ""
+            , valid = True
+            , text =
+                { value = int.text
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = int.text
+                }
+            , annotations = ann
+            , translations = trans
+            , counter = counter
+            }
     in
     formData
 
-{-| A starter Data instance. -}
+
+{-| A starter Data instance.
+-}
 initData : Data
 initData =
     { id = Nothing
@@ -199,16 +203,19 @@ initData =
     }
 
 
-{-| This handles events specific to particular fields. -}
+{-| This handles events specific to particular fields.
+-}
 change : Field -> String -> Data -> Data
 change fid str d =
     let
+        tokens : String -> Int
         tokens s =
             String.words s
                 -- Don't include the empty string
                 |> List.filter (\x -> String.length x > 0)
                 |> List.length
 
+        breax : String -> List Int
         breax s =
             String.words s
                 -- Don't include the empty string
@@ -233,19 +240,30 @@ change fid str d =
                 brx2 =
                     breax s2
 
+                -- Find the first index where the number of breaks is
+                -- unequal.
+                idx : Maybe Int
                 idx =
                     List.map2 (\a1 a2 -> a1 == a2) brx1 brx2
                         |> LE.findIndex not
 
+                -- Get the token from the first list of tokens (if it
+                -- exists) that had an unequal number of breaks to
+                -- some item in the second list of tokens.
+                token1 : Maybe String
                 token1 =
                     Maybe.andThen (\i -> LE.getAt i (String.words s1)) idx
 
+                token2 : Maybe String
                 token2 =
                     Maybe.andThen (\i -> LE.getAt i (String.words s2)) idx
 
+                -- Get the lenth differences between the tokens.
+                length1 : Maybe Int
                 length1 =
                     Maybe.andThen (\i -> LE.getAt i brx1) idx
 
+                length2 : Maybe Int
                 length2 =
                     Maybe.andThen (\i -> LE.getAt i brx2) idx
             in
@@ -286,6 +304,8 @@ change fid str d =
         phonemic =
             annotations.phonemic
 
+        -- Return false if there are any invalid translation items.
+        translationsValid : List Translation -> Bool
         translationsValid translations_ =
             translations_
                 |> List.map
@@ -293,6 +313,8 @@ change fid str d =
                 |> List.concat
                 |> List.all identity
 
+        -- Return false if there are any invalid items
+        valid : Data -> Bool
         valid d_ =
             List.all identity
                 [ d_.text.valid
@@ -306,6 +328,8 @@ change fid str d =
         toperr =
             "Correct errors before saving."
 
+        -- Set top level validity and error messages accordingly.
+        defD : Data -> Data
         defD d_ =
             let
                 valid_ =
@@ -322,11 +346,11 @@ change fid str d =
                         toperr
             }
 
-        -- The reason for dividing the list in this way is
-        -- ensuring that the user doesn't have the elements of
-        -- the user interface jump around while editing. It
-        -- will also preserve the order from the Dict the
-        -- items were derived from.
+        -- The reason for dividing the list in this way is ensuring
+        -- that the user doesn't have the elements of the user
+        -- interface jump around while editing. It will also preserve
+        -- the order from the Dict the items were derived from. See
+        -- below for example usage.
         divided :
             Int
             ->
@@ -348,6 +372,7 @@ change fid str d =
                                 )
                     )
 
+        textTokens : Int
         textTokens =
             tokens d.text.value
     in
@@ -725,7 +750,8 @@ change fid str d =
                 d
 
         Cancel ->
-            -- Indicates that this is a new item
+            -- Indicates that this is a new interlinear gloss. Set it
+            -- to the default empty instance.
             if String.isEmpty text.original then
                 initData
 
@@ -773,7 +799,8 @@ change fid str d =
 
 {-| Display the form. The function f likely wraps types that are not
 relevant to the form logic but that result in changes that are handled
-in `change` -}
+in `change`
+-}
 display : Data -> (Field -> String -> msg) -> Html.Html msg
 display d f =
     Html.form []
@@ -913,7 +940,8 @@ display d f =
         ]
 
 
-{-| A helper display function for translations -}
+{-| A helper display function for translations
+-}
 displayTrans : (Field -> String -> msg) -> Translation -> Html.Html msg
 displayTrans f trans =
     Html.article []
