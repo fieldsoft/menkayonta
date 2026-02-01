@@ -83,8 +83,8 @@ app.ports.updateGlobalSettings.subscribe(async (globalSettings) => {
 })
 
 // The following are all triggered by application menu selection.
-window.electronAPI.onNewProject((ident) => {
-  app.ports.newProject.send(ident)
+window.electronAPI.onNewProject(() => {
+  app.ports.newProject.send(null)
 })
 
 window.electronAPI.onImportOptions((filepath) => {

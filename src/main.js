@@ -166,7 +166,7 @@ const createWindow = () => {
       label: 'File',
       submenu: [
         {
-          click: () => mainWindow.webContents.send('new-project', v4()),
+          click: () => mainWindow.webContents.send('new-project'),
           label: 'New Project',
         },
         {
@@ -394,9 +394,7 @@ const openGlobalConf = async () => {
 // 5. Create the new project config file
 // 6. Initialize a database
 // 7. Send the globabl config to the renderer
-const updateProject = async (_event, data) => {
-  const projectInfo = data.project
-  const seed = data.seed
+const updateProject = async (_event, projectInfo) => {
   const projPath = path.join(gvs.projectsPath, projectInfo.identifier)
   const projSharePath = path.join(projPath, 'share')
   const equalsCurrent = (p) => p.identifier === projectInfo.identifier
@@ -405,25 +403,25 @@ const updateProject = async (_event, data) => {
   await readGlobalConf()
 
   if (gvs.globalConf.projects.some(equalsCurrent)) {
-    updateProjectHelper(projectInfo)
+    await updateProjectHelper(projectInfo)
+  } else {
+    await fs.mkdir(projSharePath, { recursive: true })
+    await writeProjConf(projectInfo.identifier, initialConf)
+
+    gvs.globalConf.projects.push(projectInfo)
+    await writeGlobalConf(gvs.globalConf)
+
+    // Start up the project if it was enabled.
+    manageProjectProcesses()
+
+    // const payload = {
+    //   command: 'bulk-write',
+    //   identifier: projectInfo.identifier,
+    //   bulkDocs: seed,
+    // }
+
+    // gvs.active[projectInfo.identifier].postMessage(payload)
   }
-
-  await fs.mkdir(projSharePath, { recursive: true })
-  await writeProjConf(projectInfo.identifier, initialConf)
-
-  gvs.globalConf.projects.push(projectInfo)
-  await writeGlobalConf(gvs.globalConf)
-
-  // Start up the project if it was enabled.
-  manageProjectProcesses()
-
-  const payload = {
-    command: 'bulk-write',
-    identifier: projectInfo.identifier,
-    bulkDocs: seed,
-  }
-
-  gvs.active[projectInfo.identifier].postMessage(payload)
 
   return gvs.globalConf
 }

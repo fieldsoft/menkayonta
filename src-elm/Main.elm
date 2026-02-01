@@ -1060,6 +1060,42 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+
+                Just ( ProjectInfoContent cfprj, ( vista, ventana ) ) ->
+                    let
+                        ncfprj =
+                            handleCFChange fid str cfprj
+
+                        ncontent =
+                            ProjectInfoContent ncfprj
+
+                        nvista =
+                            { vista | content = ncontent }
+
+                        nvistas =
+                            Dict.insert
+                                ventana.vista
+                                nvista
+                                model.vistas
+
+
+                        nprj =
+                            case ncfprj of
+                                ProjectCForm prj ->
+                                    prj
+
+                                -- This shouldn't happen.
+                                _ ->
+                                    projectFormData
+                    in
+                    ( { model | vistas = nvistas }
+                    , if nprj.submitted then
+                        sendMsg (FormSubmit tp)
+
+                      else
+                        Cmd.none
+                    )
+                        
                 Just ( GlobalSettingsContent cfglb, ( vista, ventana ) ) ->
                     let
                         ncfglb =
@@ -1217,9 +1253,6 @@ update msg model =
                     ( model, Cmd.none )
 
                 Just ( InterlinearsContent _, _ ) ->
-                    ( model, Cmd.none )
-
-                Just ( ProjectInfoContent _, _ ) ->
                     ( model, Cmd.none )
 
 
@@ -4377,7 +4410,7 @@ port receivedDoc : (E.Value -> msg) -> Sub msg
 
 {-| The "New Project" menu item was clicked.
 -}
-port newProject : (String -> msg) -> Sub msg
+port newProject : (() -> msg) -> Sub msg
 
 
 {-| The "New Project" menu item was clicked.

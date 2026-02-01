@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onCloseTab: (callback) => ipcRenderer.on('close-tab', (_event) => callback()),
   onCloneTab: (callback) => ipcRenderer.on('clone-tab', (_event) => callback()),
   onNewProject: (callback) =>
-    ipcRenderer.on('new-project', (_event, ident) => callback(ident)),
+    ipcRenderer.on('new-project', (_event, ident) => callback()),
   onImportOptions: (callback) =>
     ipcRenderer.on('import-options', (_event, filepath) => callback(filepath)),
   onGlobalSettings: (callback) =>
