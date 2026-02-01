@@ -1,7 +1,7 @@
 module Content exposing (Content(..), translationsDecoder, Translation)
 
 import Menkayonta exposing (Interlinear, OneDoc)
-import Content.Form exposing (CForm)
+import Form exposing (CForm)
 import Config exposing (ProjectInfo)
 import Json.Decode as D
 

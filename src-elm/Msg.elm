@@ -5,7 +5,7 @@ import Config exposing (ProjectInfo)
 import Tab exposing (TabPath, Direction, Ventana)
 import Task
 import Time
-import Content.Form exposing (FieldId, CForm)
+import Form exposing (FieldId, CForm)
 import Json.Encode as E
 
 
