@@ -11,20 +11,20 @@ import Content
         )
 import Dict exposing (Dict)
 import Email exposing (Email)
-import Form.Interlinear
-import Form.Global
 import Form
     exposing
         ( CForm(..)
         , Field(..)
+        , ImportField(..)
+        , ImportFormData
         , ProjectField(..)
         , ProjectFormData
-        , ImportFormData
-        , ImportField(..)
-        , projectFormData
         , importFormData
+        , projectFormData
         )
-import Form.Shared exposing (blankString, blankSelect)
+import Form.Global
+import Form.Interlinear
+import Form.Shared exposing (blankSelect, blankString)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
@@ -36,7 +36,6 @@ import List.Extra as LE
 import Math.Vector3 as V3
 import Maybe.Extra as ME
 import Menkayonta as M exposing (Interlinear)
-import Msg exposing (..)
 import Random
 import Result
 import Set exposing (Set)
@@ -70,6 +69,38 @@ type alias Model =
     , seeds : UUID.Seeds
     , time : Time.Posix
     }
+
+
+type Msg
+    = ChangeEditParam Tab.Path
+    | ChangeLengthParam Tab.Path String
+    | ChangeSearchParam Tab.Path String
+    | Tab Tab.Msg
+    | FormChange Tab.Path Field String
+    | FormInit String CForm
+    | FormSubmit Tab.Path
+    | ShowGlobalSettings E.Value
+    | ImportOptionsFileMenu String
+    | MultiMsg (List Msg)
+    | None
+    | ReceivedAllDoc E.Value
+    | ReceivedDoc E.Value
+    | ReceivedGlobalConfig E.Value
+    | ReceivedInterlinearIndex E.Value
+    | ReceivedPersonIndex E.Value
+    | RequestAllDocId String String
+    | RequestDocId String String
+    | RequestInterlinearIndex String
+    | RequestProjectIndex String
+    | SetTime Time.Posix
+    | SetWindowTitle String
+    | GF Form.Global.Msg
+
+
+sendMsg : Msg -> Cmd Msg
+sendMsg msg =
+    Task.succeed msg
+        |> Task.perform identity
 
 
 type alias ImportOptions =
@@ -133,6 +164,15 @@ docReqEncode dr =
         ]
 
 
+globalSettingsVista : Vista
+globalSettingsVista =
+    { project = "global"
+    , kind = "global-settings"
+    , identifier = "global-settings"
+    , content = Content.GF Form.Global.initData
+    }
+    
+
 {-| These are not specific to any project and are kept around, even
 when not in use.
 -}
@@ -153,11 +193,7 @@ globalVistas =
         }
       )
     , ( "global-settings"
-      , { project = "global"
-        , kind = "global-settings"
-        , identifier = "global-settings"
-        , content = GlobalSettingsContent (GlobalCForm Form.Global.initData)
-        }
+      , globalSettingsVista
       )
     ]
         |> Dict.fromList
@@ -198,6 +234,16 @@ init flags =
             , seed3 = Random.initialSeed flags.seed3
             , seed4 = Random.initialSeed flags.seed4
             }
+
+        ( gmodel, gmsg ) =
+            Form.Global.init E.null
+
+        gv =
+            Dict.get "global-settings" globalVistas
+                |> Maybe.map (\gs -> { gs | content = Content.GF gmodel })
+                |> Maybe.map
+                    (\gs -> Dict.insert "global-settings" gs globalVistas)
+                |> Maybe.withDefault globalVistas
     in
     ( { gconfig = Nothing
       , me = Nothing
@@ -205,7 +251,7 @@ init flags =
       , ventanas = Dict.empty
       , focused = Nothing
       , visVentanas = Dict.empty
-      , vistas = globalVistas
+      , vistas = gv
       , error = ""
       , loading = Set.empty
       , people = Dict.empty
@@ -214,7 +260,10 @@ init flags =
       }
     , Cmd.batch
         [ Task.perform SetTime Time.now
-        , requestGlobalConfig ()
+        , Cmd.batch
+            [ requestGlobalConfig ()
+            , Cmd.map GF gmsg
+            ]
         ]
     )
 
@@ -225,6 +274,58 @@ update msg model =
         -- A message for doing nothing
         None ->
             ( model, Cmd.none )
+
+        GF subMsg ->
+            let
+                gmodel =
+                    Dict.get "global-settings" model.vistas
+                        |> Maybe.map .content
+                        |> \c -> case c of
+                                     Just (Content.GF m) ->
+                                         m
+
+                                     _ ->
+                                         Form.Global.initData
+                           
+                ( subModel, subCmd ) =
+                    Form.Global.update subMsg gmodel
+                        
+                vista =
+                    { globalSettingsVista | content = Content.GF subModel }
+
+                vistas =
+                    Dict.insert "global-settings" vista model.vistas
+
+                nmodel =
+                    { model | vistas = vistas }
+            in
+            case subMsg of
+                Form.Global.Cancel ->
+                    ( nmodel
+                    , Cmd.batch
+                          [ sendMsg (Tab Tab.Close)
+                          , Cmd.map GF subCmd
+                          ]
+                    )
+
+                Form.Global.Save ->
+                    let
+                        jsonValue =
+                            E.object
+                                [ ("email", E.string subModel.email.value)
+                                , ("name", E.string subModel.name.value)
+                                ]
+                    in
+                    ( nmodel
+                    , Cmd.batch
+                          [ sendMsg (Tab Tab.Close)
+                          , updateGlobalSettings jsonValue
+                          , Cmd.map GF subCmd
+                          ]
+                    )
+
+                _ ->
+                    ( nmodel, Cmd.map GF subCmd )
 
         -- A message of many messages
         MultiMsg msgs ->
@@ -413,7 +514,7 @@ update msg model =
             ( model, setWindowTitle title )
 
         ReceivedGlobalConfig gc ->
-            case D.decodeValue globalConfigDecoder gc of
+            case D.decodeValue Config.globalConfigDecoder gc of
                 Err err ->
                     ( { model | error = D.errorToString err }
                     , Cmd.none
@@ -444,7 +545,7 @@ update msg model =
                             }
 
                         openMenu =
-                            sendMsg (GlobalSettingsMenu gc)
+                            sendMsg (ShowGlobalSettings gc)
 
                         command =
                             case ( gc_.name, gc_.email ) of
@@ -679,68 +780,50 @@ update msg model =
 
         -- Open or focus the Global Settings form with updated global
         -- configuration.
-        GlobalSettingsMenu value ->
-            case D.decodeValue globalConfigDecoder value of
-                Err _ ->
-                    ( model, Cmd.none )
+        ShowGlobalSettings value ->
+            let
+                ( subModel, subCmd ) =
+                    Form.Global.init value
 
-                Ok gf ->
+                vista =
+                    { project = "global"
+                    , kind = "global-settings"
+                    , identifier = "global-settings"
+                    , content = Content.GF subModel
+                    }
+
+                vistas =
+                    Dict.insert "global-settings" vista model.vistas
+
+                newmodel =
+                    { model | vistas = vistas }
+            in
+            case getByVista "global-settings" model.ventanas of
+                Nothing ->
                     let
-                        gs =
-                            GlobalSettings
-                                (Maybe.withDefault "" gf.name)
-                                (Maybe.withDefault "" gf.email)
-
-                        initData =
-                            Form.Global.initData
-
-                        formData =
-                            { initData
-                                | email =
-                                    { blankString | value = gs.email }
-                                , name =
-                                    { blankString | value = gs.name }
+                        newVentana =
+                            { title = "Settings"
+                            , fullTitle = "Settings"
+                            , vista = "global-settings"
+                            , params = defVParams
                             }
-
-                        content =
-                            GlobalSettingsContent (GlobalCForm formData)
-
-                        vista =
-                            { project = "global"
-                            , kind = "global-settings"
-                            , identifier = "global-settings"
-                            , content = content
-                            }
-
-                        vistas =
-                            Dict.insert "global-settings" vista model.vistas
-
-                        newmodel =
-                            { model | vistas = vistas }
                     in
-                    case getByVista "global-settings" model.ventanas of
-                        Nothing ->
-                            let
-                                newVentana =
-                                    { title = "Settings"
-                                    , fullTitle = "Settings"
-                                    , vista = "global-settings"
-                                    , params = defVParams
-                                    }
-                            in
-                            ( newmodel
-                            , sendMsg (Tab <| Tab.New newVentana)
-                            )
+                    ( newmodel
+                    , Cmd.batch
+                        [ sendMsg (Tab <| Tab.New newVentana)
+                        , Cmd.map GF subCmd
+                        ]
+                    )
 
-                        Just tp ->
-                            ( newmodel
-                            , sendMsg (Tab <| Tab.Goto tp)
-                            )
+                Just tp ->
+                    ( newmodel
+                    , Cmd.batch
+                        [ sendMsg (Tab <| Tab.Goto tp)
+                        , Cmd.map GF subCmd
+                        ]
+                    )
 
         FormInit _ (ImportCForm imp) ->
-            ( model, Cmd.none )
-
-        FormInit _ (GlobalCForm imp) ->
             ( model, Cmd.none )
 
         FormInit "" (ProjectCForm prj) ->
@@ -822,7 +905,7 @@ update msg model =
                     UUID.step model.seeds
 
                 nint =
-                    { int| id = Just uuid }
+                    { int | id = Just uuid }
 
                 nid =
                     uuid
@@ -843,10 +926,11 @@ update msg model =
                     { title = "New Gloss"
                     , fullTitle = "New Gloss"
                     , vista = nid
-                    , params = { length = 0
-                               , searchString = ""
-                               , edit = True
-                               }
+                    , params =
+                        { length = 0
+                        , searchString = ""
+                        , edit = True
+                        }
                     }
             in
             ( { model
@@ -910,21 +994,6 @@ update msg model =
                                 ]
                             )
 
-                        Just ( GlobalSettingsContent glf, vista ) ->
-                            let
-                                ( nmodel, ncmd ) =
-                                    handleCFormSubmit
-                                        (Just glf)
-                                        vista
-                                        model
-                            in
-                            ( nmodel
-                            , Cmd.batch
-                                [ sendMsg (Tab Tab.Close)
-                                , ncmd
-                                ]
-                            )
-
                         Just ( ProjectInfoContent prj, vista ) ->
                             let
                                 ( nmodel, ncmd ) =
@@ -940,13 +1009,10 @@ update msg model =
                                 ]
                             )
 
-                        Just ( TranslationContent _, _ ) ->
-                            ( model, Cmd.none )
-
-                        Just ( TranslationsContent _, _ ) ->
-                            ( model, Cmd.none )
-
                         Just ( InterlinearsContent _, _ ) ->
+                            ( model, Cmd.none )
+
+                        Just ( Content.GF _, _ ) ->
                             ( model, Cmd.none )
 
                         Nothing ->
@@ -1076,40 +1142,6 @@ update msg model =
                         Cmd.none
                     )
 
-                Just ( GlobalSettingsContent cfglb, ( vista, ventana ) ) ->
-                    let
-                        ncfglb =
-                            handleCFChange fid str cfglb
-
-                        ncontent =
-                            GlobalSettingsContent ncfglb
-
-                        nvista =
-                            { vista | content = ncontent }
-
-                        nvistas =
-                            Dict.insert
-                                ventana.vista
-                                nvista
-                                model.vistas
-
-                        nglb =
-                            case ncfglb of
-                                GlobalCForm glb ->
-                                    glb
-
-                                -- This shouldn't happen.
-                                _ ->
-                                    Form.Global.initData
-                    in
-                    ( { model | vistas = nvistas }
-                    , if nglb.submitted then
-                        sendMsg (FormSubmit tp)
-
-                      else
-                        Cmd.none
-                    )
-
                 Just ( ImportOptionsContent cfimp, ( vista, ventana ) ) ->
                     let
                         ncfimp =
@@ -1226,13 +1258,10 @@ update msg model =
                                 Cmd.none
                             )
 
-                Just ( TranslationContent _, _ ) ->
-                    ( model, Cmd.none )
-
-                Just ( TranslationsContent _, _ ) ->
-                    ( model, Cmd.none )
-
                 Just ( InterlinearsContent _, _ ) ->
+                    ( model, Cmd.none )
+
+                Just ( Content.GF _, _ ) ->
                     ( model, Cmd.none )
 
 
@@ -1260,27 +1289,6 @@ handleCFormSubmit edit vista model =
             in
             ( { model | vistas = nvistas }
             , updateProject jsonValue
-            )
-
-        Just (GlobalCForm glb) ->
-            let
-                jsonValue =
-                    E.object
-                        [ ( "email", E.string glb.email.value )
-                        , ( "name", E.string glb.name.value )
-                        ]
-
-                nvista =
-                    { vista
-                        | content =
-                            GlobalSettingsContent (GlobalCForm Form.Global.initData)
-                    }
-
-                nvistas =
-                    Dict.insert nvista.identifier nvista model.vistas
-            in
-            ( { model | vistas = nvistas }
-            , updateGlobalSettings jsonValue
             )
 
         Just (ImportCForm imp) ->
@@ -1415,24 +1423,11 @@ handleCFChange fid str data =
         ImportForm field ->
             handleCFImpChange field str data
 
-        GlobalForm field ->
-            handleCFGlbChange field str data
-
         ProjectForm field ->
             handleCFPrjChange field str data
 
         InterlinearForm field ->
             handleCFIntChange field str data
-
-
-handleCFGlbChange : Form.Global.Field -> String -> CForm -> CForm
-handleCFGlbChange fid str cfglb =
-    case cfglb of
-        GlobalCForm glb ->
-            Form.Global.change fid str glb |> GlobalCForm
-
-        _ ->
-            cfglb
 
 
 handleCFPrjChange : ProjectField -> String -> CForm -> CForm
@@ -1662,8 +1657,10 @@ handleCFIntChange fid str cfint =
 
         _ ->
             cfint
-        
 
+
+{-| The purpose of this is specific to vistas that may be used to view
+or edit. -}
 maybeInitForm : String -> Vistas -> Vistas
 maybeInitForm vid oldvistas =
     case getContentVistaFromVistas vid oldvistas of
@@ -1673,7 +1670,7 @@ maybeInitForm vid oldvistas =
                     let
                         formData =
                             Form.Interlinear.init int
-                                
+
                         ndc =
                             { view =
                                 dc.view
@@ -1696,12 +1693,6 @@ maybeInitForm vid oldvistas =
         Just ( NewDocContent _, _ ) ->
             oldvistas
 
-        Just ( TranslationContent _, _ ) ->
-            oldvistas
-
-        Just ( TranslationsContent _, _ ) ->
-            oldvistas
-
         Just ( InterlinearsContent _, _ ) ->
             oldvistas
 
@@ -1711,7 +1702,7 @@ maybeInitForm vid oldvistas =
         Just ( ImportOptionsContent _, _ ) ->
             oldvistas
 
-        Just ( GlobalSettingsContent _, _ ) ->
+        Just ( Content.GF _, _ ) ->
             oldvistas
 
         Nothing ->
@@ -1868,7 +1859,7 @@ subscriptions _ =
         , receivedDoc ReceivedDoc
         , newProject (\_ -> FormInit "" (ProjectCForm projectFormData))
         , importOptions ImportOptionsFileMenu
-        , globalSettings GlobalSettingsMenu
+        , globalSettings ShowGlobalSettings
         , moveLeft_ (\_ -> Tab <| Tab.Move Left)
         , moveRight_ (\_ -> Tab <| Tab.Move Right)
         , moveUp_ (\_ -> Tab <| Tab.Move Up)
@@ -2103,66 +2094,14 @@ viewProject model p =
 viewVista : Model -> Tab.Path -> Vista -> Html Msg
 viewVista model tp vista =
     case vista.content of
+        Content.GF gmodel ->
+            Form.Global.view gmodel |> Html.map GF
+                
         ProjectInfoContent (ProjectCForm prj) ->
             viewDocContentEditVista tp (ProjectCForm prj)
 
         ProjectInfoContent _ ->
             Html.text "no such form"
-
-        GlobalSettingsContent (GlobalCForm glb) ->
-            viewDocContentEditVista tp (GlobalCForm glb)
-
-        GlobalSettingsContent _ ->
-            Html.text "no such form"
-
-        TranslationContent trn ->
-            viewTranslation model trn
-
-        TranslationsContent trns ->
-            let
-                params =
-                    Dict.get tp model.ventanas
-                        |> Maybe.map .params
-                        |> Maybe.withDefault { defVParams | length = 20 }
-
-                ss =
-                    params.searchString
-
-                searched =
-                    List.filter
-                        (\t ->
-                            String.contains ss t.key
-                                || String.contains ss t.value
-                        )
-                        trns
-
-                ts =
-                    List.take params.length searched
-
-                len =
-                    String.fromInt params.length
-            in
-            Html.div []
-                [ Html.label []
-                    [ Html.text <| "Show (" ++ len ++ ")"
-                    , Html.input
-                        [ Attr.type_ "text"
-                        , Attr.value len
-                        , Event.onInput (ChangeLengthParam tp)
-                        ]
-                        []
-                    , Html.input
-                        [ Attr.type_ "search"
-                        , Attr.name "search"
-                        , Attr.placeholder "Search"
-                        , Attr.attribute "aria-label" "Search"
-                        , Attr.value ss
-                        , Event.onInput (ChangeSearchParam tp)
-                        ]
-                        []
-                    ]
-                , Html.table [] (List.map (viewTranslation model) ts)
-                ]
 
         InterlinearsContent ints ->
             let
@@ -2325,15 +2264,6 @@ viewDocContentEditVista tp cform =
             else
                 viewCFImportVista tp imp
 
-        GlobalCForm glb ->
-            if glb.submitted then
-                Html.span
-                    [ Attr.attribute "aria-busy" "true" ]
-                    [ Html.text "Saving changes." ]
-
-            else
-                viewCFGlobalVista tp glb
-
         ProjectCForm prj ->
             if prj.submitted then
                 -- Normally, the form is closed immediately after
@@ -2494,43 +2424,31 @@ viewCSelectField fd =
 
 formClose : Tab.Path -> (f -> Form.Field) -> f -> String -> Msg
 formClose tp form =
-    (\field str -> MultiMsg [ (FormChange tp <| form field) str
-                            , (\_ -> Tab Tab.Close) str
-                            ]
-    )
+    \field str ->
+        MultiMsg
+            [ (FormChange tp <| form field) str
+            , (\_ -> Tab Tab.Close) str
+            ]
 
 
 fieldChange : Tab.Path -> (f -> Form.Field) -> f -> String -> Msg
 fieldChange tp form =
-    (\field -> FormChange tp <| form field)
-        
+    \field -> FormChange tp <| form field
+
 
 viewCFInterlinearVista : Tab.Path -> Form.Interlinear.Data -> Html.Html Msg
 viewCFInterlinearVista tp int =
     let
-        callbacks : { close : Form.Interlinear.Field -> String -> Msg
-                    , change : Form.Interlinear.Field -> String -> Msg
-                    }
+        callbacks :
+            { close : Form.Interlinear.Field -> String -> Msg
+            , change : Form.Interlinear.Field -> String -> Msg
+            }
         callbacks =
             { close = formClose tp InterlinearForm
             , change = fieldChange tp InterlinearForm
             }
     in
     Form.Interlinear.display int callbacks
-
-
-viewCFGlobalVista : Tab.Path -> Form.Global.Data -> Html.Html Msg
-viewCFGlobalVista tp glb =
-    let
-        callbacks : { close : Form.Global.Field -> String -> Msg
-                    , change : Form.Global.Field -> String -> Msg
-                    }
-        callbacks =
-            { close = formClose tp GlobalForm
-            , change = fieldChange tp GlobalForm
-            }
-    in
-    Form.Global.display glb callbacks
 
 
 viewCFProjectVista : Tab.Path -> ProjectFormData -> Html.Html Msg
@@ -3259,35 +3177,12 @@ interlinearDecoder =
 contentDecoder : String -> D.Decoder Content
 contentDecoder kind =
     case kind of
-        "all-translations" ->
-            D.map TranslationsContent
-                (D.field "content" translationsDecoder)
-
-        -- "new-project" ->
-        --     D.map ProjectInfoContent
-        --         (D.field "content" projectInfoDecoder)
         "all-interlinears" ->
             D.map InterlinearsContent
                 (D.field "content" <| D.list interlinearDecoder)
 
         _ ->
             D.fail ("Unsupported content kind " ++ kind)
-
-
-globalConfigDecoder : D.Decoder GlobalConfig
-globalConfigDecoder =
-    D.map3 GlobalConfig
-        (D.field "projects" <| D.list projectInfoDecoder)
-        (D.field "name" <| D.nullable D.string)
-        (D.field "email" <| D.nullable D.string)
-
-
-projectInfoDecoder : D.Decoder ProjectInfo
-projectInfoDecoder =
-    D.map3 ProjectInfo
-        (D.field "title" D.string)
-        (D.field "identifier" D.string)
-        (D.field "url" (D.nullable D.string))
 
 
 getVistaVentana : Tab.Path -> Model -> Maybe ( Vista, Ventana )
@@ -3413,7 +3308,7 @@ port receivedDoc : (E.Value -> msg) -> Sub msg
 port newProject : (() -> msg) -> Sub msg
 
 
-{-| The "New Project" menu item was clicked.
+{-| The "Settings" menu item was clicked.
 -}
 port globalSettings : (E.Value -> msg) -> Sub msg
 

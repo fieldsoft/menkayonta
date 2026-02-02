@@ -19,12 +19,12 @@ import Form.Shared
         , blankString
         )
 import UUID
+import Json.Encode as E
 
-
+      
 type CForm
     = InterlinearCForm Form.Interlinear.Data
     | ImportCForm ImportFormData
-    | GlobalCForm Form.Global.Data
     | ProjectCForm ProjectFormData
 
 
@@ -53,7 +53,6 @@ type alias ImportFormData =
 type Field
     = InterlinearForm Form.Interlinear.Field
     | ImportForm ImportField
-    | GlobalForm Form.Global.Field
     | ProjectForm ProjectField
 
 

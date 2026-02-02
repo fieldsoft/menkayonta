@@ -4,16 +4,15 @@ import Menkayonta exposing (Interlinear, OneDoc)
 import Form exposing (CForm)
 import Config exposing (ProjectInfo)
 import Json.Decode as D
+import Form.Global
 
 type Content
-    = TranslationContent Translation
-    | TranslationsContent (List Translation)
-    | InterlinearsContent (List Interlinear)
+    = InterlinearsContent (List Interlinear)
     | DocContent { view : OneDoc, edit : Maybe CForm }
     | NewDocContent CForm
     | ProjectInfoContent CForm
     | ImportOptionsContent CForm
-    | GlobalSettingsContent CForm
+    | GF Form.Global.Model
 
 
 type alias Translation =

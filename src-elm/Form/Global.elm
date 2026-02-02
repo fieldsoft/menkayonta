@@ -1,12 +1,21 @@
 module Form.Global exposing
-    ( Data
-    , Field
-    , change
-    , display
---    , init
+    ( Model
+    , Msg(..)
+    , update
+    , view
+    , init
     , initData
     )
 
+import Config
+    exposing
+        ( GlobalConfig
+        , GlobalSettings
+        , ProjectInfo
+        , globalConfigDecoder
+        , projectInfoDecoder
+        )
+import Email
 import Form.Shared
     exposing
         ( FieldDescription
@@ -19,13 +28,15 @@ import Form.Shared
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Email
+import Json.Encode as E
+import Json.Decode as D
+import Task
 
 
 {-| The Data type alias describes a form representation of non-project
 global configuration for the app.
 -}
-type alias Data =
+type alias Model =
     { changed : Bool
     , submitted : Bool
     , error : String
@@ -37,19 +48,18 @@ type alias Data =
 
 {-| These are the fields of the form. Buttons are considered a field.
 -}
-type Field
-    = Email
-    | Name
+type Msg
+    = Email String
+    | Name String
     | Save
     | Cancel
     | None
 
 
-{-| Alias for callbacks sent when display is called. -}
-type alias Callbacks msg =
-    { close : Field -> String -> msg
-    , change : Field -> String -> msg
-    }
+sendMsg : Msg -> Cmd Msg
+sendMsg msg =
+    Task.succeed msg
+        |> Task.perform identity
 
 
 {-| A starter Data instance.
@@ -64,32 +74,47 @@ initData =
     }
 
 
+init : E.Value -> ( Model, Cmd Msg )
+init value =
+    case D.decodeValue globalConfigDecoder value of
+        Err _ ->
+            ( initData, Cmd.none )
+
+        Ok gf ->
+            ( initData
+            , Cmd.batch
+                  [ sendMsg <| Email <| Maybe.withDefault "" gf.email
+                  , sendMsg <| Name <| Maybe.withDefault "" gf.name
+                  ]
+            )
+        
+
 {-| This handles events specific to particular fields.
 -}
-change : Field -> String -> Data -> Data
-change fid str d =
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
     let
         email =
-            d.email
+            model.email
 
         name =
-            d.name
+            model.name
 
         toperr =
             "Please correct form."
 
-        valid d_ =
+        valid model_ =
             List.all identity
-                [ d_.email.valid
-                , d_.name.valid
+                [ model_.email.valid
+                , model_.name.valid
                 ]
 
-        defD d_ =
+        validateModel model_ =
             let
                 valid_ =
-                    valid d_
+                    valid model_
             in
-            { d_
+            { model_
                 | changed = True
                 , valid = valid_
                 , error =
@@ -100,105 +125,113 @@ change fid str d =
                         toperr
             }
     in
-    case fid of
+    case msg of
         -- A non-operation.
         None ->
-            d
-                
-        Email ->
+            ( model, Cmd.none )
+
+        Email str ->
             if String.isEmpty str then
-                { d
-                    | email =
-                        { email
-                            | value = str
-                            , valid = False
-                            , error = "An email address is required."
-                            , changed = True
-                        }
-                }
-                    |> defD
+                ( validateModel
+                      { model
+                          | email =
+                            { email
+                                | value = str
+                                , valid = False
+                                , error = "An email address is required."
+                                , changed = True
+                            }
+                      }
+                , Cmd.none
+                )
 
             else
                 case Email.fromString str of
                     Nothing ->
-                        { d
-                            | email =
-                                { email
-                                    | value = str
-                                    , valid = False
-                                    , error = "Invalid email address."
-                                    , changed = True
-                                }
-                        }
-                            |> defD
+                        ( validateModel
+                              { model
+                                  | email =
+                                    { email
+                                        | value = str
+                                        , valid = False
+                                        , error = "Invalid email address."
+                                        , changed = True
+                                    }
+                              }
+                        , Cmd.none
+                        )
 
                     Just _ ->
-                        { d
-                            | email =
-                                { email
-                                    | value = str
-                                    , valid = True
-                                    , error = ""
-                                    , changed = True
-                                }
-                        }
-                            |> defD
+                        ( validateModel
+                              { model
+                                  | email =
+                                    { email
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                              }
+                        , Cmd.none
+                        )
 
-        Name ->
+        Name str ->
             if String.isEmpty str then
-                { d
-                    | name =
-                        { name
-                            | value = str
-                            , valid = False
-                            , error = "A name is required."
-                            , changed = True
-                        }
-                }
-                    |> defD
+                ( validateModel
+                      { model
+                          | name =
+                            { name
+                                | value = str
+                                , valid = False
+                                , error = "A name is required."
+                                , changed = True
+                            }
+                      }
+                , Cmd.none
+                )
 
             else
-                { d
-                    | name =
-                        { name
-                            | value = str
-                            , valid = True
-                            , error = ""
-                            , changed = True
-                        }
-                }
-                    |> defD
+                ( validateModel
+                      { model
+                          | name =
+                            { name
+                                | value = str
+                                , valid = True
+                                , error = ""
+                                , changed = True
+                            }
+                      }
+                , Cmd.none
+                )
 
         Save ->
-            if defD d |> .valid then
-                { d | submitted = True }
+            if validateModel model |> .valid then
+                ( { model | submitted = True }, Cmd.none )
 
             else
-                d
+                ( model, Cmd.none )
 
         Cancel ->
-            initData
+            ( initData, Cmd.none )
 
 
-{-| Display the form. The function f likely wraps types that are not
-relevant to the form logic but that result in changes that are handled
-in `change`
+{-| View the form.
 -}
-display : Data -> Callbacks  msg -> Html.Html msg
-display d c =
+view : Model -> Html.Html Msg
+view model =
     Html.form []
         [ displayField
             { formname = "globalsettings"
             , label = "Email Address"
             , kind = Html.input
-            , oninput = c.change Email
+            , oninput = Email
             , name = "email"
-            , value = d.email.value
-            , original = d.email.original
-            , changed = d.email.changed
-            , valid = d.email.valid
+            , value = model.email.value
+            , original = model.email.original
+            , changed = model.email.changed
+            , valid = model.email.valid
             , help = "Your email address."
-            , error = d.email.error
+            , error = model.email.error
             , disabled = False
             , deleted = False
             , spellcheck = False
@@ -209,14 +242,14 @@ display d c =
             { formname = "globalsettings"
             , label = "Name"
             , kind = Html.input
-            , oninput = c.change Name
+            , oninput = Name
             , name = "name"
-            , value = d.name.value
-            , original = d.name.original
-            , changed = d.name.changed
-            , valid = d.name.valid
+            , value = model.name.value
+            , original = model.name.original
+            , changed = model.name.changed
+            , valid = model.name.valid
             , help = "Your name."
-            , error = d.name.error
+            , error = model.name.error
             , disabled = False
             , deleted = False
             , spellcheck = False
@@ -224,24 +257,23 @@ display d c =
             , id = Nothing
             }
         , Html.button
-            (if d.valid then
-                [ Event.onClick <| c.change Save ""
+            (if model.valid then
+                [ Event.onClick Save
                 , Attr.type_ "button"
                 ]
 
              else
-                [ Attr.attribute "data-tooltip" d.error
+                [ Attr.attribute "data-tooltip" model.error
                 , Attr.attribute "data-placement" "right"
                 , Attr.type_ "button"
-                , Event.onClick <| c.change None ""
+                , Event.onClick None
                 ]
             )
             [ Html.text "Save" ]
         , Html.button
             [ Attr.class "secondary"
             , Attr.type_ "button"
-            , Event.onClick <|
-                c.close Cancel ""
+            , Event.onClick Cancel
             ]
             [ Html.text "Cancel" ]
         ]
