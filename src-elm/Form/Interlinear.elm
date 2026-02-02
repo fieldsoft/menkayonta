@@ -1,10 +1,10 @@
 module Form.Interlinear exposing
-    ( Data
-    , Field
-    , change
-    , display
+    ( Model
+    , Msg(..)
     , init
     , initData
+    , update
+    , view
     )
 
 import Dict
@@ -30,11 +30,11 @@ import Menkayonta
 import UUID
 
 
-{-| The Data type alias describes a form representation of the
-Interlinear type from Menkayonta.
+{-| The Model describes a form representation of the Interlinear type
+from Menkayonta.
 -}
-type alias Data =
-    { id : Maybe UUID.UUID
+type alias Model =
+    { id : UUID.UUID
     , rev : Maybe String
     , version : Int
     , changed : Bool
@@ -48,30 +48,24 @@ type alias Data =
     }
 
 
-{-| These are the fields of the form. Buttons are considered a field,
-as are groupings, where Trans represents the group of translations.
+{-| The `Msg` type largely deals with the fields of the form. Buttons
+are considered a field, as are groupings, where Trans represents the
+group of translations.
 -}
-type Field
-    = Text
-    | Breaks
-    | Glosses
-    | Phonemic
-    | Judgment
-    | Trans
-    | TTranslation Int
-    | TJudgment Int
+type Msg
+    = Text String
+    | Breaks String 
+    | Glosses String
+    | Phonemic String
+    | Judgment String
+    | Trans String
+    | TTranslation Int String
+    | TJudgment Int String
     | Save
     | Cancel
     | None
+ 
 
-
-{-| Alias for callbacks sent when display is called. -}
-type alias Callbacks msg =
-    { close : Field -> String -> msg
-    , change : Field -> String -> msg
-    }
-
-    
 {-| Annotations are the non-translation annotations.
 -}
 type alias Annotations =
@@ -82,7 +76,7 @@ type alias Annotations =
     }
 
 
-{-| Translations occur in a list (actually a dictionary).
+{-| Translations occur in a list in the form.
 -}
 type alias Translation =
     { id : Int
@@ -95,7 +89,7 @@ type alias Translation =
 {-| The initialization function. This will likely be refactored to
 place more of the initialization logic in the function.
 -}
-init : Menkayonta.Interlinear -> Data
+init : Menkayonta.Interlinear -> ( Model, Cmd Msg )
 init int =
     let
         ann : Annotations
@@ -163,9 +157,9 @@ init int =
                 |> List.maximum
                 |> Maybe.withDefault 0
 
-        formData : Data
-        formData =
-            { id = Just int.id
+        model : Model
+        model =
+            { id = int.id
             , rev = int.rev
             , version = int.version
             , changed = False
@@ -184,14 +178,14 @@ init int =
             , counter = counter
             }
     in
-    formData
+    ( model, Cmd.none )
 
 
 {-| A starter Data instance.
 -}
-initData : Data
-initData =
-    { id = Nothing
+initData : UUID.UUID -> Model
+initData id =
+    { id = id
     , rev = Nothing
     , version = 1
     , changed = False
@@ -212,8 +206,8 @@ initData =
 
 {-| This handles events specific to particular fields.
 -}
-change : Field -> String -> Data -> Data
-change fid str d =
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
     let
         tokens : String -> Int
         tokens s =
@@ -287,17 +281,14 @@ change fid str d =
                 length1
                 length2
 
-        str_ =
-            String.trim str
-
         text =
-            d.text
+            model.text
 
         annotations =
-            d.annotations
+            model.annotations
 
         translations =
-            d.translations
+            model.translations
 
         judgment =
             annotations.judgment
@@ -321,7 +312,7 @@ change fid str d =
                 |> List.all identity
 
         -- Return false if there are any invalid items
-        valid : Data -> Bool
+        valid : Model -> Bool
         valid d_ =
             List.all identity
                 [ d_.text.valid
@@ -336,13 +327,13 @@ change fid str d =
             "Correct errors before saving."
 
         -- Set top level validity and error messages accordingly.
-        defD : Data -> Data
-        defD d_ =
+        validate : Model -> Model
+        validate model_ =
             let
                 valid_ =
-                    valid d_
+                    valid model_
             in
-            { d_
+            { model_
                 | changed = True
                 , valid = valid_
                 , error =
@@ -381,45 +372,49 @@ change fid str d =
 
         textTokens : Int
         textTokens =
-            tokens d.text.value
+            tokens model.text.value
     in
-    case fid of
+    case msg of
         -- It is sometimes useful to have a non-operation.
         None ->
-            d
+            ( model, Cmd.none )
 
-        Text ->
+        Text str ->
             if String.isEmpty str then
-                { d
-                    | text =
-                        { text
-                            | value = str
-                            , valid = False
-                            , error = "The text can't be blank."
-                            , changed = True
-                        }
-                }
-                    |> defD
+                ( validate
+                    { model
+                        | text =
+                            { text
+                                | value = str
+                                , valid = False
+                                , error = "The text can't be blank."
+                                , changed = True
+                            }
+                    }
+                , Cmd.none
+                )
 
             else
-                { d
-                    | text =
-                        { text
-                            | value = str
-                            , valid = True
-                            , error = ""
-                            , changed = True
-                        }
-                }
-                    |> defD
+                ( validate
+                    { model
+                        | text =
+                            { text
+                                | value = str
+                                , valid = True
+                                , error = ""
+                                , changed = True
+                            }
+                    }
+                , Cmd.none
+                )
 
-        Breaks ->
+        Breaks str ->
             let
                 newTokens =
                     tokens str
 
                 ok =
-                    { d
+                    { model
                         | annotations =
                             { annotations
                                 | breaks =
@@ -431,13 +426,13 @@ change fid str d =
                                     }
                             }
                     }
-                        |> defD
+                        |> validate
             in
             if String.isEmpty (String.trim str) then
-                ok
+                ( ok, Cmd.none )
 
             else if newTokens == textTokens then
-                ok
+                ( ok, Cmd.none )
 
             else
                 let
@@ -450,27 +445,29 @@ change fid str d =
                         ]
                             |> String.join " "
                 in
-                { d
-                    | annotations =
-                        { annotations
-                            | breaks =
-                                { breaks
-                                    | value = str
-                                    , valid = False
-                                    , error = err
-                                    , changed = True
-                                }
-                        }
-                }
-                    |> defD
+                ( validate
+                    { model
+                        | annotations =
+                            { annotations
+                                | breaks =
+                                    { breaks
+                                        | value = str
+                                        , valid = False
+                                        , error = err
+                                        , changed = True
+                                    }
+                            }
+                    }
+                , Cmd.none
+                )
 
-        Glosses ->
+        Glosses str ->
             let
                 newTokens =
                     tokens str
 
                 ok =
-                    { d
+                    { model
                         | annotations =
                             { annotations
                                 | glosses =
@@ -482,10 +479,10 @@ change fid str d =
                                     }
                             }
                     }
-                        |> defD
+                        |> validate
             in
             if String.isEmpty (String.trim str) then
-                ok
+                ( ok, Cmd.none )
 
             else
                 case
@@ -504,19 +501,21 @@ change fid str d =
                                 ]
                                     |> String.join " "
                         in
-                        { d
-                            | annotations =
-                                { annotations
-                                    | glosses =
-                                        { glosses
-                                            | value = str
-                                            , valid = False
-                                            , error = err
-                                            , changed = True
-                                        }
-                                }
-                        }
-                            |> defD
+                        ( validate
+                            { model
+                                | annotations =
+                                    { annotations
+                                        | glosses =
+                                            { glosses
+                                                | value = str
+                                                , valid = False
+                                                , error = err
+                                                , changed = True
+                                            }
+                                    }
+                            }
+                        , Cmd.none
+                        )
 
                     ( True, Just mismatch ) ->
                         let
@@ -529,30 +528,32 @@ change fid str d =
                                 ]
                                     |> String.join " "
                         in
-                        { d
-                            | annotations =
-                                { annotations
-                                    | glosses =
-                                        { glosses
-                                            | value = str
-                                            , valid = False
-                                            , error = err
-                                            , changed = True
-                                        }
-                                }
-                        }
-                            |> defD
+                        ( validate
+                            { model
+                                | annotations =
+                                    { annotations
+                                        | glosses =
+                                            { glosses
+                                                | value = str
+                                                , valid = False
+                                                , error = err
+                                                , changed = True
+                                            }
+                                    }
+                            }
+                        , Cmd.none
+                        )
 
                     ( True, Nothing ) ->
-                        ok
+                        ( ok, Cmd.none )
 
-        Phonemic ->
+        Phonemic str ->
             let
                 newTokens =
                     tokens str
 
                 ok =
-                    { d
+                    { model
                         | annotations =
                             { annotations
                                 | phonemic =
@@ -564,13 +565,13 @@ change fid str d =
                                     }
                             }
                     }
-                        |> defD
+                        |> validate
             in
             if String.isEmpty (String.trim str) then
-                ok
+                ( ok, Cmd.none )
 
             else if newTokens == textTokens then
-                ok
+                ( ok, Cmd.none )
 
             else
                 let
@@ -583,42 +584,46 @@ change fid str d =
                         ]
                             |> String.join " "
                 in
-                { d
+                ( validate
+                    { model
+                        | annotations =
+                            { annotations
+                                | phonemic =
+                                    { phonemic
+                                        | value = str
+                                        , valid = False
+                                        , error = err
+                                        , changed = True
+                                    }
+                            }
+                    }
+                , Cmd.none
+                )
+
+        Judgment str ->
+            ( validate
+                { model
                     | annotations =
                         { annotations
-                            | phonemic =
-                                { phonemic
+                            | judgment =
+                                { judgment
                                     | value = str
-                                    , valid = False
-                                    , error = err
+                                    , valid = True
+                                    , error = ""
                                     , changed = True
                                 }
                         }
                 }
-                    |> defD
+            , Cmd.none
+            )
 
-        Judgment ->
-            { d
-                | annotations =
-                    { annotations
-                        | judgment =
-                            { judgment
-                                | value = str
-                                , valid = True
-                                , error = ""
-                                , changed = True
-                            }
-                    }
-            }
-                |> defD
-
-        Trans ->
+        Trans str ->
             case String.toInt str of
                 Nothing ->
                     if str == "add" then
                         let
                             counter =
-                                d.counter + 1
+                                model.counter + 1
 
                             trans =
                                 { id = counter
@@ -645,11 +650,12 @@ change fid str d =
                                     |> (::) trans
                                     |> List.reverse
                         in
-                        { d | translations = ntranslations }
-                            |> defD
+                        ( validate { model | translations = ntranslations }
+                        , Cmd.none
+                        )
 
                     else
-                        d |> defD
+                        ( validate model, Cmd.none )
 
                 Just id ->
                     case divided id of
@@ -663,13 +669,14 @@ change fid str d =
                                 ntranslations =
                                     prefix ++ (ntranslation :: suffix)
                             in
-                            { d | translations = ntranslations }
-                                |> defD
+                            ( validate { model | translations = ntranslations }
+                            , Cmd.none
+                            )
 
                         Nothing ->
-                            d |> defD
+                            ( validate model, Cmd.none )
 
-        TTranslation id ->
+        TTranslation id str ->
             case divided id of
                 Just ( prefix, translation, suffix ) ->
                     let
@@ -715,13 +722,15 @@ change fid str d =
                         ntranslations =
                             prefix ++ (ntranslation :: suffix)
                     in
-                    { d | translations = ntranslations } |> defD
+                    ( validate { model | translations = ntranslations }
+                    , Cmd.none
+                    )
 
                 -- Unexpected, do nothing
                 Nothing ->
-                    d
+                    ( model, Cmd.none )
 
-        TJudgment id ->
+        TJudgment id str ->
             case divided id of
                 Just ( prefix, translation, suffix ) ->
                     let
@@ -742,32 +751,35 @@ change fid str d =
                         ntranslations =
                             prefix ++ (ntranslation :: suffix)
                     in
-                    { d | translations = ntranslations }
-                        |> defD
+                    ( validate { model | translations = ntranslations }
+                    , Cmd.none
+                    )
 
                 -- Unexpected, do nothing
                 Nothing ->
-                    d
+                    ( model, Cmd.none )
 
         Save ->
-            if defD d |> .valid then
-                { d | submitted = True }
+            if validate model |> .valid then
+                ( { model | submitted = True }
+                , Cmd.none
+                )
 
             else
-                d
+                ( model, Cmd.none )
 
         Cancel ->
             -- Indicates that this is a new interlinear gloss. Set it
             -- to the default empty instance.
             if String.isEmpty text.original then
-                initData
+                ( initData model.id, Cmd.none )
 
             else
                 let
                     renew orig =
                         { blankString | value = orig, original = orig }
                 in
-                { d
+                ( { model
                     | changed = False
                     , submitted = False
                     , error = ""
@@ -801,29 +813,31 @@ change fid str d =
                         List.map (\x -> x.id) translations
                             |> List.maximum
                             |> Maybe.withDefault 0
-                }
+                  }
+                , Cmd.none
+                )
 
 
 {-| Display the form. The function f likely wraps types that are not
 relevant to the form logic but that result in changes that are handled
 in `change`
 -}
-display : Data -> Callbacks msg -> Html.Html msg
-display d c =
+view : Model -> Html.Html Msg
+view model =
     Html.form []
         [ Html.fieldset []
             [ displayField
                 { formname = "interlinear"
                 , label = "Text"
                 , kind = Html.textarea
-                , oninput = c.change Text
+                , oninput = Text
                 , name = "text"
-                , value = d.text.value
-                , original = d.text.original
-                , changed = d.text.changed
-                , valid = d.text.valid
+                , value = model.text.value
+                , original = model.text.original
+                , changed = model.text.changed
+                , valid = model.text.valid
                 , help = "The text to be glossed."
-                , error = d.text.error
+                , error = model.text.error
                 , disabled = False
                 , deleted = False
                 , spellcheck = False
@@ -836,14 +850,14 @@ display d c =
                 { formname = "interlinear"
                 , label = "Text Judgment"
                 , kind = Html.input
-                , oninput = c.change Judgment
+                , oninput = Judgment
                 , name = "judgement"
-                , value = d.annotations.judgment.value
-                , original = d.annotations.judgment.original
-                , changed = d.annotations.judgment.changed
-                , valid = d.annotations.judgment.valid
+                , value = model.annotations.judgment.value
+                , original = model.annotations.judgment.original
+                , changed = model.annotations.judgment.changed
+                , valid = model.annotations.judgment.valid
                 , help = "Optional judgment, such as * or #."
-                , error = d.annotations.judgment.error
+                , error = model.annotations.judgment.error
                 , disabled = False
                 , deleted = False
                 , spellcheck = False
@@ -854,14 +868,14 @@ display d c =
                 { formname = "interlinear"
                 , label = "Phonemic Transcription"
                 , kind = Html.textarea
-                , oninput = c.change Phonemic
+                , oninput = Phonemic
                 , name = "phonemic"
-                , value = d.annotations.phonemic.value
-                , original = d.annotations.phonemic.original
-                , changed = d.annotations.phonemic.changed
-                , valid = d.annotations.phonemic.valid
+                , value = model.annotations.phonemic.value
+                , original = model.annotations.phonemic.original
+                , changed = model.annotations.phonemic.changed
+                , valid = model.annotations.phonemic.valid
                 , help = "Optional phonemic transcription."
-                , error = d.annotations.phonemic.error
+                , error = model.annotations.phonemic.error
                 , disabled = False
                 , deleted = False
                 , spellcheck = False
@@ -872,18 +886,18 @@ display d c =
                 { formname = "interlinear"
                 , label = "Affix Breaks"
                 , kind = Html.textarea
-                , oninput = c.change Breaks
+                , oninput = Breaks
                 , name = "breaks"
-                , value = d.annotations.breaks.value
-                , original = d.annotations.breaks.original
-                , changed = d.annotations.breaks.changed
-                , valid = d.annotations.breaks.valid
+                , value = model.annotations.breaks.value
+                , original = model.annotations.breaks.original
+                , changed = model.annotations.breaks.changed
+                , valid = model.annotations.breaks.valid
                 , help =
                     String.join " "
                         [ "Optional affix break annotation."
                         , "This is needed for glosses, below."
                         ]
-                , error = d.annotations.breaks.error
+                , error = model.annotations.breaks.error
                 , disabled = False
                 , deleted = False
                 , spellcheck = False
@@ -894,14 +908,14 @@ display d c =
                 { formname = "interlinear"
                 , label = "Affix Glosses"
                 , kind = Html.textarea
-                , oninput = c.change Glosses
+                , oninput = Glosses
                 , name = "glosses"
-                , value = d.annotations.glosses.value
-                , original = d.annotations.glosses.original
-                , changed = d.annotations.glosses.changed
-                , valid = d.annotations.glosses.valid
+                , value = model.annotations.glosses.value
+                , original = model.annotations.glosses.original
+                , changed = model.annotations.glosses.changed
+                , valid = model.annotations.glosses.valid
                 , help = "Optional glosses."
-                , error = d.annotations.glosses.error
+                , error = model.annotations.glosses.error
                 , disabled = False
                 , deleted = False
                 , spellcheck = False
@@ -912,27 +926,26 @@ display d c =
         , Html.fieldset [] <|
             List.concat
                 [ [ Html.legend [] [ Html.text "Translations" ] ]
-                , List.map (displayTrans c.change) d.translations
+                , List.map viewTrans model.translations
                 , [ Html.a
                         [ Event.onClick <|
-                            c.change Trans "add"
+                            Trans "add"
                         , Attr.href "#"
                         ]
                         [ Html.text "+ Add Translation" ]
                   ]
                 ]
         , Html.button
-            (if d.valid then
-                [ Event.onClick <|
-                    c.change Save ""
+            (if model.valid then
+                [ Event.onClick Save
                 , Attr.type_ "button"
                 ]
 
              else
-                [ Attr.attribute "data-tooltip" d.error
+                [ Attr.attribute "data-tooltip" model.error
                 , Attr.attribute "data-placement" "right"
                 , Attr.type_ "button"
-                , Event.onClick <| c.change None ""
+                , Event.onClick None
                 ]
             )
             [ Html.text "Save" ]
@@ -941,16 +954,16 @@ display d c =
             , Attr.attribute "data-tooltip" "This will erase all changes!"
             , Attr.attribute "data-placement" "right"
             , Attr.type_ "button"
-            , Event.onClick <| c.change Cancel ""
+            , Event.onClick Cancel
             ]
             [ Html.text "Cancel" ]
         ]
 
 
-{-| A helper display function for translations
+{-| A helper view function for translations
 -}
-displayTrans : (Field -> String -> msg) -> Translation -> Html.Html msg
-displayTrans f trans =
+viewTrans : Translation -> Html.Html Msg
+viewTrans trans =
     Html.article []
         [ Html.header []
             [ Html.label []
@@ -958,7 +971,7 @@ displayTrans f trans =
                     [ Attr.type_ "checkbox"
                     , roleAttr "switch"
                     , Attr.checked trans.deleted
-                    , Event.onCheck (\_ -> f Trans (String.fromInt trans.id))
+                    , Event.onCheck (\_ -> Trans (String.fromInt trans.id))
                     ]
                     []
                 , Html.text "Remove Translation"
@@ -968,7 +981,7 @@ displayTrans f trans =
             { formname = "interlinear"
             , label = "Translation"
             , kind = Html.textarea
-            , oninput = f (TTranslation trans.id)
+            , oninput = TTranslation trans.id
             , name = "translation"
             , value = trans.translation.value
             , original = trans.translation.original
@@ -986,7 +999,7 @@ displayTrans f trans =
             { formname = "interlinear"
             , label = "Translation Judgment"
             , kind = Html.input
-            , oninput = f (TJudgment trans.id)
+            , oninput = TJudgment trans.id
             , name = "judgment"
             , value = trans.judgment.value
             , original = trans.judgment.original

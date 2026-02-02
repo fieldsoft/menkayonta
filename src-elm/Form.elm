@@ -23,8 +23,7 @@ import Json.Encode as E
 
       
 type CForm
-    = InterlinearCForm Form.Interlinear.Data
-    | ImportCForm ImportFormData
+    = ImportCForm ImportFormData
     | ProjectCForm ProjectFormData
 
 
@@ -51,8 +50,7 @@ type alias ImportFormData =
 
 
 type Field
-    = InterlinearForm Form.Interlinear.Field
-    | ImportForm ImportField
+    = ImportForm ImportField
     | ProjectForm ProjectField
 
 

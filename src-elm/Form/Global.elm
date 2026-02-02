@@ -109,7 +109,7 @@ update msg model =
                 , model_.name.valid
                 ]
 
-        validateModel model_ =
+        validate model_ =
             let
                 valid_ =
                     valid model_
@@ -132,7 +132,7 @@ update msg model =
 
         Email str ->
             if String.isEmpty str then
-                ( validateModel
+                ( validate
                       { model
                           | email =
                             { email
@@ -148,7 +148,7 @@ update msg model =
             else
                 case Email.fromString str of
                     Nothing ->
-                        ( validateModel
+                        ( validate
                               { model
                                   | email =
                                     { email
@@ -162,7 +162,7 @@ update msg model =
                         )
 
                     Just _ ->
-                        ( validateModel
+                        ( validate
                               { model
                                   | email =
                                     { email
@@ -177,7 +177,7 @@ update msg model =
 
         Name str ->
             if String.isEmpty str then
-                ( validateModel
+                ( validate
                       { model
                           | name =
                             { name
@@ -191,7 +191,7 @@ update msg model =
                 )
 
             else
-                ( validateModel
+                ( validate
                       { model
                           | name =
                             { name
@@ -205,7 +205,7 @@ update msg model =
                 )
 
         Save ->
-            if validateModel model |> .valid then
+            if validate model |> .valid then
                 ( { model | submitted = True }, Cmd.none )
 
             else

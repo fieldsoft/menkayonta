@@ -5,11 +5,12 @@ import Form exposing (CForm)
 import Config exposing (ProjectInfo)
 import Json.Decode as D
 import Form.Global
+import Form.Interlinear
 
 type Content
     = InterlinearsContent (List Interlinear)
-    | DocContent { view : OneDoc, edit : Maybe CForm }
-    | NewDocContent CForm
+    | ITV OneDoc
+    | ITE Form.Interlinear.Model
     | ProjectInfoContent CForm
     | ImportOptionsContent CForm
     | GF Form.Global.Model

@@ -39,7 +39,6 @@ type alias Ventana =
 type alias VentanaParams =
     { length : Int
     , searchString : String
-    , edit : Bool
     }
 
 
