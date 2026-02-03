@@ -543,16 +543,7 @@ const requestPersonIndex = (_event, identifier) => {
 }
 
 const command = (_event, envelope) => {
-  switch (envelope.command) {
-    case 'bulk-write':
-    case 'request-docid': {
-      gvs.active[envelope.project].postMessage(envelope)
-      break
-    }
-    default: {
-      gvs.active[envelope.identifier].postMessage(envelope)
-    }
-  }
+  gvs.active[envelope.project].postMessage(envelope)
 }
 
 const init = async () => {
@@ -563,8 +554,6 @@ const init = async () => {
     ipcMain.handle('request-trans-index', requestTransIndex)
     ipcMain.handle('request-interlinear-index', requestInterlinearIndex)
     ipcMain.handle('request-person-index', requestPersonIndex)
-    ipcMain.handle('request-all-docid', requestDocId)
-    ipcMain.handle('request-docid', requestDocId)
     ipcMain.handle('update-project', updateProject)
     ipcMain.handle('import-file', importFile)
     ipcMain.handle('update-global-settings', updateGlobalSettings)

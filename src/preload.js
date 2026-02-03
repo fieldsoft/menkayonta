@@ -34,8 +34,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('request-interlinear-index', identifier),
   requestPersonIndex: (identifier) =>
     ipcRenderer.invoke('request-person-index', identifier),
-  requestAllDocId: (message) =>
-    ipcRenderer.invoke('request-all-docid', message),
   updateProject: (projectInfo) =>
     ipcRenderer.invoke('update-project', projectInfo),
   importFile: (importOptions) =>

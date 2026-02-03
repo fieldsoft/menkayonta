@@ -617,7 +617,7 @@ update msg model =
 
         RequestAllDocId project id ->
             let
-                payload =
+                envelope =
                     envelopeEncoder
                         { command = "request-all-docid"
                         , project = project
@@ -625,10 +625,49 @@ update msg model =
                         , content = E.null
                         }
             in
-            ( model, requestAllDocId payload )
+            ( model, send envelope )
 
-        ReceivedInterlinearIndex ii ->
-            handleReceivedVista ii "Glosses" "Glosses" model
+        ReceivedInterlinearIndex envelope ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    case D.decodeValue M.listDecoder env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok vals ->
+                            let
+                                filterInter : M.Value -> List Interlinear ->  List Interlinear
+                                filterInter val ints =
+                                    case val of
+                                        M.MyInterlinear int ->
+                                            int :: ints
+
+                                        _ ->
+                                            ints
+
+                                content =
+                                    InterlinearsContent <|
+                                        List.foldl filterInter [] vals
+
+                                vista =
+                                    { project = env.project
+                                    , kind = "interlinear-index"
+                                    , identifier = "GLOSSES::" ++ env.project
+                                    , content = content
+                                    }
+                            in
+                            handleVista
+                                vista
+                                "Glosses"
+                                "Glosses"
+                                    model
 
         ReceivedAllDoc envelope ->
             case D.decodeValue envelopeDecoder envelope of
@@ -1496,18 +1535,6 @@ handleCFImpChange_ fid str imp =
 
         ImpCancelF ->
             importFormData
-
-
-handleReceivedVista : E.Value -> String -> String -> Model -> ( Model, Cmd Msg )
-handleReceivedVista val short full model =
-    case D.decodeValue vistaDecoder val of
-        Err err ->
-            ( { model | error = D.errorToString err }
-            , Cmd.none
-            )
-
-        Ok v ->
-            handleVista v short full model
 
 
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
@@ -2980,9 +3007,6 @@ port requestInterlinearIndex : String -> Cmd msg
 
 
 port requestPersonIndex : String -> Cmd msg
-
-
-port requestAllDocId : E.Value -> Cmd msg
 
 
 {-| The global configuration lists projects and whether they are

@@ -137,7 +137,7 @@ const handleRequestInterlinears = async () => {
       command: 'received-interlinear-index',
       content: onlyDocs,
       project: gvs.identifier,
-      address: null,
+      address: 'interlinear',
     })
   } catch (e) {
     error(e)
@@ -171,21 +171,6 @@ const handleRequestPeople = async () => {
   }
 }
 
-const handleRequestTranslations = async () => {
-  try {
-    const transIndex = await gvs.db.query('trans/simple')
-
-    process.parentPort.postMessage({
-      command: 'received-trans-index',
-      content: transIndex,
-      project: gvs.identifier,
-      address: null,
-    })
-  } catch (e) {
-    error(e)
-  }
-}
-
 const handleRequestDocId = async (docid) => {
   try {
     const doc = await gvs.db.get(docid)
@@ -194,7 +179,7 @@ const handleRequestDocId = async (docid) => {
       command: 'received-doc',
       content: doc,
       project: gvs.identifier,
-      address: null,
+      address: 'doc',
     })
   } catch (e) {
     error(e)
@@ -230,6 +215,7 @@ const handleRequestAllDocId = async (docid) => {
 }
 
 const handleUpdateDoc = async (data) => {
+  info(data)
   await handleBulk(data.content)
   handleRequestAllDocId(data.address)
 

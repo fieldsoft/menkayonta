@@ -24,20 +24,8 @@ app.ports.requestGlobalConfig.subscribe(async () => {
   app.ports.receivedGlobalConfig.send(gconfig)
 })
 
-app.ports.requestProjectIndex.subscribe((identifier) => {
-  window.electronAPI.requestProjectIndex(identifier)
-})
-
 app.ports.requestInterlinearIndex.subscribe((identifier) => {
   window.electronAPI.requestInterlinearIndex(identifier)
-})
-
-app.ports.requestPersonIndex.subscribe((identifier) => {
-  window.electronAPI.requestPersonIndex(identifier)
-})
-
-app.ports.requestAllDocId.subscribe((message) => {
-  window.electronAPI.requestAllDocId(message)
 })
 
 window.electronAPI.onReceivedPersonIndex((data) => {
@@ -45,14 +33,7 @@ window.electronAPI.onReceivedPersonIndex((data) => {
 })
 
 window.electronAPI.onReceivedInterlinearIndex((data) => {
-  const vista = {
-    project: data.identifier,
-    kind: 'all-interlinears',
-    identifier: `all-interlinears::${data.identifier}`,
-    content: data.payload,
-  }
-
-  app.ports.receivedInterlinearIndex.send(vista)
+  app.ports.receivedInterlinearIndex.send(data)
 })
 
 window.electronAPI.onReceivedDoc((data) => {
