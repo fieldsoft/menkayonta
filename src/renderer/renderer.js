@@ -36,10 +36,6 @@ app.ports.requestPersonIndex.subscribe((identifier) => {
   window.electronAPI.requestPersonIndex(identifier)
 })
 
-app.ports.requestDocId.subscribe((message) => {
-  window.electronAPI.requestDocId(message)
-})
-
 app.ports.requestAllDocId.subscribe((message) => {
   window.electronAPI.requestAllDocId(message)
 })

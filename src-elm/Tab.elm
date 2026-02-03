@@ -8,6 +8,7 @@ module Tab exposing
     , VisVentanas
     , Vista
     , Vistas
+    , defVParams
     )
 
 import Content exposing (Content)
@@ -79,3 +80,10 @@ type Direction
     | Right
     | Up
     | Down
+
+
+defVParams : VentanaParams
+defVParams =
+    { length = 0
+    , searchString = ""
+    }

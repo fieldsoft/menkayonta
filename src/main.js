@@ -542,14 +542,11 @@ const requestPersonIndex = (_event, identifier) => {
   })
 }
 
-const requestDocId = (_event, message) => {
-  gvs.active[message.identifier].postMessage(message)
-}
-
 const command = (_event, envelope) => {
   switch (envelope.command) {
-    case 'bulk-write': {
-      gvs.active[envelope.identifier].postMessage(envelope)
+    case 'bulk-write':
+    case 'request-docid': {
+      gvs.active[envelope.project].postMessage(envelope)
       break
     }
     default: {

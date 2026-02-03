@@ -95,3 +95,10 @@ projectFormData =
     , title = { blankString | valid = False, error = "Cannot be empty." }
     , url = blankString
     }
+
+
+type alias ImportOptions =
+    { filepath : String
+    , kind : String
+    , project : String
+    }

@@ -48,6 +48,7 @@ import Tab
         , VisVentanas
         , Vista
         , Vistas
+        , defVParams
         )
 import Task
 import Time
@@ -65,9 +66,7 @@ type alias Model =
     , vistas : Vistas
     , error : String
     , loading : Set String
-    , people : Dict String (Dict String M.Person)
     , seeds : UUID.Seeds
-    , time : Time.Posix
     }
 
 
@@ -83,37 +82,25 @@ type Msg
     | MultiMsg (List Msg)
     | None
     | ReceivedAllDoc E.Value
-    | ReceivedDoc E.Value
     | ReceivedGlobalConfig E.Value
     | ReceivedInterlinearIndex E.Value
-    | ReceivedPersonIndex E.Value
     | RequestAllDocId String String
     | RequestDocId String String
     | RequestInterlinearIndex String
-    | RequestProjectIndex String
-    | SetTime Time.Posix
     | SetWindowTitle String
     | ShowGlobalSettings E.Value
-    | ShowNewInterlinear String
+    | NewInterlinear String
+    | EditInterlinear String M.Interlinear
     | Stamp (Time.Posix -> Envelope) (E.Value -> Cmd Msg) Time.Posix
     | Tab Tab.Msg
 
 
+{-| Inject a message into `Cmd`
+-}
 sendMsg : Msg -> Cmd Msg
 sendMsg msg =
     Task.succeed msg
         |> Task.perform identity
-
-
-type alias ImportOptions =
-    { filepath : String
-    , kind : String
-    , project : String
-    }
-
-
-type alias Error =
-    { message : String }
 
 
 type alias Envelope =
@@ -128,7 +115,7 @@ envelopeDecoder : D.Decoder Envelope
 envelopeDecoder =
     D.map4 Envelope
         (D.field "command" D.string)
-        (D.field "identifier" D.string)
+        (D.field "project" D.string)
         (D.field "address" D.string)
         (D.field "content" D.value)
 
@@ -137,32 +124,9 @@ envelopeEncoder : Envelope -> E.Value
 envelopeEncoder env =
     E.object
         [ ( "command", E.string env.command )
-        , ( "identifier", E.string env.project )
+        , ( "project", E.string env.project )
         , ( "address", E.string env.address )
         , ( "content", env.content )
-        ]
-
-
-type alias DocReq =
-    { command : String
-    , identifier : String
-    , docid : String
-    }
-
-
-type alias DocRec =
-    { command : String
-    , identifier : String
-    , doc : Content
-    }
-
-
-docReqEncode : DocReq -> E.Value
-docReqEncode dr =
-    E.object
-        [ ( "command", E.string dr.command )
-        , ( "identifier", E.string dr.identifier )
-        , ( "docid", E.string dr.docid )
         ]
 
 
@@ -211,13 +175,6 @@ main =
         }
 
 
-defVParams : VentanaParams
-defVParams =
-    { length = 0
-    , searchString = ""
-    }
-
-
 type alias Flags =
     { seed1 : Int
     , seed2 : Int
@@ -255,16 +212,11 @@ init flags =
       , vistas = gv
       , error = ""
       , loading = Set.empty
-      , people = Dict.empty
       , seeds = seeds
-      , time = Time.millisToPosix 0
       }
     , Cmd.batch
-        [ Task.perform SetTime Time.now
-        , Cmd.batch
-            [ requestGlobalConfig ()
-            , Cmd.map GF gmsg
-            ]
+        [ requestGlobalConfig ()
+        , Cmd.map GF gmsg
         ]
     )
 
@@ -278,11 +230,14 @@ update msg model =
 
         ITE id subMsg ->
             let
+                id_ =
+                    "FORM::" ++ UUID.toString id
+
                 maybeVista =
-                    Dict.get (UUID.toString id) model.vistas
+                    Dict.get id_ model.vistas
 
                 maybeTab =
-                    getByVista (UUID.toString id) model.ventanas
+                    getByVista id_ model.ventanas
             in
             case ( maybeVista, maybeTab ) of
                 ( Just vista_, Just tp ) ->
@@ -302,7 +257,7 @@ update msg model =
                             { vista_ | content = Content.ITE subModel }
 
                         vistas =
-                            Dict.insert id vista model.vistas
+                            Dict.insert id_ vista model.vistas
 
                         nmodel =
                             { model | vistas = vistas }
@@ -323,12 +278,17 @@ update msg model =
                         Form.Interlinear.Save ->
                             let
                                 envelopePart =
-                                    prepareInterlinear vista.project model
+                                    prepInterlinearSave
+                                        subModel
+                                        vista.project
+                                        model.me
                             in
                             ( nmodel
                             , Cmd.batch
                                 [ sendMsg (Tab Tab.Close)
-                                , Task.perform (Stamp envelopePart send) Time.now
+                                , Task.perform
+                                    (Stamp envelopePart send)
+                                    Time.now
                                 , Cmd.map (ITE id) subCmd
                                 ]
                             )
@@ -345,8 +305,7 @@ update msg model =
                 envelope =
                     envelopePart time |> envelopeEncoder
             in
-            ( { model | time = time }, cmd envelope )
-                
+            ( model, cmd envelope )
 
         GF subMsg ->
             let
@@ -390,7 +349,9 @@ update msg model =
                     let
                         jsonValue =
                             E.object
-                                [ ( "email", E.string subModel.email.value )
+                                [ ( "email"
+                                  , E.string subModel.email.value
+                                  )
                                 , ( "name", E.string subModel.name.value )
                                 ]
                     in
@@ -408,9 +369,6 @@ update msg model =
         -- A message of many messages
         MultiMsg msgs ->
             ( model, msgs |> List.map sendMsg |> Cmd.batch )
-
-        SetTime time ->
-            ( { model | time = time }, Cmd.none )
 
         Tab (Tab.New ventana) ->
             if Dict.isEmpty model.ventanas then
@@ -600,21 +558,21 @@ update msg model =
 
                 Ok gc_ ->
                     let
+                        -- The email and name values may be blank.
+                        person : Maybe M.Person
                         person =
-                            gc_.email
-                                |> Maybe.andThen
-                                    (\email ->
-                                        gc_.name
-                                            |> Maybe.map
-                                                (\name ->
-                                                    { id = email
-                                                    , rev = Nothing
-                                                    , version = 1
-                                                    , names =
-                                                        Dict.singleton 0 name
-                                                    }
-                                                )
-                                    )
+                            let
+                                h1 email name =
+                                    { id = email
+                                    , rev = Nothing
+                                    , version = 1
+                                    , names = Dict.singleton 0 name
+                                    }
+
+                                h0 email =
+                                    gc_.name |> Maybe.map (h1 email)
+                            in
+                            gc_.email |> Maybe.andThen h0
 
                         newmodel =
                             { model
@@ -622,48 +580,40 @@ update msg model =
                                 , me = person
                             }
 
-                        openMenu =
+                        openForm =
                             sendMsg (ShowGlobalSettings gc)
 
+                        -- When the data is incomplere, open the form
+                        -- so the user can add their name and email.
                         command =
                             case ( gc_.name, gc_.email ) of
                                 ( Nothing, _ ) ->
-                                    openMenu
+                                    openForm
 
                                 ( _, Nothing ) ->
-                                    openMenu
+                                    openForm
 
                                 _ ->
                                     Cmd.none
                     in
                     ( newmodel, command )
 
-        RequestProjectIndex id ->
-            ( { model | loading = Set.insert id model.loading }
-            , Cmd.batch
-                [ requestProjectIndex id
-                , requestPersonIndex id
-                ]
-            )
-
         RequestInterlinearIndex id ->
             ( { model | loading = Set.insert id model.loading }
-            , Cmd.batch
-                [ requestInterlinearIndex id
-                , requestPersonIndex id
-                ]
+            , requestInterlinearIndex id
             )
 
         RequestDocId project id ->
             let
-                payload =
-                    docReqEncode
+                envelope =
+                    envelopeEncoder
                         { command = "request-docid"
-                        , identifier = project
-                        , docid = id
+                        , project = project
+                        , address = id
+                        , content = E.null
                         }
             in
-            ( model, requestDocId payload )
+            ( model, send envelope )
 
         RequestAllDocId project id ->
             let
@@ -679,52 +629,6 @@ update msg model =
 
         ReceivedInterlinearIndex ii ->
             handleReceivedVista ii "Glosses" "Glosses" model
-
-        ReceivedPersonIndex envelope ->
-            case D.decodeValue envelopeDecoder envelope of
-                Ok envelope_ ->
-                    case D.decodeValue M.listDecoder envelope_.content of
-                        Ok vals ->
-                            let
-                                project =
-                                    envelope_.project
-
-                                key p =
-                                    case Dict.get 0 p.names of
-                                        Nothing ->
-                                            String.join " "
-                                                [ "Anonymous"
-                                                , p.id
-                                                ]
-
-                                        Just name ->
-                                            String.join " "
-                                                [ name ++ ","
-                                                , p.id
-                                                ]
-
-                                pdict =
-                                    M.people vals
-                                        |> List.map
-                                            (\p ->
-                                                ( key p, p )
-                                            )
-                                        |> Dict.fromList
-                            in
-                            ( { model
-                                | people =
-                                    Dict.insert project pdict model.people
-                              }
-                            , Cmd.none
-                            )
-
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                _ ->
-                    ( model, Cmd.none )
 
         ReceivedAllDoc envelope ->
             case D.decodeValue envelopeDecoder envelope of
@@ -778,13 +682,6 @@ update msg model =
                             ( { model | error = D.errorToString e }
                             , Cmd.none
                             )
-
-        ReceivedDoc val ->
-            -- This will have uses, eventually. There will be cases of
-            -- having received a specific document, but for working
-            -- with interlinear glosses and people, the (currently
-            -- named) ReceivedAllDoc is used.
-            ( model, Cmd.none )
 
         -- Open or focus the Import Options form with a filename.
         ImportOptionsFileMenu filepath ->
@@ -974,46 +871,103 @@ update msg model =
                 Just tp ->
                     ( newmodel, sendMsg (Tab <| Tab.Goto tp) )
 
-        FormInit project (InterlinearCForm int) ->
+        NewInterlinear project ->
             let
                 ( uuid, seeds ) =
                     UUID.step model.seeds
 
-                nint =
-                    { int | id = Just uuid }
+                int =
+                    Form.Interlinear.initData uuid
 
-                nid =
-                    uuid
-                        |> M.InterlinearId
-                        |> M.MyDocId
-                        |> M.identifierToString
+                id =
+                    "FORM::" ++ UUID.toString uuid
 
                 vista : Vista
                 vista =
-                    { identifier = nid
+                    { identifier = id
                     , kind = "interlinear"
                     , project = project
-                    , content = NewDocContent (InterlinearCForm nint)
+                    , content = Content.ITE int
                     }
 
                 ventana : Ventana
                 ventana =
                     { title = "New Gloss"
                     , fullTitle = "New Gloss"
-                    , vista = nid
+                    , vista = id
                     , params =
                         { length = 0
                         , searchString = ""
-                        , edit = True
                         }
                     }
             in
             ( { model
                 | seeds = seeds
-                , vistas = Dict.insert nid vista model.vistas
+                , vistas = Dict.insert id vista model.vistas
               }
             , sendMsg (Tab <| Tab.New ventana)
             )
+
+        EditInterlinear project int ->
+            let
+                id =
+                    "FORM::" ++ UUID.toString int.id
+            in
+            case getByVista id model.ventanas of
+                -- The edit tab is already open.
+                Just tp ->
+                    ( model
+                    , sendMsg (Tab <| Tab.Goto tp)
+                    )
+
+                Nothing ->
+                    let
+                        ( subModule, subCmd ) =
+                            Form.Interlinear.init int
+
+                        full =
+                            String.join " "
+                                [ "Edit: ", int.text ]
+
+                        short =
+                            if String.length int.text > 5 then
+                                String.join ""
+                                    [ "Edit: "
+                                    , String.left 7 int.text
+                                    , "..."
+                                    ]
+
+                            else
+                                full
+
+                        vista : Vista
+                        vista =
+                            { identifier = id
+                            , kind = "interlinear"
+                            , project = project
+                            , content = Content.ITE subModule
+                            }
+
+                        ventana : Ventana
+                        ventana =
+                            { title = short
+                            , fullTitle = full
+                            , vista = id
+                            , params =
+                                { length = 0
+                                , searchString = ""
+                                }
+                            }
+
+                        vistas =
+                            Dict.insert id vista model.vistas
+                    in
+                    ( { model | vistas = vistas }
+                    , Cmd.batch
+                        [ sendMsg (Tab <| Tab.New ventana)
+                        , Cmd.map (ITE int.id) subCmd
+                        ]
+                    )
 
         FormSubmit tp ->
             let
@@ -1029,31 +983,6 @@ update msg model =
                                 model.vistas
                     in
                     case contentVista of
-                        Just ( DocContent dc, vista ) ->
-                            let
-                                ( nmodel, ncmd ) =
-                                    handleCFormSubmit
-                                        dc.edit
-                                        vista
-                                        model
-                            in
-                            ( nmodel, ncmd )
-
-                        Just ( NewDocContent fd, vista ) ->
-                            let
-                                ( nmodel, ncmd ) =
-                                    handleCFormSubmit
-                                        (Just fd)
-                                        vista
-                                        model
-                            in
-                            ( nmodel
-                            , Cmd.batch
-                                [ sendMsg (Tab Tab.Close)
-                                , ncmd
-                                ]
-                            )
-
                         Just ( ImportOptionsContent imf, vista ) ->
                             let
                                 ( nmodel, ncmd ) =
@@ -1084,13 +1013,7 @@ update msg model =
                                 ]
                             )
 
-                        Just ( InterlinearsContent _, _ ) ->
-                            ( model, Cmd.none )
-
-                        Just ( Content.GF _, _ ) ->
-                            ( model, Cmd.none )
-
-                        Nothing ->
+                        _ ->
                             ( model, Cmd.none )
 
                 Nothing ->
@@ -1143,46 +1066,8 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        ChangeEditParam tp ->
-            case Dict.get tp model.ventanas of
-                Just ventana ->
-                    let
-                        params =
-                            ventana.params
-
-                        edit =
-                            not params.edit
-
-                        nvistas =
-                            if edit then
-                                maybeInitForm ventana.vista model.vistas
-
-                            else
-                                model.vistas
-
-                        nv =
-                            { ventana
-                                | params = { params | edit = edit }
-                            }
-
-                        nvs =
-                            Dict.insert tp nv model.ventanas
-                    in
-                    ( { model
-                        | ventanas = nvs
-                        , vistas = nvistas
-                      }
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
         FormChange tp fid str ->
             case getContentVistaVentana tp model of
-                Nothing ->
-                    ( model, Cmd.none )
-
                 Just ( ProjectInfoContent cfprj, ( vista, ventana ) ) ->
                     let
                         ncfprj =
@@ -1251,92 +1136,7 @@ update msg model =
                         Cmd.none
                     )
 
-                Just ( NewDocContent cfint, ( vista, ventana ) ) ->
-                    let
-                        ncfint =
-                            handleCFChange fid str cfint
-
-                        ncontent =
-                            NewDocContent ncfint
-
-                        nvista =
-                            { vista | content = ncontent }
-
-                        nvistas =
-                            Dict.insert
-                                ventana.vista
-                                nvista
-                                model.vistas
-
-                        nint =
-                            case ncfint of
-                                InterlinearCForm int ->
-                                    int
-
-                                -- This shouldn't happen.
-                                _ ->
-                                    Form.Interlinear.initData
-                    in
-                    ( { model | vistas = nvistas }
-                    , if nint.submitted then
-                        Cmd.batch
-                            [ Task.perform SetTime Time.now
-                            , sendMsg (FormSubmit tp)
-                            ]
-
-                      else
-                        Cmd.none
-                    )
-
-                Just ( DocContent dc, ( vista, ventana ) ) ->
-                    case dc.edit of
-                        Nothing ->
-                            ( model, Cmd.none )
-
-                        Just cfint ->
-                            let
-                                ncfint =
-                                    handleCFChange fid str cfint
-
-                                nedit =
-                                    Just ncfint
-
-                                ncontent =
-                                    DocContent { dc | edit = nedit }
-
-                                nvista =
-                                    { vista | content = ncontent }
-
-                                nvistas =
-                                    Dict.insert
-                                        ventana.vista
-                                        nvista
-                                        model.vistas
-
-                                nint =
-                                    case ncfint of
-                                        InterlinearCForm int ->
-                                            int
-
-                                        -- This shouldn't happen
-                                        _ ->
-                                            Form.Interlinear.initData
-                            in
-                            ( { model | vistas = nvistas }
-                            , if nint.submitted then
-                                Cmd.batch
-                                    [ Task.perform SetTime Time.now
-                                    , sendMsg (FormSubmit tp)
-                                    ]
-
-                              else
-                                Cmd.none
-                            )
-
-                Just ( InterlinearsContent _, _ ) ->
-                    ( model, Cmd.none )
-
-                Just ( Content.GF _, _ ) ->
+                _ ->
                     ( model, Cmd.none )
 
 
@@ -1390,11 +1190,11 @@ handleCFormSubmit edit vista model =
             ( model, Cmd.none )
 
 
-prepareInterlinear : Form.Interlinear.Model -> String -> Model -> Time.Posix -> Envelope
-prepareInterlinear int project model time =
+prepInterlinearSave : Form.Interlinear.Model -> String -> Maybe M.Person -> Time.Posix -> Envelope
+prepInterlinearSave int project me time =
     let
         meId =
-            case model.me of
+            case me of
                 Nothing ->
                     -- This should not happen, but the output may as
                     -- well supply a clue if it does.
@@ -1843,9 +1643,7 @@ subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedInterlinearIndex ReceivedInterlinearIndex
-        , receivedPersonIndex ReceivedPersonIndex
         , receivedAllDoc ReceivedAllDoc
-        , receivedDoc ReceivedDoc
         , newProject (\_ -> FormInit "" (ProjectCForm projectFormData))
         , importOptions ImportOptionsFileMenu
         , globalSettings ShowGlobalSettings
@@ -2070,7 +1868,7 @@ viewProject model p =
                 [ Html.a
                     [ Attr.href "#"
                     , Event.onClick <|
-                        ShowNewInterlinear p.identifier
+                        NewInterlinear p.identifier
                     , Attr.class "secondary"
                     ]
                     [ Html.text "New Gloss" ]
@@ -2086,10 +1884,10 @@ viewVista model tp vista =
             Form.Global.view gmodel |> Html.map GF
 
         Content.ITE imodel ->
-            Form.Interlinear.view imodel |> Html.map (ITE vista.identifier)
+            Form.Interlinear.view imodel |> Html.map (ITE imodel.id)
 
         Content.ITV oneDoc ->
-            viewOneDoc vista tp model oneDoc
+            viewOneDoc vista oneDoc
 
         ProjectInfoContent (ProjectCForm prj) ->
             viewDocContentEditVista tp (ProjectCForm prj)
@@ -2176,7 +1974,8 @@ viewOneDoc vista od =
                         [ Html.li []
                             [ Html.a
                                 [ Attr.href "#"
-                                --, Event.onClick (ChangeEditParam tp)
+                                , Event.onClick
+                                    (EditInterlinear vista.project int)
                                 ]
                                 [ Html.text "Edit" ]
                             ]
@@ -2184,7 +1983,7 @@ viewOneDoc vista od =
                     ]
                 , viewInterlinearOneDoc vista od int
                 ]
-                
+
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
 
@@ -2607,11 +2406,6 @@ viewInterlinearOneDoc vista od int =
         ]
 
 
-viewError : Model -> Error -> Html Msg
-viewError _ err =
-    Html.text err.message
-
-
 viewProperties : List M.Property -> Html.Html Msg
 viewProperties props =
     Html.table [ Attr.class "striped" ]
@@ -2750,10 +2544,10 @@ viewInterlinearItem proj int =
     let
         srcLine =
             if int.ann.breaks /= "" then
-                viewAnn int.judgment int.text int.ann.breaks int.ann.glosses
+                viewAnn int.ann.judgment int.text int.ann.breaks int.ann.glosses
 
             else
-                Html.p [] [ Html.text (int.judgment ++ " " ++ int.text) ]
+                Html.p [] [ Html.text (int.ann.judgment ++ " " ++ int.text) ]
 
         transLines =
             List.map (\t -> Html.p [] [ Html.text t.translation ]) (Dict.values int.translations)
@@ -2765,13 +2559,13 @@ viewAnn : String -> String -> String -> String -> Html.Html Msg
 viewAnn jdg src brk gls =
     let
         src_ =
-            jdg :: (String.split " " src)
+            jdg :: String.split " " src
 
         brk_ =
-            "" :: (String.split " " brk)
+            "" :: String.split " " brk
 
         gls_ =
-            "" :: (String.split " " gls)
+            "" :: String.split " " gls
 
         aligned =
             LE.zip3 src_ brk_ gls_
@@ -3188,9 +2982,6 @@ port requestInterlinearIndex : String -> Cmd msg
 port requestPersonIndex : String -> Cmd msg
 
 
-port requestDocId : E.Value -> Cmd msg
-
-
 port requestAllDocId : E.Value -> Cmd msg
 
 
@@ -3211,13 +3002,7 @@ port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
 port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
 
 
-port receivedPersonIndex : (E.Value -> msg) -> Sub msg
-
-
 port receivedAllDoc : (E.Value -> msg) -> Sub msg
-
-
-port receivedDoc : (E.Value -> msg) -> Sub msg
 
 
 {-| The "New Project" menu item was clicked.

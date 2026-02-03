@@ -135,8 +135,9 @@ const handleRequestInterlinears = async () => {
 
     process.parentPort.postMessage({
       command: 'received-interlinear-index',
-      payload: onlyDocs,
-      identifier: gvs.identifier,
+      content: onlyDocs,
+      project: gvs.identifier,
+      address: null,
     })
   } catch (e) {
     error(e)
@@ -162,7 +163,7 @@ const handleRequestPeople = async () => {
     process.parentPort.postMessage({
       command: 'received-person-index',
       content: onlyDocs,
-      identifier: gvs.identifier,
+      project: gvs.identifier,
       address: 'person',
     })
   } catch (e) {
@@ -176,8 +177,9 @@ const handleRequestTranslations = async () => {
 
     process.parentPort.postMessage({
       command: 'received-trans-index',
-      payload: transIndex,
-      identifier: gvs.identifier,
+      content: transIndex,
+      project: gvs.identifier,
+      address: null,
     })
   } catch (e) {
     error(e)
@@ -190,8 +192,9 @@ const handleRequestDocId = async (docid) => {
 
     process.parentPort.postMessage({
       command: 'received-doc',
-      doc: doc,
-      identifier: gvs.identifier,
+      content: doc,
+      project: gvs.identifier,
+      address: null,
     })
   } catch (e) {
     error(e)
@@ -216,7 +219,7 @@ const handleRequestAllDocId = async (docid) => {
         command: 'received-all-doc',
         address: docid,
         content: onlyDocs,
-        identifier: gvs.identifier,
+        project: gvs.identifier,
       })
     } else {
       throw Error('Invalid document id in doc all requrest')
