@@ -101,11 +101,11 @@ const handleProjectMessage = (m) => {
 // stopped.
 const manageProjectProcesses = () => {
   gvs.globalConf.projects.forEach((p) => {
-    if (!p.enabled && p.identifier in gvs.active) {
+    if (p.identifier in gvs.active) {
       if (gvs.active[p.identifier].kill()) {
         delete gvs.active[p.identifier]
       }
-    } else if (p.enabled && !(p.identifier in gvs.active)) {
+    } else if (!(p.identifier in gvs.active)) {
       const initMessage = {
         command: 'init',
         identifier: p.identifier,
