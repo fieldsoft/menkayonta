@@ -13,6 +13,7 @@ module Tab exposing
 
 import Content exposing (Content)
 import Dict exposing (Dict)
+import UUID
 
 
 type Msg

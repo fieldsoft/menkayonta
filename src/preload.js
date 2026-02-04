@@ -32,8 +32,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('request-trans-index', identifier),
   requestInterlinearIndex: (identifier) =>
     ipcRenderer.invoke('request-interlinear-index', identifier),
-  requestPersonIndex: (identifier) =>
-    ipcRenderer.invoke('request-person-index', identifier),
   updateProject: (projectInfo) =>
     ipcRenderer.invoke('update-project', projectInfo),
   importFile: (importOptions) =>

@@ -3,39 +3,20 @@ module Form exposing
     , Field(..)
     , ImportField(..)
     , ImportFormData
-    , ProjectField(..)
-    , ProjectFormData
     , importFormData
-    , projectFormData
     )
 
-import Form.Global
-import Form.Interlinear
+import UUID
+import Json.Encode as E
 import Form.Shared
     exposing
         ( SelectField
-        , StringField
         , blankSelect
-        , blankString
         )
-import UUID
-import Json.Encode as E
 
       
 type CForm
     = ImportCForm ImportFormData
-    | ProjectCForm ProjectFormData
-
-
-type alias ProjectFormData =
-    { changed : Bool
-    , submitted : Bool
-    , error : String
-    , valid : Bool
-    , identifier : String
-    , title : StringField
-    , url : StringField
-    }
 
 
 type alias ImportFormData =
@@ -51,14 +32,6 @@ type alias ImportFormData =
 
 type Field
     = ImportForm ImportField
-    | ProjectForm ProjectField
-
-
-type ProjectField
-    = PrjTitleF
-    | PrjUrlF
-    | PrjSaveF
-    | PrjCancelF
 
 
 type ImportField
@@ -83,17 +56,6 @@ importFormData =
                 ]
         }
     , project = blankSelect
-    }
-
-
-projectFormData =
-    { changed = False
-    , submitted = False
-    , error = "Please fill the empty form."
-    , valid = False
-    , identifier = ""
-    , title = { blankString | valid = False, error = "Cannot be empty." }
-    , url = blankString
     }
 
 

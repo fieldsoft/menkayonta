@@ -19,9 +19,7 @@ import Email
 import Form.Shared
     exposing
         ( FieldDescription
-        , SelectField
         , StringField
-        , blankSelect
         , blankString
         , displayField
         )

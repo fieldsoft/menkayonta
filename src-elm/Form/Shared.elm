@@ -1,8 +1,16 @@
-module Form.Shared exposing (StringField, SelectField, blankString, blankSelect, FieldDescription, displayField)
+module Form.Shared exposing
+    ( FieldDescription
+    , SelectField
+    , StringField
+    , blankSelect
+    , blankString
+    , displayField
+    )
 
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
+
 
 type alias StringField =
     { value : String

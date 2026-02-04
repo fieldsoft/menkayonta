@@ -7,6 +7,7 @@ module Config exposing
     )
 
 import Json.Decode as D
+import UUID
 
 
 type alias GlobalConfig =
@@ -27,8 +28,9 @@ type alias GlobalSettings =
 
 type alias ProjectInfo =
     { title : String
-    , identifier : String
+    , identifier : UUID.UUID
     , url : Maybe String
+    , key : String
     }
 
 
@@ -42,7 +44,8 @@ globalConfigDecoder =
 
 projectInfoDecoder : D.Decoder ProjectInfo
 projectInfoDecoder =
-    D.map3 ProjectInfo
+    D.map4 ProjectInfo
         (D.field "title" D.string)
-        (D.field "identifier" D.string)
+        (D.field "identifier" UUID.jsonDecoder)
         (D.field "url" (D.nullable D.string))
+        (D.field "key" D.string)
