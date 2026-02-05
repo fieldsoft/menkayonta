@@ -56,6 +56,8 @@ type alias Model =
     , visVentanas : VisVentanas
     , vistas : Vistas
     , globalVistas : List String
+    , focusHistory : List Path
+    , focusLock : Maybe Path  
     }
 
 
@@ -137,6 +139,8 @@ initData globalVistas =
     , visVentanas = Dict.empty
     , vistas = globalVistas
     , globalVistas = Dict.keys globalVistas
+    , focusHistory = []
+    , focusLock = Nothing
     }
 
 
@@ -212,6 +216,8 @@ update msg model =
                             , ventanas = Dict.singleton tp ventana
                             , visVentanas = visInsert tp Dict.empty
                             , focused = Just tp
+                            , focusHistory = [ tp ]
+                            , focusLock = Just tp
                         }
                 in
                 ( newmodel, Cmd.none )
@@ -241,6 +247,25 @@ update msg model =
 
                                     tp2 =
                                         tabpath column row c
+
+                                    -- If there is a focus lock, it is
+                                    -- the currently focused
+                                    -- tab. Since the default behavior
+                                    -- is to open new tab in the same
+                                    -- row, the new tab should not be
+                                    -- visible when the lock is in
+                                    -- place.
+                                    ( focused, visible ) =
+                                        case model.focusLock of
+                                            Nothing ->
+                                                ( Just tp2
+                                                , visInsert tp2 model.visVentanas
+                                                )
+
+                                            Just _ ->
+                                                ( Just tp1
+                                                , model.visVentanas
+                                                )
                                 in
                                 { model
                                     | counter =
@@ -248,9 +273,9 @@ update msg model =
                                     , ventanas =
                                         Dict.insert tp2 ventana model.ventanas
                                     , visVentanas =
-                                        visInsert tp2 model.visVentanas
+                                        visible
                                     , focused =
-                                        Just tp2
+                                        focused
                                 }
                 in
                 ( newmodel, Cmd.none )
@@ -278,10 +303,25 @@ update msg model =
                     Dict.get tp model.ventanas
                         |> Maybe.map .title
                         |> Maybe.withDefault ""
+
+                tabs =
+                    Dict.keys model.ventanas
+                        
+                history =
+                    case model.focused of
+                        Nothing ->
+                            refreshHistory model.focusHistory tabs
+
+                        Just previous ->
+                            refreshHistory
+                            (previous :: model.focusHistory)
+                                tabs
             in
             ( { model
-                | focused = Just tp
-                , visVentanas = visInsert tp model.visVentanas
+                  | focused = Just tp
+                  , visVentanas = visInsert tp model.visVentanas
+                  , focusHistory = history
+                  , focusLock = Just tp
               }
             , Cmd.none
             )
@@ -758,3 +798,12 @@ getAllByVista vista ventanas =
     -- function.)
     List.filter (\( _, v ) -> v.vista == vista) (Dict.toList ventanas)
         |> List.map Tuple.first
+
+
+{-| The first list is the history of tab focusing. The second is
+actually open tabs. Remove items that have been closed from the
+history.
+-}
+refreshHistory : List Path -> List Path -> List Path
+refreshHistory history tabs =
+    List.filter (\x -> List.member x tabs) history
