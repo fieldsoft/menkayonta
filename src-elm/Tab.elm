@@ -2,6 +2,7 @@ module Tab exposing
     ( Direction(..)
     , Model
     , Msg(..)
+    , Param(..)
     , Path
     , Ventana
     , VentanaParams
@@ -37,6 +38,7 @@ type Msg
     | Move Direction
     | New Ventana
     | None
+    | Change Param Path String
 
 
 {-| Inject a message into `Cmd`
@@ -56,6 +58,11 @@ type alias Model =
     , globalVistas : List String
     }
 
+
+type Param
+    = Search
+    | Length
+      
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
 an identifier for some viewable content. I use Spanish when there are
@@ -139,6 +146,57 @@ update msg model =
         None ->
             ( model, Cmd.none )
 
+        Change Search tp str ->
+            case Dict.get tp model.ventanas of
+                Just ventana ->
+                    let
+                        params =
+                            ventana.params
+
+                        np =
+                            { params | searchString = str }
+
+                        nv =
+                            { ventana | params = np }
+
+                        nvs =
+                            Dict.insert tp nv model.ventanas
+                    in
+                    ( { model | ventanas = nvs }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+            
+                
+        Change Length tp str ->
+            let
+                num =
+                    Maybe.withDefault 0 (String.toInt str)
+            in
+            case Dict.get tp model.ventanas of
+                Just ventana ->
+                    let
+                        params =
+                            ventana.params
+
+                        np =
+                            { params | length = num }
+
+                        nv =
+                            { ventana | params = np }
+
+                        nvs =
+                            Dict.insert tp nv model.ventanas
+                    in
+                    ( { model | ventanas = nvs }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+            
         New ventana ->
             if Dict.isEmpty model.ventanas then
                 let

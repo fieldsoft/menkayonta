@@ -57,9 +57,7 @@ type alias Model =
 
 
 type Msg
-    = ChangeLengthParam Tab.Path String
-    | ChangeSearchParam Tab.Path String
-    | GF Form.Global.Msg
+    = GF Form.Global.Msg
     | IM Form.Importer.Msg
     | ITE UUID.UUID Form.Interlinear.Msg
     | EditImporter String
@@ -1009,63 +1007,6 @@ update msg model =
                         ]
                     )
 
-        ChangeLengthParam tp str ->
-            case String.toInt str of
-                Just i ->
-                    case Dict.get tp model.tabs.ventanas of
-                        Just ventana ->
-                            let
-                                params =
-                                    ventana.params
-
-                                np =
-                                    { params | length = i }
-
-                                nv =
-                                    { ventana | params = np }
-
-                                nvs =
-                                    Dict.insert tp nv model.tabs.ventanas
-
-                                tabs =
-                                    model.tabs
-                            in
-                            ( { model | tabs = { tabs | ventanas = nvs } }
-                            , Cmd.none
-                            )
-
-                        Nothing ->
-                            ( model, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
-        ChangeSearchParam tp str ->
-            case Dict.get tp model.tabs.ventanas of
-                Just ventana ->
-                    let
-                        params =
-                            ventana.params
-
-                        np =
-                            { params | searchString = str }
-
-                        nv =
-                            { ventana | params = np }
-
-                        nvs =
-                            Dict.insert tp nv model.tabs.ventanas
-
-                        tabs =
-                            model.tabs
-                    in
-                    ( { model | tabs = { tabs | ventanas = nvs } }
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
 
 prepInterlinearSave : Form.Interlinear.Model -> String -> Maybe M.Person -> Time.Posix -> Envelope
 prepInterlinearSave int project me time =
@@ -1466,8 +1407,11 @@ viewVista model tp vista =
                         )
                         ints
 
+                intTotal =
+                    List.length searched
+                        
                 total =
-                    List.length searched |> String.fromInt
+                    intTotal |> String.fromInt
 
                 is =
                     List.take params.length searched
@@ -1477,18 +1421,32 @@ viewVista model tp vista =
             in
             Html.div []
                 [ Html.label []
-                    [ Html.text <| "Show (" ++ len ++ " of " ++ total ++ ")"
+                    [ Html.text <|
+                          if params.length <= intTotal then
+                              "Show (" ++ len ++ " of " ++ total ++ ")"
+
+                          else
+                              "Showing all items."
                     , Html.input
-                        [ Attr.type_ "text"
-                        , Attr.value len
-                        , Attr.placeholder len
-                        , Event.onInput (ChangeLengthParam tp)
-                        ]
+                        ( [ Attr.type_ "text"
+                          , Attr.placeholder len
+                          , Event.onInput (\s -> Tab.Change Tab.Length tp s
+                                               |> Tab
+                                          )
+                          ] ++ ( if params.length > 0 then
+                                     [ Attr.value len ]
+
+                                 else
+                                     []
+                               )
+                        )
                         []
                     , Html.input
                         [ Attr.type_ "text"
                         , Attr.value ss
-                        , Event.onInput (ChangeSearchParam tp)
+                        , Event.onInput (\s -> Tab.Change Tab.Search tp s
+                                             |> Tab
+                                        )
                         ]
                         []
                     ]
