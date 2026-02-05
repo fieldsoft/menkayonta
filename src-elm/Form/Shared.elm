@@ -5,6 +5,7 @@ module Form.Shared exposing
     , blankSelect
     , blankString
     , displayField
+    , displaySelectField
     )
 
 import Html
@@ -142,3 +143,68 @@ isInValidAttr valid =
          else
             "true"
         )
+
+
+displaySelectField : FieldDescription msg -> Html.Html msg
+displaySelectField fd =
+    let
+        id =
+            Maybe.withDefault -1 fd.id
+
+        name =
+            [ fd.formname
+            , fd.name
+            ]
+                |> String.join "-"
+
+        helper =
+            [ name
+            , String.fromInt id
+            , "helper"
+            ]
+                |> String.join "-"
+    in
+    Html.label []
+        [ Html.a
+            [ Attr.class "secondary"
+            , Attr.attribute "data-tooltip" "Reload Field"
+            , Attr.attribute "data-placement" "right"
+            , Attr.href "#"
+            , Event.onClick (fd.oninput fd.original)
+            ]
+            [ Html.text "🗘 " ]
+        , Html.text fd.label
+        , fd.kind
+            [ Event.onInput fd.oninput
+            , Attr.name name
+            , Attr.value fd.value
+            , Attr.attribute "aria-label" fd.label
+            , Attr.attribute "aria-describedby" helper
+            , Attr.spellcheck fd.spellcheck
+            , if fd.changed then
+                isInValidAttr fd.valid
+
+              else
+                Attr.class "unchanged-field"
+            , Attr.disabled (fd.disabled || fd.deleted)
+            ]
+            (List.map
+                (\opt ->
+                    Html.option
+                        [ Attr.value (Tuple.second opt) ]
+                        [ Html.text (Tuple.first opt) ]
+                )
+                (( "", "" ) :: fd.options)
+            )
+        , Html.small
+            [ Attr.id helper ]
+            [ if fd.deleted then
+                Html.text "This content will be removed."
+
+              else if fd.valid then
+                Html.text fd.help
+
+              else
+                Html.text fd.error
+            ]
+        ]

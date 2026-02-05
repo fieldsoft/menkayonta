@@ -19,9 +19,6 @@ import Form.Shared
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Json.Decode as D
-import Json.Encode as E
-import Task
 import UUID
 import Url
 

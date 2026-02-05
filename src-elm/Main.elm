@@ -6,17 +6,10 @@ import Config exposing (GlobalConfig, GlobalSettings, ProjectInfo)
 import Content exposing (Content(..))
 import Dict exposing (Dict)
 import Email exposing (Email)
-import Form
-    exposing
-        ( CForm(..)
-        , Field(..)
-        , ImportField(..)
-        , ImportFormData
-        , importFormData
-        )
 import Form.Global
 import Form.Interlinear
 import Form.Project
+import Form.Importer
 import Form.Shared exposing (blankSelect)
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -66,12 +59,10 @@ type alias Model =
 type Msg
     = ChangeLengthParam Tab.Path String
     | ChangeSearchParam Tab.Path String
-    | FormChange Tab.Path Field String
-    | FormInit String CForm
-    | FormSubmit Tab.Path
     | GF Form.Global.Msg
+    | IM Form.Importer.Msg
     | ITE UUID.UUID Form.Interlinear.Msg
-    | ImportOptionsFileMenu String
+    | EditImporter String
     | MultiMsg (List Msg)
     | None
     | PR UUID.UUID Form.Project.Msg
@@ -135,17 +126,21 @@ globalSettingsVista =
     }
 
 
+importOptionsVista : Vista
+importOptionsVista =
+    { project = "global"
+    , kind = "import-options"
+    , identifier = "import-options"
+    , content = Content.IM Form.Importer.initData
+    }
+
 {-| These are not specific to any project and are kept around, even
 when not in use.
 -}
 globalVistas : Dict String Vista
 globalVistas =
     [ ( "import-options"
-      , { project = "global"
-        , kind = "import-options"
-        , identifier = "import-options"
-        , content = ImportOptionsContent (ImportCForm importFormData)
-        }
+      , importOptionsVista
       )
     , ( "global-settings"
       , globalSettingsVista
@@ -300,6 +295,66 @@ update msg model =
                     -- Something is wrong. Ignore the message.
                     ( model, Cmd.none )
 
+        IM subMsg ->
+            let
+                oldModel =
+                    Dict.get "import-options" model.vistas
+                        |> Maybe.map .content
+                        |> (\c ->
+                                case c of
+                                    Just (Content.IM model_) ->
+                                        model_
+
+                                    _ ->
+                                        -- this has no filepath, so it
+                                        -- will do nothing.
+                                        Form.Importer.initData
+                           )
+
+                ( subModel, subCmd ) =
+                    Form.Importer.update subMsg oldModel
+
+                vista =
+                    { importOptionsVista | content = Content.IM subModel }
+
+                vistas =
+                    Dict.insert "import-options" vista model.vistas
+
+                nmodel =
+                    { model | vistas = vistas }
+            in
+            -- For most messages, a pass-through is sufficient. In
+            -- some cases, there are side effects and UI events that
+            -- need to be triggered outside the submodule.
+            case subMsg of
+                Form.Importer.Cancel ->
+                    ( nmodel
+                    , Cmd.batch
+                        [ sendMsg (Tab Tab.Close)
+                        , Cmd.map IM subCmd
+                        ]
+                    )
+
+                Form.Importer.Import ->
+                    let
+                        jsonValue =
+                            E.object
+                                [ ( "filepath", E.string subModel.filepath )
+                                , ( "kind", E.string subModel.kind.value )
+                                , ( "project", E.string subModel.project.value )
+                                ]
+                    in
+                    ( nmodel
+                    , Cmd.batch
+                        [ sendMsg (Tab Tab.Close)
+                        , importFile jsonValue
+                        , Cmd.map IM subCmd
+                        ]
+                    )
+
+                _ ->
+                    ( nmodel, Cmd.map IM subCmd )
+
         GF subMsg ->
             let
                 oldModel =
@@ -307,8 +362,8 @@ update msg model =
                         |> Maybe.map .content
                         |> (\c ->
                                 case c of
-                                    Just (Content.GF m) ->
-                                        m
+                                    Just (Content.GF model_) ->
+                                        model_
 
                                     _ ->
                                         Form.Global.initData
@@ -672,6 +727,7 @@ update msg model =
             , requestInterlinearIndex id_
             )
 
+        -- This is not currently used
         RequestDocId project id ->
             let
                 envelope =
@@ -792,9 +848,9 @@ update msg model =
                             )
 
         -- Open or focus the Import Options form with a filename.
-        ImportOptionsFileMenu filepath ->
+        EditImporter filepath ->
             let
-                gc =
+                projectOptions =
                     case model.gconfig of
                         Nothing ->
                             []
@@ -808,23 +864,11 @@ update msg model =
                                         )
                                     )
 
-                formData =
-                    { importFormData
-                        | filepath = filepath
-                        , kind =
-                            { blankSelect
-                                | options =
-                                    [ ( "Dative Form Json"
-                                      , "Dative Form Json"
-                                      )
-                                    ]
-                            }
-                        , project =
-                            { blankSelect | options = gc }
-                    }
+                ( subModel, subCmd ) =
+                    Form.Importer.init filepath projectOptions
 
                 content =
-                    ImportOptionsContent (ImportCForm formData)
+                    Content.IM subModel
 
                 vista =
                     { project = "global"
@@ -850,12 +894,18 @@ update msg model =
                             }
                     in
                     ( newmodel
-                    , sendMsg (Tab <| Tab.New ventana)
+                    , Cmd.batch
+                        [ sendMsg (Tab <| Tab.New ventana)
+                        , Cmd.map IM subCmd
+                        ]
                     )
 
                 Just tp ->
                     ( newmodel
-                    , sendMsg (Tab <| Tab.Goto tp)
+                    , Cmd.batch
+                        [ sendMsg (Tab <| Tab.Goto tp)
+                        , Cmd.map IM subCmd
+                        ]
                     )
 
         -- Open or focus the Global Settings form with updated global
@@ -902,9 +952,6 @@ update msg model =
                         , Cmd.map GF subCmd
                         ]
                     )
-
-        FormInit _ (ImportCForm imp) ->
-            ( model, Cmd.none )
 
         NewProject ->
             let
@@ -1099,41 +1146,6 @@ update msg model =
                         ]
                     )
 
-        FormSubmit tp ->
-            let
-                formid =
-                    Dict.get tp model.ventanas |> Maybe.map .vista
-            in
-            case formid of
-                Just ident ->
-                    let
-                        contentVista =
-                            getContentVistaFromVistas
-                                ident
-                                model.vistas
-                    in
-                    case contentVista of
-                        Just ( ImportOptionsContent imf, vista ) ->
-                            let
-                                ( nmodel, ncmd ) =
-                                    handleCFormSubmit
-                                        (Just imf)
-                                        vista
-                                        model
-                            in
-                            ( nmodel
-                            , Cmd.batch
-                                [ sendMsg (Tab Tab.Close)
-                                , ncmd
-                                ]
-                            )
-
-                        _ ->
-                            ( model, Cmd.none )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
         ChangeLengthParam tp str ->
             case String.toInt str of
                 Just i ->
@@ -1180,69 +1192,6 @@ update msg model =
 
                 Nothing ->
                     ( model, Cmd.none )
-
-        FormChange tp fid str ->
-            case getContentVistaVentana tp model of
-
-                Just ( ImportOptionsContent cfimp, ( vista, ventana ) ) ->
-                    let
-                        ncfimp =
-                            handleCFChange fid str cfimp
-
-                        ncontent =
-                            ImportOptionsContent ncfimp
-
-                        nvista =
-                            { vista | content = ncontent }
-
-                        nvistas =
-                            Dict.insert
-                                ventana.vista
-                                nvista
-                                model.vistas
-
-                        nimp =
-                            case ncfimp of
-                                ImportCForm imp ->
-                                    imp
-                    in
-                    ( { model | vistas = nvistas }
-                    , if nimp.submitted then
-                        sendMsg (FormSubmit tp)
-
-                      else
-                        Cmd.none
-                    )
-
-                _ ->
-                    ( model, Cmd.none )
-
-
-handleCFormSubmit : Maybe CForm -> Vista -> Model -> ( Model, Cmd Msg )
-handleCFormSubmit edit vista model =
-    case edit of
-        Just (ImportCForm imp) ->
-            let
-                jsonValue =
-                    E.object
-                        [ ( "filepath", E.string imp.filepath )
-                        , ( "kind", E.string imp.kind.value )
-                        , ( "project", E.string imp.project.value )
-                        ]
-
-                nvista =
-                    { vista
-                        | content =
-                            ImportOptionsContent (ImportCForm importFormData)
-                    }
-
-                nvistas =
-                    Dict.insert nvista.identifier nvista model.vistas
-            in
-            ( { model | vistas = nvistas }, importFile jsonValue )
-
-        Nothing ->
-            ( model, Cmd.none )
 
 
 prepInterlinearSave : Form.Interlinear.Model -> String -> Maybe M.Person -> Time.Posix -> Envelope
@@ -1322,122 +1271,6 @@ prepInterlinearSave int project me time =
             }
     in
     envelope
-
-
-handleCFChange : Form.Field -> String -> CForm -> CForm
-handleCFChange fid str data =
-    case fid of
-        ImportForm field ->
-            handleCFImpChange field str data
-
-
-handleCFImpChange : ImportField -> String -> CForm -> CForm
-handleCFImpChange fid str cfimp =
-    case cfimp of
-        ImportCForm imp ->
-            handleCFImpChange_ fid str imp |> ImportCForm
-
-
-handleCFImpChange_ : ImportField -> String -> ImportFormData -> ImportFormData
-handleCFImpChange_ fid str imp =
-    let
-        kind =
-            imp.kind
-
-        kindopts =
-            List.map Tuple.second kind.options
-
-        project =
-            imp.project
-
-        projopts =
-            List.map Tuple.second project.options
-
-        toperr =
-            "Pleae correct form."
-
-        valid imp_ =
-            List.all identity
-                [ imp_.kind.valid
-                , imp_.project.valid
-                ]
-
-        defImp imp_ =
-            let
-                valid_ =
-                    valid imp_
-            in
-            { imp_
-                | changed = True
-                , valid = valid_
-                , error =
-                    if valid_ then
-                        ""
-
-                    else
-                        toperr
-            }
-    in
-    case fid of
-        ImpKindF ->
-            if List.member str kindopts then
-                { imp
-                    | kind =
-                        { kind
-                            | value = str
-                            , valid = True
-                            , changed = True
-                            , error = ""
-                        }
-                }
-                    |> defImp
-
-            else
-                { imp
-                    | kind =
-                        { kind
-                            | value = ""
-                            , valid = False
-                            , changed = True
-                            , error = "Choose an import type."
-                        }
-                }
-                    |> defImp
-
-        ImpProjectF ->
-            if List.member str projopts then
-                { imp
-                    | project =
-                        { project
-                            | value = str
-                            , valid = True
-                            , changed = True
-                            , error = ""
-                        }
-                }
-                    |> defImp
-
-            else
-                { imp
-                    | project =
-                        { project
-                            | value = ""
-                            , valid = False
-                            , changed = True
-                            , error = "Choose a project."
-                        }
-                }
-                    |> defImp
-
-        ImpImportF ->
-            if defImp imp |> .valid then
-                { imp | submitted = True }
-
-            else
-                imp
-
-        ImpCancelF ->
-            importFormData
 
 
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
@@ -1575,7 +1408,7 @@ subscriptions _ =
         , receivedInterlinearIndex ReceivedInterlinearIndex
         , receivedAllDoc ReceivedAllDoc
         , newProject (\_ -> NewProject)
-        , importOptions ImportOptionsFileMenu
+        , importOptions EditImporter
         , globalSettings ShowGlobalSettings
         , moveLeft_ (\_ -> Tab <| Tab.Move Left)
         , moveRight_ (\_ -> Tab <| Tab.Move Right)
@@ -1810,6 +1643,9 @@ viewVista model tp vista =
         Content.GF gmodel ->
             Form.Global.view gmodel |> Html.map GF
 
+        Content.IM imodel ->
+            Form.Importer.view imodel |> Html.map IM
+
         Content.ITE imodel ->
             Form.Interlinear.view imodel |> Html.map (ITE imodel.id)
 
@@ -1870,20 +1706,6 @@ viewVista model tp vista =
                     (List.map (viewInterlinearIndexItem vista.project) is)
                 ]
 
-        ImportOptionsContent (ImportCForm imp) ->
-            viewDocContentEditVista tp (ImportCForm imp)
-
-
-viewNewDocContentVista :
-    { vista : Vista
-    , tp : Tab.Path
-    , fd : CForm
-    , model : Model
-    }
-    -> Html.Html Msg
-viewNewDocContentVista { vista, tp, fd, model } =
-    viewDocContentEditVista tp fd
-
 
 viewOneDoc : Vista -> M.OneDoc -> Html.Html Msg
 viewOneDoc vista od =
@@ -1912,266 +1734,6 @@ viewOneDoc vista od =
 
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
-
-
-viewDocContentEditVista : Tab.Path -> CForm -> Html.Html Msg
-viewDocContentEditVista tp cform =
-    case cform of
-        ImportCForm imp ->
-            if imp.submitted then
-                Html.span
-                    [ Attr.attribute "aria-busy" "true" ]
-                    [ Html.text "Saving changes." ]
-
-            else
-                viewCFImportVista tp imp
-
-
-type alias FieldDescription =
-    { formname : String
-    , label : String
-    , kind :
-        List (Html.Attribute Msg)
-        -> List (Html.Html Msg)
-        -> Html.Html Msg
-    , oninput : String -> Msg
-    , name : String
-    , value : String
-    , original : String
-    , changed : Bool
-    , valid : Bool
-    , help : String
-    , error : String
-    , disabled : Bool
-    , deleted : Bool
-    , spellcheck : Bool
-    , options : List ( String, String )
-    , id : Maybe Int
-    }
-
-
-viewCField : FieldDescription -> Html.Html Msg
-viewCField fd =
-    let
-        id =
-            Maybe.withDefault -1 fd.id
-
-        name =
-            [ fd.formname
-            , fd.name
-            ]
-                |> String.join "-"
-
-        helper =
-            [ name
-            , String.fromInt id
-            , "helper"
-            ]
-                |> String.join "-"
-    in
-    Html.label []
-        [ Html.a
-            [ Attr.class "secondary"
-            , Attr.attribute "data-tooltip" "Reload Field"
-            , Attr.attribute "data-placement" "right"
-            , Attr.href "#"
-            , Event.onClick (fd.oninput fd.original)
-            ]
-            [ Html.text "🗘 " ]
-        , Html.text fd.label
-        , fd.kind
-            [ Event.onInput fd.oninput
-            , Attr.name name
-            , Attr.value fd.value
-            , Attr.attribute "aria-label" fd.label
-            , Attr.attribute "aria-describedby" helper
-            , Attr.spellcheck fd.spellcheck
-            , if fd.changed then
-                isInValidAttr fd.valid
-
-              else
-                Attr.class "unchanged-field"
-            , Attr.disabled (fd.disabled || fd.deleted)
-            ]
-            []
-        , Html.small
-            [ Attr.id helper ]
-            [ if fd.deleted then
-                Html.text "This content will be removed."
-
-              else if fd.valid then
-                Html.text fd.help
-
-              else
-                Html.text fd.error
-            ]
-        ]
-
-
-viewCSelectField : FieldDescription -> Html.Html Msg
-viewCSelectField fd =
-    let
-        id =
-            Maybe.withDefault -1 fd.id
-
-        name =
-            [ fd.formname
-            , fd.name
-            ]
-                |> String.join "-"
-
-        helper =
-            [ name
-            , String.fromInt id
-            , "helper"
-            ]
-                |> String.join "-"
-    in
-    Html.label []
-        [ Html.a
-            [ Attr.class "secondary"
-            , Attr.attribute "data-tooltip" "Reload Field"
-            , Attr.attribute "data-placement" "right"
-            , Attr.href "#"
-            , Event.onClick (fd.oninput fd.original)
-            ]
-            [ Html.text "🗘 " ]
-        , Html.text fd.label
-        , fd.kind
-            [ Event.onInput fd.oninput
-            , Attr.name name
-            , Attr.value fd.value
-            , Attr.attribute "aria-label" fd.label
-            , Attr.attribute "aria-describedby" helper
-            , Attr.spellcheck fd.spellcheck
-            , if fd.changed then
-                isInValidAttr fd.valid
-
-              else
-                Attr.class "unchanged-field"
-            , Attr.disabled (fd.disabled || fd.deleted)
-            ]
-            (List.map
-                (\opt ->
-                    Html.option
-                        [ Attr.value (Tuple.second opt) ]
-                        [ Html.text (Tuple.first opt) ]
-                )
-                (( "", "" ) :: fd.options)
-            )
-        , Html.small
-            [ Attr.id helper ]
-            [ if fd.deleted then
-                Html.text "This content will be removed."
-
-              else if fd.valid then
-                Html.text fd.help
-
-              else
-                Html.text fd.error
-            ]
-        ]
-
-
-formClose : Tab.Path -> (f -> Form.Field) -> f -> String -> Msg
-formClose tp form =
-    \field str ->
-        MultiMsg
-            [ (FormChange tp <| form field) str
-            , (\_ -> Tab Tab.Close) str
-            ]
-
-
-fieldChange : Tab.Path -> (f -> Form.Field) -> f -> String -> Msg
-fieldChange tp form =
-    \field -> FormChange tp <| form field
-
-
-viewCFImportVista : Tab.Path -> ImportFormData -> Html.Html Msg
-viewCFImportVista tp imp =
-    Html.form []
-        [ Html.fieldset []
-            [ viewCField
-                { formname = "importoptions"
-                , label = "File Path"
-                , kind = Html.input
-                , oninput = \_ -> None
-                , name = "filepath"
-                , value = imp.filepath
-                , original = imp.filepath
-                , changed = False
-                , valid = True
-                , help = "The file chosen to import."
-                , error = ""
-                , disabled = True
-                , deleted = False
-                , spellcheck = False
-                , options = []
-                , id = Nothing
-                }
-            , viewCSelectField
-                { formname = "importoptions"
-                , label = "Import Type"
-                , kind = Html.select
-                , oninput = FormChange tp (ImportForm ImpKindF)
-                , name = "kind"
-                , value = imp.kind.value
-                , original = imp.kind.original
-                , changed = imp.kind.changed
-                , valid = imp.kind.valid
-                , help = "The format of the import file."
-                , error = imp.kind.error
-                , disabled = False
-                , deleted = False
-                , spellcheck = False
-                , options = imp.kind.options
-                , id = Nothing
-                }
-            , viewCSelectField
-                { formname = "importoptions"
-                , label = "Project"
-                , kind = Html.select
-                , oninput = FormChange tp (ImportForm ImpProjectF)
-                , name = "project"
-                , value = imp.project.value
-                , original = imp.project.original
-                , changed = imp.project.changed
-                , valid = imp.project.valid
-                , help = "The project that receives the import."
-                , error = imp.project.error
-                , disabled = False
-                , deleted = False
-                , spellcheck = False
-                , options = imp.project.options
-                , id = Nothing
-                }
-            ]
-        , Html.button
-            (if imp.valid then
-                [ Event.onClick <|
-                    FormChange tp (ImportForm ImpImportF) ""
-                , Attr.type_ "button"
-                ]
-
-             else
-                [ Attr.attribute "data-tooltip" imp.error
-                , Attr.attribute "data-placement" "right"
-                , Attr.type_ "button"
-                , Event.onClick None
-                ]
-            )
-            [ Html.text "Import" ]
-        , Html.button
-            [ Attr.class "secondary"
-            , Attr.type_ "button"
-            , Event.onClick <|
-                MultiMsg
-                    [ FormChange tp (ImportForm ImpCancelF) ""
-                    , Tab Tab.Close
-                    ]
-            ]
-            [ Html.text "Cancel" ]
-        ]
 
 
 viewInterlinearOneDoc : Vista -> M.OneDoc -> M.Interlinear -> Html.Html Msg
