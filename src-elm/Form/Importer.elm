@@ -60,22 +60,22 @@ initData =
     }
 
 
-init : String -> List (String, String) -> ( Model, Cmd Msg )
+init : String -> List ( String, String ) -> ( Model, Cmd Msg )
 init filepath projectOptions =
     let
         model =
             { initData
                 | filepath = filepath
                 , kind =
-                  { blankSelect
-                      | options =
-                        [ ( "Dative Form Json"
-                          , "Dative Form Json"
-                          )
-                        ]
-                  }
+                    { blankSelect
+                        | options =
+                            [ ( "Dative Form Json"
+                              , "Dative Form Json"
+                              )
+                            ]
+                    }
                 , project =
-                  { blankSelect | options = projectOptions }
+                    { blankSelect | options = projectOptions }
             }
     in
     ( model, Cmd.none )
@@ -124,58 +124,62 @@ update msg model =
     case msg of
         None ->
             ( model, Cmd.none )
-                
+
         Kind str ->
             if List.member str kindopts then
-                ( validate { model
-                               | kind =
-                                 { kind
-                                     | value = str
-                                     , valid = True
-                                     , changed = True
-                                     , error = ""
-                                 }
-                           }
+                ( validate
+                    { model
+                        | kind =
+                            { kind
+                                | value = str
+                                , valid = True
+                                , changed = True
+                                , error = ""
+                            }
+                    }
                 , Cmd.none
                 )
 
             else
-                ( validate { model
-                               | kind =
-                                 { kind
-                                     | value = ""
-                                     , valid = False
-                                     , changed = True
-                                     , error = "Choose an import type."
-                                 }
-                           }
+                ( validate
+                    { model
+                        | kind =
+                            { kind
+                                | value = ""
+                                , valid = False
+                                , changed = True
+                                , error = "Choose an import type."
+                            }
+                    }
                 , Cmd.none
                 )
 
         Project str ->
             if List.member str projopts then
-                ( validate { model
-                               | project =
-                                 { project
-                                     | value = str
-                                     , valid = True
-                                     , changed = True
-                                     , error = ""
-                                 }
-                           }
+                ( validate
+                    { model
+                        | project =
+                            { project
+                                | value = str
+                                , valid = True
+                                , changed = True
+                                , error = ""
+                            }
+                    }
                 , Cmd.none
                 )
 
             else
-                ( validate { model
-                               | project =
-                                 { project
-                                     | value = ""
-                                     , valid = False
-                                     , changed = True
-                                     , error = "Choose a project."
-                                 }
-                           }
+                ( validate
+                    { model
+                        | project =
+                            { project
+                                | value = ""
+                                , valid = False
+                                , changed = True
+                                , error = "Choose a project."
+                            }
+                    }
                 , Cmd.none
                 )
 
@@ -189,7 +193,6 @@ update msg model =
         Cancel ->
             ( initData, Cmd.none )
 
-        
 
 view : Model -> Html.Html Msg
 view model =

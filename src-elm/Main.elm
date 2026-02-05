@@ -6,9 +6,9 @@ import Content exposing (Content(..))
 import Dict exposing (Dict)
 import Email exposing (Email)
 import Form.Global
+import Form.Importer
 import Form.Interlinear
 import Form.Project
-import Form.Importer
 import Form.Shared exposing (blankSelect)
 import Html exposing (Html)
 import Html.Attributes as Attr
@@ -33,12 +33,12 @@ import Tab
         , Vista
         , Vistas
         , defVParams
-        , visMember
-        , tpToS
-        , tabpath
-        , treeifyTabs
         , getByVista
+        , tabpath
+        , tpToS
+        , treeifyTabs
         , update
+        , visMember
         )
 import Task
 import Time
@@ -133,6 +133,7 @@ importOptionsVista =
     , identifier = "import-options"
     , content = Content.IM Form.Importer.initData
     }
+
 
 {-| These are not specific to any project and are kept around, even
 when not in use.
@@ -391,7 +392,7 @@ update msg model =
 
                 tabs =
                     model.tabs
-                        
+
                 nmodel =
                     { model | tabs = { tabs | vistas = vistas } }
             in
@@ -431,7 +432,7 @@ update msg model =
         PR id subMsg ->
             let
                 vistaId =
-                    "FORM::" ++ (UUID.toString id)
+                    "FORM::" ++ UUID.toString id
 
                 oldVista =
                     case Dict.get vistaId model.tabs.vistas of
@@ -445,7 +446,7 @@ update msg model =
 
                         Just vista_ ->
                             vista_
-                        
+
                 oldModel =
                     case oldVista.content of
                         Content.PR model_ ->
@@ -488,7 +489,8 @@ update msg model =
                                 [ ( "title"
                                   , E.string subModel.title.value
                                   )
-                                , ( "identifier", E.string
+                                , ( "identifier"
+                                  , E.string
                                         (UUID.toString subModel.identifier)
                                   )
                                 , ( "url", E.string subModel.url.value )
@@ -608,7 +610,7 @@ update msg model =
 
                         Ok vals ->
                             let
-                                filterInter : M.Value -> List Interlinear ->  List Interlinear
+                                filterInter : M.Value -> List Interlinear -> List Interlinear
                                 filterInter val ints =
                                     case val of
                                         M.MyInterlinear int ->
@@ -632,7 +634,7 @@ update msg model =
                                 vista
                                 "Glosses"
                                 "Glosses"
-                                    model
+                                model
 
         ReceivedAllDoc envelope ->
             case D.decodeValue envelopeDecoder envelope of
@@ -722,7 +724,7 @@ update msg model =
 
                 tabs =
                     model.tabs
-                        
+
                 newmodel =
                     { model | tabs = { tabs | vistas = vistas } }
             in
@@ -805,11 +807,11 @@ update msg model =
                     UUID.step model.seeds
 
                 id =
-                    (UUID.toString uuid)
+                    UUID.toString uuid
 
                 vistaId =
                     "FORM::" ++ id
-                        
+
                 ( subModel, subCmd ) =
                     Form.Project.init (Form.Project.initData uuid)
 
@@ -841,9 +843,9 @@ update msg model =
                     in
                     ( newmodel
                     , Cmd.batch
-                          [ sendMsg (Tab <| Tab.New ventana)
-                          , Cmd.map (PR uuid) subCmd
-                          ]
+                        [ sendMsg (Tab <| Tab.New ventana)
+                        , Cmd.map (PR uuid) subCmd
+                        ]
                     )
 
                 Just tp ->
@@ -857,8 +859,8 @@ update msg model =
         EditProject project ->
             let
                 id =
-                    (UUID.toString project.identifier)
-                        
+                    UUID.toString project.identifier
+
                 vistaId =
                     "FORM::" ++ id
 
@@ -1166,7 +1168,7 @@ handleVista vista short full model =
 
                 tabs =
                     model.tabs
-                        
+
                 newmodel =
                     { model
                         | tabs = { tabs | vistas = vistas }
@@ -1511,7 +1513,7 @@ viewOneDoc vista od =
                                             None
 
                                         Ok uuid ->
-                                            (EditInterlinear uuid int)
+                                            EditInterlinear uuid int
                                 ]
                                 [ Html.text "Edit" ]
                             ]
@@ -1789,8 +1791,9 @@ getProjectTitle projid model =
 
         projects =
             Maybe.withDefault
-                {email = Nothing, name = Nothing, projects = []} model.gconfig
-                    |> .projects
+                { email = Nothing, name = Nothing, projects = [] }
+                model.gconfig
+                |> .projects
     in
     LE.find (\x -> Just x.identifier == projuuid) projects
         |> Maybe.map .title

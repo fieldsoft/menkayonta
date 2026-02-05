@@ -1,7 +1,7 @@
 module Tab exposing
     ( Direction(..)
-    , Msg(..)
     , Model
+    , Msg(..)
     , Path
     , Ventana
     , VentanaParams
@@ -10,22 +10,22 @@ module Tab exposing
     , Vista
     , Vistas
     , defVParams
-    , visMember
-    , tpToS
-    , tabpath
-    , treeifyTabs
     , getByVista
-    , update
     , initData
+    , tabpath
+    , tpToS
+    , treeifyTabs
+    , update
+    , visMember
     )
 
+import Browser.Dom as Dom
 import Content exposing (Content)
 import Dict exposing (Dict)
-import Set exposing (Set)
 import List.Extra as LE
-import Maybe.Extra as ME
 import Math.Vector3 as V3
-import Browser.Dom as Dom
+import Maybe.Extra as ME
+import Set exposing (Set)
 import Task
 
 
@@ -124,22 +124,21 @@ defVParams =
 
 initData : Dict String Vista -> Model
 initData globalVistas =
-      { counter = 0
-      , ventanas = Dict.empty
-      , focused = Nothing
-      , visVentanas = Dict.empty
-      , vistas = globalVistas
-      , globalVistas = (Dict.keys globalVistas)
-      }
-    
-    
+    { counter = 0
+    , ventanas = Dict.empty
+    , focused = Nothing
+    , visVentanas = Dict.empty
+    , vistas = globalVistas
+    , globalVistas = Dict.keys globalVistas
+    }
+
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         None ->
             ( model, Cmd.none )
-                
+
         New ventana ->
             if Dict.isEmpty model.ventanas then
                 let
@@ -315,7 +314,7 @@ update msg model =
                                 model
             in
             ( newmodel, Cmd.none )
-        
+
 
 {-| insertTab.Path, newTab.Path, and createNecessary are all helpers for
 Move Direction. Each provides Direction specific code for some
@@ -590,6 +589,8 @@ treeifyTabs tps =
 {- Tab.Path helper functions are mostly used to help document the
    intention of working with the integer tuple.
 -}
+
+
 tabpath : Int -> Int -> Int -> Path
 tabpath c r t =
     ( c, ( r, t ) )
