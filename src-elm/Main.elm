@@ -732,7 +732,11 @@ update msg model =
                     model.tabs
 
                 newmodel =
-                    { model | tabs = { tabs | vistas = vistas } }
+                    { model | tabs = { tabs
+                                         | vistas = vistas
+                                         , focusLock = Nothing
+                                     }
+                    }
             in
             case getByVista "import-options" model.tabs.ventanas of
                 Nothing ->
@@ -780,7 +784,11 @@ update msg model =
                     model.tabs
 
                 newmodel =
-                    { model | tabs = { tabs | vistas = vistas } }
+                    { model | tabs = { tabs
+                                         | vistas = vistas
+                                         , focusLock = Nothing
+                                     }
+                    }
             in
             case getByVista "global-settings" model.tabs.ventanas of
                 Nothing ->
@@ -1017,8 +1025,15 @@ update msg model =
 
                         tabs =
                             model.tabs
+
+                        newmodel =
+                            { model | tabs = { tabs
+                                                 | vistas = vistas
+                                                 , focusLock = Nothing
+                                             }
+                            }
                     in
-                    ( { model | tabs = { tabs | vistas = vistas } }
+                    ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.New ventana)
                         , Cmd.map (ITE int.id) subCmd
