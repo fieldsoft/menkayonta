@@ -40,6 +40,7 @@ type Msg
     | New Ventana
     | None
     | Change Param Path String
+    | Unlock
 
 
 {-| Inject a message into `Cmd`
@@ -155,6 +156,11 @@ update msg model =
     case msg of
         None ->
             ( model, Cmd.none )
+
+        Unlock ->
+            ( { model | focusLock = Nothing }
+            , Cmd.none
+            )
 
         Change Search tp str ->
             case Dict.get tp model.ventanas of

@@ -887,7 +887,11 @@ update msg model =
                     model.tabs
 
                 newmodel =
-                    { model | tabs = { tabs | vistas = vistas } }
+                    { model | tabs = { tabs
+                                         | vistas = vistas
+                                         , focusLock = Nothing
+                                     }
+                    }
             in
             case getByVista vistaId model.tabs.ventanas of
                 Nothing ->
@@ -940,14 +944,20 @@ update msg model =
 
                 tabs =
                     model.tabs
-            in
-            ( { model
-                | seeds = seeds
-                , tabs =
-                    { tabs
-                        | vistas = Dict.insert id vista model.tabs.vistas
+
+                newmodel =
+                    { model
+                        | seeds = seeds
+                        , tabs =
+                          { tabs
+                              | vistas =
+                                Dict.insert id vista model.tabs.vistas
+                              , focusLock =
+                                Nothing
+                          }
                     }
-              }
+            in
+            ( newmodel
             , sendMsg (Tab <| Tab.New ventana)
             )
 
@@ -1393,7 +1403,11 @@ viewProject model p =
             , Html.li []
                 [ Html.a
                     [ Attr.href "#"
-                    , Event.onClick <| RequestInterlinearIndex p.identifier
+                    , Event.onClick <|
+                        MultiMsg
+                            [ Tab Tab.Unlock
+                            , RequestInterlinearIndex p.identifier
+                            ]
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Gloss Index" ]
@@ -1405,7 +1419,7 @@ viewProject model p =
                         NewInterlinear p.identifier
                     , Attr.class "secondary"
                     ]
-                    [ Html.text "New Gloss" ]
+                    [ Html.text "Gloss New Item" ]
                 ]
             ]
         ]
