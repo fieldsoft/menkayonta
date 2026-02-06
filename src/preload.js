@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('global-settings', (_event, globalConf) =>
       callback(globalConf),
     ),
+  onToggleSidebar: (callback) =>
+    ipcRenderer.on('toggle-sidebar', (_event) => callback()),
   onReceivedInterlinearIndex: (callback) =>
     ipcRenderer.on('received-interlinear-index', (_event, data) =>
       callback(data),

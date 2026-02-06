@@ -101,6 +101,11 @@ aside {
     padding: 1em;
 }
 
+.hidden-side {
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+}
+
 div.focused {
     border: solid;
     border-width: 1px;
@@ -126,7 +131,20 @@ div.hidden {
 
 .tab-nav {
     padding-left: 1rem;
-    padding-right: 1rem;
+    padding-right: 0;
+    border-top-right-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-right-style: none;
+}
+
+.close-button {
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+    border-left-style: none;
+}
+
+.close-button.focused {
+    text-decoration: none;
 }
 
 .tab-column {

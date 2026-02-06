@@ -1,5 +1,6 @@
 module Tab exposing
-    ( Direction(..)
+    ( CloseType(..)
+    , Direction(..)
     , Model
     , Msg(..)
     , Param(..)
@@ -32,7 +33,7 @@ import Task
 
 type Msg
     = Clone
-    | Close
+    | Close CloseType
     | Focus Path
     | Goto Path
     | Move Direction
@@ -57,14 +58,19 @@ type alias Model =
     , vistas : Vistas
     , globalVistas : List String
     , focusHistory : List Path
-    , focusLock : Maybe Path  
+    , focusLock : Maybe Path
     }
 
 
 type Param
     = Search
     | Length
-      
+
+
+type CloseType
+    = Focused
+    | Tab Path
+
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
 an identifier for some viewable content. I use Spanish when there are
@@ -172,8 +178,7 @@ update msg model =
 
                 Nothing ->
                     ( model, Cmd.none )
-            
-                
+
         Change Length tp str ->
             let
                 num =
@@ -200,7 +205,7 @@ update msg model =
 
                 Nothing ->
                     ( model, Cmd.none )
-            
+
         New ventana ->
             if Dict.isEmpty model.ventanas then
                 let
@@ -306,7 +311,7 @@ update msg model =
 
                 tabs =
                     Dict.keys model.ventanas
-                        
+
                 history =
                     case model.focused of
                         Nothing ->
@@ -314,23 +319,26 @@ update msg model =
 
                         Just previous ->
                             refreshHistory
-                            (previous :: model.focusHistory)
+                                (previous :: model.focusHistory)
                                 tabs
             in
             ( { model
-                  | focused = Just tp
-                  , visVentanas = visInsert tp model.visVentanas
-                  , focusHistory = history
-                  , focusLock = Just tp
+                | focused = Just tp
+                , visVentanas = visInsert tp model.visVentanas
+                , focusHistory = history
+                , focusLock = Just tp
               }
             , Cmd.none
             )
 
-        Close ->
+        Close Focused ->
             let
                 tp =
                     Maybe.withDefault (tabpath -1 -1 -1) <| model.focused
             in
+            ( closeTab True tp model, Cmd.none )
+
+        Close (Tab tp) ->
             ( closeTab True tp model, Cmd.none )
 
         Clone ->
@@ -502,13 +510,13 @@ createNecessary dir tp ( cols, rows ) =
 
 {-| Return the Tab.Paths for the tabs in the same row.
 -}
-sharesRow : Path -> Model -> List Path
-sharesRow tp model =
+sharesRow : Path -> Ventanas -> List Path
+sharesRow tp ventanas =
     let
         matchrow tp2 =
             trow tp == trow tp2 && tp /= tp2
     in
-    List.filter matchrow (Dict.keys model.ventanas)
+    List.filter matchrow (Dict.keys ventanas)
 
 
 {-| This uses vector distance to find a new focused item. It is called
@@ -517,8 +525,8 @@ tab should become open and focused when the focused one
 closes. Intuitively, this should be the one that is nearest the
 closed tab.
 -}
-nearest : Path -> Model -> Maybe Path
-nearest tp model =
+nearest : Path -> Ventanas -> VisVentanas -> Maybe Path
+nearest tp ventanas visVentanas =
     let
         toV3 ( column, ( row, tab ) ) =
             V3.vec3 (toFloat column) (toFloat row) (toFloat tab)
@@ -538,19 +546,94 @@ nearest tp model =
                             t
                    )
     in
-    case sharesRow tp model of
+    case sharesRow tp ventanas of
         [] ->
-            nearest_ (visRemove tp model.visVentanas |> visToList)
+            -- There is a preference for remaining in the same row.
+            nearest_ (visRemove tp visVentanas |> visToList)
 
         tps ->
             nearest_ tps
 
 
-{-| This will close a tab and set the nearest tab to focused.
+{-| This will close a tab. If it was focused, it will focus the
+previous tab in the history, or the nearest tab, otherwise.
 -}
 closeTab : Bool -> Path -> Model -> Model
 closeTab closevista tp model =
     let
+        ( column, ( row, tab ) ) =
+            tp
+
+        wasVisible =
+            Just tab == Dict.get (column, row) model.visVentanas
+
+        wasFocused =
+            model.focused == Just tp
+        
+        -- There is a possibility that the closed tab was in a row
+        -- that now has no visible members. Ensure that one member is
+        -- visible.
+        rowMates =
+            List.filter
+                (\( c, ( r, _ ) ) -> column == c && row == r)
+                (Dict.keys model.ventanas)
+
+        -- The history with the closed tab excluded.
+        newHistory =
+            List.filter
+                (\t -> t /= tp) model.focusHistory
+
+        -- The closest tab to the closed tab.
+        near =
+            nearest tp model.ventanas model.visVentanas
+
+        -- The remaining visible ventanas if the current one has been
+        -- removed.
+        notClosed =
+            if wasVisible then
+                visRemove tp model.visVentanas
+
+            else
+                model.visVentanas
+
+        -- visVentanas with the nearest visible
+        nearvis =
+            near
+                |> Maybe.map (\t -> visInsert t notClosed)
+                -- Logically, if there is no nearest, nothing was
+                -- visible.
+                |> Maybe.withDefault notClosed
+
+        -- Calculate new values for these variables.
+        ( visible, (focused, history) ) =
+            if wasVisible then
+                if wasFocused then
+                    if List.length rowMates > 0 then
+                        ( nearvis, historyFocusCalc )
+
+                    else
+                        ( notClosed, historyFocusCalc )
+
+                else
+                    if List.length rowMates > 0 then
+                        ( nearvis, ( model.focused, newHistory ) )
+
+                    else
+                        ( notClosed, ( model.focused, newHistory ) )
+
+            else
+                ( notClosed, ( model.focused, newHistory ) )
+                        
+        -- Use the value from the focus history if one is
+        -- there. Otherwise, calculate the nearest.
+        historyFocusCalc =
+            case newHistory of
+                t :: rest ->
+                    ( Just t, rest )
+
+                [] ->
+                    ( near, [] )
+                
         gvistas =
             model.globalVistas
 
@@ -567,29 +650,24 @@ closeTab closevista tp model =
         nonglobal =
             not <| List.member vista gvistas
 
+        -- When the tab's vista isn't global, meaning always
+        -- available, and there are not multiple references to the
+        -- vista, and the function was called with the closevista
+        -- option set to true, remove the vista.
         vistas =
             if nonglobal && not multiref && closevista then
                 Dict.remove vista model.vistas
 
             else
                 model.vistas
-
-        notClosed =
-            visRemove tp model.visVentanas
-
-        focused =
-            nearest tp model
-
-        visVentanas =
-            ME.unwrap notClosed
-                (\f -> visInsert f notClosed)
-                focused
     in
     { model
         | ventanas = Dict.remove tp model.ventanas
         , focused = focused
-        , visVentanas = visVentanas
+        , visVentanas = visible
         , vistas = vistas
+        , focusHistory = history
+        , focusLock = focused
     }
 
 
@@ -807,3 +885,4 @@ history.
 refreshHistory : List Path -> List Path -> List Path
 refreshHistory history tabs =
     List.filter (\x -> List.member x tabs) history
+        |> List.take 5

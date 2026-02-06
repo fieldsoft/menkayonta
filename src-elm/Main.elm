@@ -53,6 +53,7 @@ type alias Model =
     , error : String
     , loading : Set String
     , seeds : UUID.Seeds
+    , sideBar : Bool
     }
 
 
@@ -78,6 +79,7 @@ type Msg
     | EditProject Form.Project.Model
     | Stamp (Time.Posix -> Envelope) (E.Value -> Cmd Msg) Time.Posix
     | Tab Tab.Msg
+    | ToggleSidebar
 
 
 {-| Inject a message into `Cmd`
@@ -192,6 +194,7 @@ init flags =
       , error = ""
       , loading = Set.empty
       , seeds = seeds
+      , sideBar = True
       }
     , Cmd.batch
         [ requestGlobalConfig ()
@@ -217,6 +220,11 @@ update msg model =
                     envelopePart time |> envelopeEncoder
             in
             ( model, cmd envelope )
+
+        ToggleSidebar ->
+            ( { model | sideBar = not model.sideBar }
+            , Cmd.none
+            )
 
         Tab subMsg ->
             let
@@ -272,7 +280,7 @@ update msg model =
                         Form.Interlinear.Cancel ->
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg (Tab Tab.Close)
+                                [ sendMsg closeFocused
                                 , Cmd.map (ITE id) subCmd
                                 ]
                             )
@@ -287,7 +295,7 @@ update msg model =
                             in
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg (Tab Tab.Close)
+                                [ sendMsg closeFocused
                                 , Task.perform
                                     (Stamp envelopePart send)
                                     Time.now
@@ -340,7 +348,7 @@ update msg model =
                 Form.Importer.Cancel ->
                     ( nmodel
                     , Cmd.batch
-                        [ sendMsg (Tab Tab.Close)
+                        [ sendMsg closeFocused
                         , Cmd.map IM subCmd
                         ]
                     )
@@ -356,7 +364,7 @@ update msg model =
                     in
                     ( nmodel
                     , Cmd.batch
-                        [ sendMsg (Tab Tab.Close)
+                        [ sendMsg closeFocused
                         , importFile jsonValue
                         , Cmd.map IM subCmd
                         ]
@@ -401,7 +409,7 @@ update msg model =
                 Form.Global.Cancel ->
                     ( nmodel
                     , Cmd.batch
-                        [ sendMsg (Tab Tab.Close)
+                        [ sendMsg closeFocused
                         , Cmd.map GF subCmd
                         ]
                     )
@@ -418,7 +426,7 @@ update msg model =
                     in
                     ( nmodel
                     , Cmd.batch
-                        [ sendMsg (Tab Tab.Close)
+                        [ sendMsg closeFocused
                         , updateGlobalSettings jsonValue
                         , Cmd.map GF subCmd
                         ]
@@ -475,7 +483,7 @@ update msg model =
                 Form.Project.Cancel ->
                     ( nmodel
                     , Cmd.batch
-                        [ sendMsg (Tab Tab.Close)
+                        [ sendMsg closeFocused
                         , Cmd.map (PR id) subCmd
                         ]
                     )
@@ -497,7 +505,7 @@ update msg model =
                     in
                     ( nmodel
                     , Cmd.batch
-                        [ sendMsg (Tab Tab.Close)
+                        [ sendMsg closeFocused
                         , updateProject jsonValue
                         , Cmd.map (PR id) subCmd
                         ]
@@ -1145,8 +1153,9 @@ subscriptions _ =
         , moveRight_ (\_ -> Tab <| Tab.Move Right)
         , moveUp_ (\_ -> Tab <| Tab.Move Up)
         , moveDown_ (\_ -> Tab <| Tab.Move Down)
-        , closeTab_ (\_ -> Tab Tab.Close)
+        , closeTab_ (\_ -> closeFocused)
         , cloneTab_ (\_ -> Tab Tab.Clone)
+        , toggleSidebar (\_ -> ToggleSidebar)
         ]
 
 
@@ -1180,18 +1189,38 @@ view model =
             treeifyTabs <| Dict.keys model.tabs.ventanas
     in
     Html.main_ []
-        [ Html.aside [ Attr.class "side" ]
-            [ Html.nav []
-                [ Html.h4 [] [ Html.text "Projects" ]
-                , viewProjects model
-                , if Dict.isEmpty model.tabs.visVentanas then
-                    Html.text ""
+        [ if model.sideBar then
+            Html.aside [ Attr.class "side" ]
+                [ Html.a
+                      [ Attr.href "#"
+                      , Event.onClick ToggleSidebar
+                      , Attr.title "Hide the sidebar"
+                      ]
+                      [ Html.text "Hide"
+                      , Html.hr [] []
+                      ]
+                 , Html.nav []
+                    [ Html.h4 [] [ Html.text "Projects" ]
+                    , viewProjects model
+                    , if Dict.isEmpty model.tabs.visVentanas then
+                        Html.text ""
 
-                  else
-                    Html.h4 [] [ Html.text "Open Tabs" ]
-                , viewTabList model.tabs.ventanas
+                      else
+                        Html.h4 [] [ Html.text "Open Tabs" ]
+                    , viewTabList model.tabs.ventanas
+                    ]
                 ]
-            ]
+
+          else
+              Html.aside [ Attr.class "hidden-side" ]
+              [ Html.a
+                    [ Attr.href "#"
+                    , Event.onClick ToggleSidebar
+                    , Attr.title "View the side bar"
+                    ]
+                    [ Html.text "View Side Bar" ]
+              ]
+              
         , if Dict.isEmpty tabtree then
             Html.div
                 []
@@ -1255,17 +1284,31 @@ viewTabHeader model tp =
         visible =
             visMember tp model.tabs.visVentanas
     in
-    Html.button
-        [ Event.onClick (Tab <| Tab.Focus tp)
-        , Attr.id (tpToS tp)
-        , Attr.classList
-            [ ( "focused", focused )
-            , ( "secondary", not focused && visible )
-            , ( "secondary outline", not focused && not visible )
-            , ( "tab-nav", True )
-            ]
+    Html.span [ ]
+        [ Html.button
+              [ Event.onClick (Tab <| Tab.Focus tp)
+              , Event.onDoubleClick (Tab <| Tab.Clone)
+              , Attr.id (tpToS tp)
+              , Attr.classList
+                    [ ( "focused", focused )
+                    , ( "secondary", not focused && visible )
+                    , ( "secondary outline", not focused && not visible )
+                    , ( "tab-nav", True )
+                    ]
+              , Attr.title ventana.fullTitle
+              ]
+              [ Html.text ventana.title ]
+        , Html.button
+            [ Event.onClick (Tab <| Tab.Close <| Tab.Tab tp)
+            , Attr.title "Close this tab"
+            , Attr.classList
+                  [ ( "focused", focused )
+                  , ( "secondary", not focused && visible )
+                  , ( "secondary outline", not focused && not visible )
+                  , ( "close-button", True )
+                  ]
+            ] [ Html.text "×" ]
         ]
-        [ Html.text ventana.title ]
 
 
 viewTab : Model -> Tab.Path -> Html.Html Msg
@@ -1409,7 +1452,7 @@ viewVista model tp vista =
 
                 intTotal =
                     List.length searched
-                        
+
                 total =
                     intTotal |> String.fromInt
 
@@ -1422,31 +1465,36 @@ viewVista model tp vista =
             Html.div []
                 [ Html.label []
                     [ Html.text <|
-                          if params.length <= intTotal then
-                              "Show (" ++ len ++ " of " ++ total ++ ")"
+                        if params.length <= intTotal then
+                            "Show (" ++ len ++ " of " ++ total ++ ")"
 
-                          else
-                              "Showing all items."
+                        else
+                            "Showing all items."
                     , Html.input
-                        ( [ Attr.type_ "text"
-                          , Attr.placeholder len
-                          , Event.onInput (\s -> Tab.Change Tab.Length tp s
-                                               |> Tab
-                                          )
-                          ] ++ ( if params.length > 0 then
-                                     [ Attr.value len ]
+                        ([ Attr.type_ "text"
+                         , Attr.placeholder len
+                         , Event.onInput
+                            (\s ->
+                                Tab.Change Tab.Length tp s
+                                    |> Tab
+                            )
+                         ]
+                            ++ (if params.length > 0 then
+                                    [ Attr.value len ]
 
-                                 else
-                                     []
+                                else
+                                    []
                                )
                         )
                         []
                     , Html.input
                         [ Attr.type_ "text"
                         , Attr.value ss
-                        , Event.onInput (\s -> Tab.Change Tab.Search tp s
-                                             |> Tab
-                                        )
+                        , Event.onInput
+                            (\s ->
+                                Tab.Change Tab.Search tp s
+                                    |> Tab
+                            )
                         ]
                         []
                     ]
@@ -1774,6 +1822,13 @@ reduceDoc env =
             Err e
 
 
+{-| The `Tab.Close Tab.Focused` message.
+-}
+closeFocused : Msg
+closeFocused =
+    Tab <| Tab.Close Tab.Focused
+
+
 
 {- PORTS -}
 
@@ -1867,3 +1922,6 @@ port closeTab_ : (() -> msg) -> Sub msg
 
 
 port cloneTab_ : (() -> msg) -> Sub msg
+
+
+port toggleSidebar : (() -> msg) -> Sub msg

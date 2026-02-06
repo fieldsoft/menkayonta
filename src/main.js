@@ -221,6 +221,10 @@ const createWindow = () => {
     {
       label: 'View',
       submenu: [
+        {
+          click: () => mainWindow.webContents.send('toggle-sidebar'),
+          label: 'Toggle Sidebar',
+        },
         { role: 'reload' },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },

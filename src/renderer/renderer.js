@@ -64,6 +64,10 @@ window.electronAPI.onNewProject(() => {
   app.ports.newProject.send(null)
 })
 
+window.electronAPI.onToggleSidebar(() => {
+  app.ports.toggleSidebar.send(null)
+})
+
 window.electronAPI.onImportOptions((filepath) => {
   app.ports.importOptions.send(filepath)
 })
