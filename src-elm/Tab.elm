@@ -571,11 +571,11 @@ closeTab closevista tp model =
             tp
 
         wasVisible =
-            Just tab == Dict.get (column, row) model.visVentanas
+            Just tab == Dict.get ( column, row ) model.visVentanas
 
         wasFocused =
             model.focused == Just tp
-        
+
         -- There is a possibility that the closed tab was in a row
         -- that now has no visible members. Ensure that one member is
         -- visible.
@@ -587,7 +587,8 @@ closeTab closevista tp model =
         -- The history with the closed tab excluded.
         newHistory =
             List.filter
-                (\t -> t /= tp) model.focusHistory
+                (\t -> t /= tp)
+                model.focusHistory
 
         -- The closest tab to the closed tab.
         near =
@@ -611,25 +612,47 @@ closeTab closevista tp model =
                 |> Maybe.withDefault notClosed
 
         -- Calculate new values for these variables.
-        ( visible, (focused, history) ) =
+        ( visible, ( focused, history ) ) =
             if wasVisible then
                 if wasFocused then
                     if List.length rowMates > 0 then
+                        let
+                            -- The visible tabs are dependent on the
+                            -- newly focused item. For `nearvis` the
+                            -- calculated focus item and the
+                            -- previously calculated visible tabs are
+                            -- expected to be compatible, since the
+                            -- nearest is the same in both
+                            -- cases. Here, an entirely different
+                            -- focus item has been picked from the
+                            -- history.
+                            ( f, h ) =
+                                historyFocusCalc
+
+                            -- The default here should be safe,
+                            -- despite being wrong, because the `>`
+                            -- test above should ensure that focused
+                            -- item is not `Nothing`.
+                            vis =
+                                ME.unwrap
+                                    notClosed
+                                    (\t -> visInsert t notClosed)
+                                    f
+                        in
+                        ( vis, ( f, h ) )
+
+                    else
                         ( nearvis, historyFocusCalc )
 
-                    else
-                        ( notClosed, historyFocusCalc )
+                else if List.length rowMates > 0 then
+                    ( nearvis, ( model.focused, newHistory ) )
 
                 else
-                    if List.length rowMates > 0 then
-                        ( nearvis, ( model.focused, newHistory ) )
-
-                    else
-                        ( notClosed, ( model.focused, newHistory ) )
+                    ( notClosed, ( model.focused, newHistory ) )
 
             else
                 ( notClosed, ( model.focused, newHistory ) )
-                        
+
         -- Use the value from the focus history if one is
         -- there. Otherwise, calculate the nearest.
         historyFocusCalc =
@@ -639,7 +662,7 @@ closeTab closevista tp model =
 
                 [] ->
                     ( near, [] )
-                
+
         gvistas =
             model.globalVistas
 
