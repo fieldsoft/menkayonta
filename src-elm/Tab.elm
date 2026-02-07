@@ -294,21 +294,25 @@ update msg model =
                 in
                 ( newmodel, Cmd.none )
 
+        -- Goto only works on the focused tab at the moment. In the
+        -- future, I may expand this to items that are, or may be set
+        -- to, visible.
         Goto tp ->
             let
                 id =
                     tpToS tp
             in
             ( model
-            , Cmd.batch
-                [ Dom.getElement id
+            , if model.focused == Just tp then
+                Dom.getElement id
                     |> Task.andThen
                         (\el ->
                             Dom.setViewport el.element.x el.element.y
                         )
                     |> Task.attempt (\_ -> None)
-                , sendMsg (Focus tp)
-                ]
+
+              else
+                Cmd.none
             )
 
         Focus tp ->

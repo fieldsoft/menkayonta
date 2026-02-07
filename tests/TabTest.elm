@@ -44,6 +44,11 @@ suite =
                 Expect.equal
                     m
                     (update None m |> Tuple.first)
+        , test "Goto doesn't change the model" <|
+            \_ ->
+                Expect.equal
+                    m
+                    (update (Goto ( 0, ( 0, 0 ) )) m |> Tuple.first)
         , newTests
         ]
 
@@ -155,7 +160,7 @@ newOnNonEmpty =
         , test "adds to focusHistory" <|
             \_ ->
                 Expect.equal
-                    ([ ( 0, ( 0, 0 ) ) ])
+                    [ ( 0, ( 0, 0 ) ) ]
                     (update (New simpleVentana) m
                         |> Tuple.first
                         |> update Unlock
