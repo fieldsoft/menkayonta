@@ -34,8 +34,8 @@ import Tab
         , Vistas
         , defVParams
         , getByVista
+        , pathToString
         , tabpath
-        , tpToS
         , treeifyTabs
         , update
         , visMember
@@ -1311,9 +1311,9 @@ viewTabHeader model tp =
     in
     Html.span [ ]
         [ Html.button
-              [ Event.onClick (Tab <| Tab.Focus tp)
+              [ Event.onClick (Tab <| Tab.Select tp)
               , Event.onDoubleClick (Tab <| Tab.Clone)
-              , Attr.id (tpToS tp)
+              , Attr.id (pathToString tp)
               , Attr.classList
                     [ ( "focused", focused )
                     , ( "secondary", not focused && visible )

@@ -14,8 +14,8 @@ module Tab exposing
     , defVParams
     , getByVista
     , initData
+    , pathToString
     , tabpath
-    , tpToS
     , treeifyTabs
     , update
     , visMember
@@ -40,6 +40,7 @@ type Msg
     | New Ventana
     | None
     | Change Param Path String
+    | Select Path
     | Unlock
 
 
@@ -162,6 +163,9 @@ update msg model =
             , Cmd.none
             )
 
+        Select tp ->
+            (focus tp model, Cmd.none)
+                
         Change Search tp str ->
             case Dict.get tp model.ventanas of
                 Just ventana ->
@@ -245,104 +249,42 @@ update msg model =
                        the unlikely case of a bad state, the input model
                        is returned. Perhaps an error would be better.
                     -}
-                    newmodel =
+                    newtab =
                         case model.focused of
                             Nothing ->
-                                model
+                                tabpath -1 -1 -1
 
+                            -- We want to open the tab in the same row.
                             Just tp1 ->
                                 let
                                     ( column, ( row, _ ) ) =
                                         tp1
-
-                                    tp2 =
-                                        tabpath column row c
-
-                                    -- If there is a focus lock, it is
-                                    -- the currently focused
-                                    -- tab. Since the default behavior
-                                    -- is to open new tab in the same
-                                    -- row, the new tab should not be
-                                    -- visible when the lock is in
-                                    -- place.
-                                    ( focused, visible ) =
-                                        case model.focusLock of
-                                            Nothing ->
-                                                ( Just tp2
-                                                , visInsert tp2 model.visVentanas
-                                                )
-
-                                            Just _ ->
-                                                ( Just tp1
-                                                , model.visVentanas
-                                                )
                                 in
-                                { model
-                                    | counter =
-                                        c + 1
-                                    , ventanas =
-                                        Dict.insert tp2 ventana model.ventanas
-                                    , visVentanas =
-                                        visible
-                                    , focused =
-                                        focused
-                                    , focusHistory =
-                                        tp1 :: model.focusHistory
-                                    , focusLock =
-                                        focused
-                                }
+                                tabpath column row c
+
+                    newmodel =
+                        { model
+                            | counter =
+                                c + 1
+                            , ventanas =
+                                Dict.insert newtab ventana model.ventanas
+                        }
                 in
-                ( newmodel, Cmd.none )
+                ( focusWhenUnlocked newtab newmodel, Cmd.none )
 
-        -- Goto only works on the focused tab at the moment. In the
-        -- future, I may expand this to items that are, or may be set
-        -- to, visible.
+        -- Goto triggers a viewport operation so that a tab is visible.
         Goto tp ->
-            let
-                id =
-                    tpToS tp
-            in
             ( model
-            , if model.focused == Just tp then
-                Dom.getElement id
-                    |> Task.andThen
-                        (\el ->
-                            Dom.setViewport el.element.x el.element.y
-                        )
-                    |> Task.attempt (\_ -> None)
-
-              else
-                Cmd.none
+            , Dom.getElement (pathToString tp)
+                |> Task.andThen
+                    (\el ->
+                        Dom.setViewport el.element.x el.element.y
+                    )
+                |> Task.attempt (\_ -> None)
             )
 
         Focus tp ->
-            let
-                title =
-                    Dict.get tp model.ventanas
-                        |> Maybe.map .title
-                        |> Maybe.withDefault ""
-
-                tabs =
-                    Dict.keys model.ventanas
-
-                history =
-                    case model.focused of
-                        Nothing ->
-                            refreshHistory model.focusHistory tabs
-
-                        Just previous ->
-                            refreshHistory
-                                (previous :: model.focusHistory)
-                                tabs
-            in
-            ( { model
-                | focused = Just tp
-                , visVentanas = visInsert tp model.visVentanas
-                , focusHistory = history
-                , focusLock = Just tp
-              }
-            , Cmd.none
-            )
+            ( focusWhenUnlocked tp model, Cmd.none )
 
         Close Focused ->
             let
@@ -808,8 +750,8 @@ tabpath c r t =
     ( c, ( r, t ) )
 
 
-tpToS : Path -> String
-tpToS ( c, ( r, t ) ) =
+pathToString : Path -> String
+pathToString ( c, ( r, t ) ) =
     [ c, r, t ]
         |> List.map String.fromInt
         |> String.join ","
@@ -922,3 +864,37 @@ refreshHistory : List Path -> List Path -> List Path
 refreshHistory history tabs =
     List.filter (\x -> List.member x tabs) history
         |> List.take 5
+
+
+focus : Path -> Model -> Model
+focus tp model =
+    let
+        tabs =
+            Dict.keys model.ventanas
+
+        history =
+            case model.focused of
+                Nothing ->
+                    refreshHistory model.focusHistory tabs
+
+                Just previous ->
+                    refreshHistory
+                        (previous :: model.focusHistory)
+                        tabs
+    in
+    { model
+        | focused = Just tp
+        , visVentanas = visInsert tp model.visVentanas
+        , focusHistory = history
+        , focusLock = Just tp
+    }
+
+
+focusWhenUnlocked : Path -> Model -> Model
+focusWhenUnlocked tp model =
+    case model.focusLock of
+        Nothing ->
+            focus tp model
+
+        Just _ ->
+            model

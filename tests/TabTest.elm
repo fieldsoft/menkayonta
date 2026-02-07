@@ -50,6 +50,7 @@ suite =
                     m
                     (update (Goto ( 0, ( 0, 0 ) )) m |> Tuple.first)
         , newTests
+        , closeTests
         ]
 
 
@@ -117,9 +118,7 @@ newOnNonEmpty =
                 Expect.equal
                     2
                     (update (New simpleVentana) m
-                        |> (\m2 ->
-                                update (New simpleVentana) (Tuple.first m2)
-                           )
+                        |> next (New simpleVentana)
                         |> Tuple.first
                         |> .counter
                     )
@@ -128,9 +127,7 @@ newOnNonEmpty =
                 Expect.equal
                     (Just simpleVentana)
                     (update (New simpleVentana) m
-                        |> (\m2 ->
-                                update (New simpleVentana) (Tuple.first m2)
-                           )
+                        |> next (New simpleVentana)
                         |> Tuple.first
                         |> .ventanas
                         |> Dict.get ( 0, ( 0, 1 ) )
@@ -140,8 +137,7 @@ newOnNonEmpty =
                 Expect.equal
                     (Just ( 0, ( 0, 0 ) ))
                     (update (New simpleVentana) m
-                        |> Tuple.first
-                        |> update (New simpleVentana)
+                        |> next (New simpleVentana)
                         |> Tuple.first
                         |> .focused
                     )
@@ -150,10 +146,8 @@ newOnNonEmpty =
                 Expect.equal
                     (Just ( 0, ( 0, 1 ) ))
                     (update (New simpleVentana) m
-                        |> Tuple.first
-                        |> update Unlock
-                        |> Tuple.first
-                        |> update (New simpleVentana)
+                        |> next Unlock
+                        |> next (New simpleVentana)
                         |> Tuple.first
                         |> .focused
                     )
@@ -162,10 +156,8 @@ newOnNonEmpty =
                 Expect.equal
                     [ ( 0, ( 0, 0 ) ) ]
                     (update (New simpleVentana) m
-                        |> Tuple.first
-                        |> update Unlock
-                        |> Tuple.first
-                        |> update (New simpleVentana)
+                        |> next Unlock
+                        |> next (New simpleVentana)
                         |> Tuple.first
                         |> .focusHistory
                     )
@@ -174,11 +166,169 @@ newOnNonEmpty =
                 Expect.equal
                     (Just ( 0, ( 0, 1 ) ))
                     (update (New simpleVentana) m
-                        |> Tuple.first
-                        |> update Unlock
-                        |> Tuple.first
-                        |> update (New simpleVentana)
+                        |> next Unlock
+                        |> next (New simpleVentana)
                         |> Tuple.first
                         |> .focusLock
                     )
         ]
+
+
+closeTests : Test
+closeTests =
+    describe "Closing a tab"
+        [ describe "The focused tab"
+            [ test "it closes a single tab" <|
+                \_ ->
+                    Expect.equal
+                        Dict.empty
+                        (update (New simpleVentana) m
+                            |> next (Close Focused)
+                            |> Tuple.first
+                            |> .ventanas
+                        )
+            , test "it closes the focused tab" <|
+                \_ ->
+                    Expect.equal
+                        Nothing
+                        (update (New simpleVentana) m
+                            |> next (New simpleVentana)
+                            |> next (Close Focused)
+                            |> Tuple.first
+                            |> .ventanas
+                            |> Dict.get ( 0, ( 0, 0 ) )
+                        )
+            ]
+        , describe "A specific tab"
+            [ test "it closes a single tab" <|
+                \_ ->
+                    Expect.equal
+                        Dict.empty
+                        (update (New simpleVentana) m
+                            |> next (Close (Tab ( 0, ( 0, 0 ) )))
+                            |> Tuple.first
+                            |> .ventanas
+                        )
+            , describe "one row"
+                [ describe "no focus history"
+                    [ test "the nearest is focused" <|
+                        \_ ->
+                            Expect.equal
+                                (Just ( 0, ( 0, 1 ) ))
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Close (Tab ( 0, ( 0, 0 ) )))
+                                    |> Tuple.first
+                                    |> .focused
+                                )
+                    , test "the nearest is visible" <|
+                        \_ ->
+                            Expect.equal
+                                (Just 1)
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Close (Tab ( 0, ( 0, 0 ) )))
+                                    |> Tuple.first
+                                    |> .visVentanas
+                                    |> Dict.get ( 0, 0 )
+                                )
+                    ]
+                ]
+            , describe "two rows"
+                [ describe "no focus history"
+                    [ test "the nearest is focused" <|
+                        \_ ->
+                            Expect.equal
+                                (Just ( 0, ( 3, 4 ) ))
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Move Down)
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Close (Tab ( 0, ( 3, 0 ) )))
+                                    |> Tuple.first
+                                    |> .focused
+                                )
+                    , test "the nearest is visible" <|
+                        \_ ->
+                            Expect.equal
+                                (Just 4)
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Move Down)
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Close (Tab ( 0, ( 3, 0 ) )))
+                                    |> Tuple.first
+                                    |> .visVentanas
+                                    |> Dict.get ( 0, 3 )
+                                )
+                    ]
+                , describe "with focus history"
+                    [ test "the last is focused" <|
+                        \_ ->
+                            Expect.equal
+                                (Just ( 0, ( 3, 0 ) ))
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Move Down)
+                                    |> next Unlock
+                                    |> next (Focus (0,(0,1)))
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Close (Tab ( 0, ( 0, 1 ) )))
+                                    |> Tuple.first
+                                    |> .focused
+                                )
+                    , test "the nearest is visible" <|
+                        \_ ->
+                            Expect.equal
+                                (Just 2)
+                                (update (New simpleVentana) m -- 0 0 0
+                                    |> next (New simpleVentana) -- 0 0 1
+                                    |> next (New simpleVentana) -- 0 0 2
+                                    |> next (Move Down) -- 0 3 0
+                                    |> next (New simpleVentana) -- 0 3 4
+                                    |> next (New simpleVentana) -- 0 3 5
+                                    |> next Unlock
+                                    |> next (Focus (0,(0,1)))
+                                    |> next (Close (Tab ( 0, ( 0, 1 ) )))
+                                    |> Tuple.first
+                                    |> .visVentanas
+                                    |> Dict.get ( 0, 0 )
+                                )
+                    , test "the focused is visible" <|
+                        \_ ->
+                            Expect.equal
+                                (Just 0)
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next (Move Down)
+                                    |> next (New simpleVentana)
+                                    |> next (New simpleVentana)
+                                    |> next Unlock
+                                    |> next (Focus (0,(0,1)))
+                                    |> next (Close (Tab ( 0, ( 0, 1 ) )))
+                                    |> Tuple.first
+                                    |> .visVentanas
+                                    |> Dict.get ( 0, 3 )
+                                )
+                    ]
+                ]
+            ]
+        ]
+
+
+next : Msg -> ( Model, Cmd Msg ) -> ( Model, Cmd Msg )
+next msg ( model, _ ) =
+    update msg model
