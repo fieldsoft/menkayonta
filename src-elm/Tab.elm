@@ -227,7 +227,6 @@ update msg model =
                             , ventanas = Dict.singleton tp ventana
                             , visVentanas = visInsert tp Dict.empty
                             , focused = Just tp
-                            , focusHistory = [ tp ]
                             , focusLock = Just tp
                         }
                 in
@@ -286,6 +285,10 @@ update msg model =
                                     , visVentanas =
                                         visible
                                     , focused =
+                                        focused
+                                    , focusHistory =
+                                        tp1 :: model.focusHistory
+                                    , focusLock =
                                         focused
                                 }
                 in
