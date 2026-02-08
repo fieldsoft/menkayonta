@@ -139,6 +139,15 @@ defVParams =
     }
 
 
+{-| There is too much overhead in managing some types of information
+if the tab can be cloned. It is better to simply forbid some kinds of
+cloning. These are matched against vista identifiers.
+-}
+dontClone : List String
+dontClone =
+    [ "FORM:" ]
+
+
 initData : Dict String Vista -> Model
 initData globalVistas =
     { counter = 0
@@ -302,13 +311,26 @@ update msg model =
                     model.focused
                         |> Maybe.andThen
                             (\tp -> Dict.get tp model.ventanas)
+
+                idPatternMatch ventana_ =
+                    List.any
+                        (\x -> String.startsWith x ventana_.vista)
+                        dontClone
+
+                noClone ventana_ =
+                    idPatternMatch ventana_
+                        || List.member ventana_.vista model.globalVistas
             in
             case ventana of
                 Nothing ->
                     ( model, Cmd.none )
 
                 Just v ->
-                    ( model, sendMsg (New v) )
+                    if noClone v then
+                        ( model, Cmd.none )
+
+                    else
+                        ( model, sendMsg (New v) )
 
         Move dir ->
             {- If there is more than one tab, and one is focused,
@@ -770,10 +792,10 @@ visInsert tp vv =
 visRemove : Path -> VisVentanas -> VisVentanas
 visRemove tp vis =
     let
-        (c, (r, i)) =
+        ( c, ( r, i ) ) =
             tp
     in
-    Dict.filter (\(c1,r1) i1 -> not (c1 == c && r1== r && i1 ==i)) vis
+    Dict.filter (\( c1, r1 ) i1 -> not (c1 == c && r1 == r && i1 == i)) vis
 
 
 visToList : VisVentanas -> List Path
