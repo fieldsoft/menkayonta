@@ -1377,7 +1377,10 @@ viewTabListItem tp ventana =
     Html.li []
         [ Html.a
             [ Attr.href "#"
-            , Event.onClick <| Tab <| Tab.Goto tp
+            , Event.onClick <| MultiMsg
+                [ Tab <| Tab.Select tp
+                , Tab <| Tab.Goto tp
+                ]
             , Attr.class "secondary"
             ]
             [ Html.text ventana.fullTitle ]
