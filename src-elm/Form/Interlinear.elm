@@ -307,7 +307,15 @@ update msg model =
         translationsValid translations_ =
             translations_
                 |> List.map
-                    (\x -> [ x.translation.valid, x.judgment.valid ])
+                    (\x ->
+                         -- The translations are not required. So, any
+                         -- deleted translation is valid.
+                         if x.deleted then
+                             [ True ]
+
+                         else
+                             [ x.translation.valid, x.judgment.valid ]
+                    )
                 |> List.concat
                 |> List.all identity
 
@@ -669,7 +677,9 @@ update msg model =
                                 ntranslations =
                                     prefix ++ (ntranslation :: suffix)
                             in
-                            ( validate { model | translations = ntranslations }
+                            ( validate { model
+                                           | translations = ntranslations
+                                       }
                             , Cmd.none
                             )
 
