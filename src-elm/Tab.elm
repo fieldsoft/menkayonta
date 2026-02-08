@@ -765,11 +765,15 @@ visInsert tp vv =
     Dict.insert ( tcolumn tp, trow tp ) (ttab tp) vv
 
 
-{-| Insert a tab into VisVentanas
+{-| Remove a tab from VisVentanas
 -}
 visRemove : Path -> VisVentanas -> VisVentanas
-visRemove tp vv =
-    Dict.remove ( tcolumn tp, trow tp ) vv
+visRemove tp vis =
+    let
+        (c, (r, i)) =
+            tp
+    in
+    Dict.filter (\(c1,r1) i1 -> not (c1 == c && r1== r && i1 ==i)) vis
 
 
 visToList : VisVentanas -> List Path
