@@ -649,7 +649,8 @@ closeAll vista model =
         |> List.foldl (closeTab False) model
 
 
-{-| Assign a ventana to a new tab.
+{-| Assign a ventana to a new tab. The assumption is that the ventana
+will be focused. This may change in the future.
 -}
 reassign : Path -> Path -> Model -> Model
 reassign old new model =
@@ -661,15 +662,8 @@ reassign old new model =
             Dict.get old model.ventanas
                 |> Maybe.map (\v -> Dict.insert new v closed.ventanas)
                 |> Maybe.withDefault closed.ventanas
-
-        visVentanas =
-            visInsert new closed.visVentanas
     in
-    { closed
-        | ventanas = ventanas
-        , visVentanas = visVentanas
-        , focused = Just new
-    }
+    focus new  { closed | ventanas = ventanas }
 
 
 {-| Attempts to find the integer after the current one in a list and
