@@ -164,8 +164,8 @@ update msg model =
             )
 
         Select tp ->
-            (focus tp model, Cmd.none)
-                
+            ( focus tp model, Cmd.none )
+
         Change Search tp str ->
             case Dict.get tp model.ventanas of
                 Just ventana ->
@@ -465,47 +465,55 @@ createNecessary dir tp ( cols, rows ) =
 
 {-| Return the Tab.Paths for the tabs in the same row.
 -}
-sharesRow : Path -> Ventanas -> List Path
-sharesRow tp ventanas =
+sharesRow : Path -> List Path -> List Path
+sharesRow tp tabs =
     let
-        matchrow tp2 =
-            trow tp == trow tp2 && tp /= tp2
+        tabs_ =
+            LE.remove tp tabs
+
+        ( column, ( row, tab ) ) =
+            tp
     in
-    List.filter matchrow (Dict.keys ventanas)
+    List.filter (sameRow tp) tabs_
 
 
-{-| This uses vector distance to find a new focused item. It is called
-in instances such as the closing of a tab. The idea is that some
-tab should become open and focused when the focused one
-closes. Intuitively, this should be the one that is nearest the
-closed tab.
+sameRow : Path -> Path -> Bool
+sameRow ( c1, ( r1, _ ) ) ( c2, ( r2, _ ) ) =
+    c1 == c2 && r1 == r2
+
+
+{-| This uses vector distance to find the tab nearest another. It is
+called in instances such as the closing of a tab. The idea is that
+some tab should become open and/or focused when another is
+closed. Intuitively, this should be the one that is nearest the closed
+tab.
 -}
-nearest : Path -> Ventanas -> VisVentanas -> Maybe Path
-nearest tp ventanas visVentanas =
+nearest : Path -> List Path -> Maybe Path
+nearest tp tabs =
     let
+        -- ensure the path is not in the list
+        tabs_ =
+            LE.remove tp tabs
+
+        -- a function to convert a path to a vector
         toV3 ( column, ( row, tab ) ) =
             V3.vec3 (toFloat column) (toFloat row) (toFloat tab)
 
+        -- the provided path as a vector
         vp =
             toV3 tp
 
+        -- a function to find the tab that is least distant
         nearest_ tps =
             List.map (\t -> ( V3.distance (toV3 t) vp, t )) tps
                 |> List.minimum
                 |> Maybe.map Tuple.second
-                |> (\t ->
-                        if t == Just tp then
-                            Nothing
-
-                        else
-                            t
-                   )
     in
-    case sharesRow tp ventanas of
+    case sharesRow tp tabs_ of
         [] ->
-            -- There is a preference for remaining in the same row.
-            nearest_ (visRemove tp visVentanas |> visToList)
+            nearest_ tabs_
 
+        -- There is a preference for remaining in the same row.
         tps ->
             nearest_ tps
 
@@ -519,19 +527,17 @@ closeTab closevista tp model =
         ( column, ( row, tab ) ) =
             tp
 
+        -- Was the tab a visible tab?
         wasVisible =
             Just tab == Dict.get ( column, row ) model.visVentanas
 
+        -- Was the tab focused?
         wasFocused =
             model.focused == Just tp
 
-        -- There is a possibility that the closed tab was in a row
-        -- that now has no visible members. Ensure that one member is
-        -- visible.
-        rowMates =
-            List.filter
-                (\( c, ( r, _ ) ) -> column == c && row == r)
-                (Dict.keys model.ventanas)
+        -- ventans without closed tab
+        ventanas =
+            Dict.remove tp model.ventanas
 
         -- The history with the closed tab excluded.
         newHistory =
@@ -541,16 +547,12 @@ closeTab closevista tp model =
 
         -- The closest tab to the closed tab.
         near =
-            nearest tp model.ventanas model.visVentanas
+            nearest tp (Dict.keys ventanas)
 
         -- The remaining visible ventanas if the current one has been
         -- removed.
         notClosed =
-            if wasVisible then
-                visRemove tp model.visVentanas
-
-            else
-                model.visVentanas
+            visRemove tp model.visVentanas
 
         -- visVentanas with the nearest visible
         nearvis =
@@ -561,56 +563,21 @@ closeTab closevista tp model =
                 |> Maybe.withDefault notClosed
 
         -- Calculate new values for these variables.
-        ( visible, ( focused, history ) ) =
+        ( visible, focused, history ) =
             if wasVisible then
                 if wasFocused then
-                    if List.length rowMates > 0 then
-                        let
-                            -- The visible tabs are dependent on the
-                            -- newly focused item. For `nearvis` the
-                            -- calculated focus item and the
-                            -- previously calculated visible tabs are
-                            -- expected to be compatible, since the
-                            -- nearest is the same in both
-                            -- cases. Here, an entirely different
-                            -- focus item has been picked from the
-                            -- history.
-                            ( f, h ) =
-                                historyFocusCalc
+                    case newHistory of
+                        f :: h ->
+                            ( visInsert f nearvis, Just f, h )
 
-                            -- The default here should be safe,
-                            -- despite being wrong, because the `>`
-                            -- test above should ensure that focused
-                            -- item is not `Nothing`.
-                            vis =
-                                ME.unwrap
-                                    notClosed
-                                    (\t -> visInsert t notClosed)
-                                    f
-                        in
-                        ( vis, ( f, h ) )
-
-                    else
-                        ( nearvis, historyFocusCalc )
-
-                else if List.length rowMates > 0 then
-                    ( nearvis, ( model.focused, newHistory ) )
+                        [] ->
+                            ( nearvis, near, [] )
 
                 else
-                    ( notClosed, ( model.focused, newHistory ) )
+                    ( nearvis, model.focused, newHistory )
 
             else
-                ( notClosed, ( model.focused, newHistory ) )
-
-        -- Use the value from the focus history if one is
-        -- there. Otherwise, calculate the nearest.
-        historyFocusCalc =
-            case newHistory of
-                t :: rest ->
-                    ( Just t, rest )
-
-                [] ->
-                    ( near, [] )
+                ( notClosed, model.focused, newHistory )
 
         gvistas =
             model.globalVistas
