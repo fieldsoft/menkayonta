@@ -173,7 +173,12 @@ update msg model =
             )
 
         Select tp ->
-            ( focus tp model, Cmd.none )
+            case Dict.get tp model.ventanas of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just _ ->
+                    ( focus tp model, Cmd.none )
 
         Change Search tp str ->
             case Dict.get tp model.ventanas of

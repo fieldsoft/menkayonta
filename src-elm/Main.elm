@@ -1345,7 +1345,7 @@ viewTab model tp =
             , ( "tab-view", True )
             ]
         ]
-        [ Html.div []
+        [ Html.div [ Event.onClick (Tab <| Tab.Select tp)]
             [ Dict.get tp model.tabs.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.tabs.vistas)
                 |> Maybe.map (viewVista model tp)
