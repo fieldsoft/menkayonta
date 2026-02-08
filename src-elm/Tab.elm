@@ -298,7 +298,7 @@ update msg model =
         Close Focused ->
             let
                 tp =
-                    Maybe.withDefault (tabpath -1 -1 -1) <| model.focused
+                    Maybe.withDefault (tabpath -1 -1 -1) model.focused
             in
             ( closeTab True tp model, Cmd.none )
 
