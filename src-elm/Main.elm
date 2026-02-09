@@ -985,10 +985,18 @@ update msg model =
                     , content = Content.ITE int
                     }
 
+                key =
+                    getProjectKey (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
+                title =
+                    getProjectTitle (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
                 ventana : Ventana
                 ventana =
-                    { title = "New Gloss"
-                    , fullTitle = "New Gloss"
+                    { title = key ++ ": New Gloss"
+                    , fullTitle = title ++ ": New Gloss"
                     , vista = id
                     , params =
                         { length = 0
@@ -1170,47 +1178,48 @@ prepInterlinearSave int project me time =
 
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
 handleVista vista short full model =
-    case getProjectKey vista.project model of
+    let
+        key =
+            getProjectKey vista.project model
+                |> Maybe.withDefault ""
+                           
+        title =
+            getProjectTitle vista.project model
+                |> Maybe.withDefault ""
+                           
+        vistas =
+            Dict.insert vista.identifier vista model.tabs.vistas
+
+        loading =
+            if vista.kind /= "interlinear" then
+                Set.remove vista.project model.loading
+
+            else
+                model.loading
+
+        tabs =
+            model.tabs
+
+        newmodel =
+            { model
+                | tabs = { tabs | vistas = vistas }
+                , loading = loading
+            }
+    in
+    case getByVista vista.identifier model.tabs.ventanas of
         Nothing ->
-            ( { model | error = "No such project" }
-            , Cmd.none
-            )
-
-        Just key ->
             let
-                vistas =
-                    Dict.insert vista.identifier vista model.tabs.vistas
-
-                loading =
-                    if vista.kind /= "interlinear" then
-                        Set.remove vista.project model.loading
-
-                    else
-                        model.loading
-
-                tabs =
-                    model.tabs
-
-                newmodel =
-                    { model
-                        | tabs = { tabs | vistas = vistas }
-                        , loading = loading
+                vt =
+                    { title = key ++ ": " ++ short
+                    , fullTitle = title ++ ": " ++ full
+                    , vista = vista.identifier
+                    , params = { defVParams | length = 20 }
                     }
             in
-            case getByVista vista.identifier model.tabs.ventanas of
-                Nothing ->
-                    let
-                        vt =
-                            { title = key ++ ": " ++ short
-                            , fullTitle = key ++ ": " ++ full
-                            , vista = vista.identifier
-                            , params = { defVParams | length = 20 }
-                            }
-                    in
-                    ( newmodel, sendMsg (Tab <| Tab.New vt) )
+            ( newmodel, sendMsg (Tab <| Tab.New vt) )
 
-                Just tp ->
-                    ( newmodel, sendMsg (Tab <| Tab.Focus tp) )
+        Just tp ->
+            ( newmodel, sendMsg (Tab <| Tab.Focus tp) )
 
 
 subscriptions : Model -> Sub Msg
