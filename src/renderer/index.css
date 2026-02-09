@@ -41,22 +41,19 @@ main {
 }
 
 .multiple-columns .tab-column {
-    display: flex;
     flex: 1 0 700px;
     flex-direction: column;
 }
 
 .multiple-rows .tab-column {
+    display: grid;
+    grid-template-columns: auto;
     max-height: 95dvh;
 }
 
 .multiple-rows .tab-row {
     resize: vertical;
     overflow-y: scroll;
-}
-
-.multiple-rows .tab-row:last-child {
-    resize: none;
 }
 
 /* The tab navigation area */
