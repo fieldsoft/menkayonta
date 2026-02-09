@@ -94,8 +94,12 @@ button.focused {
     padding: 1rem;
 }
 
-.all-glosses {
-    padding: 2em;
+ul.all-glosses {
+    padding-left: 0;
+}
+
+ul.all-glosses li {
+    list-style-type: none;
 }
 
 .gloss-column {
@@ -136,4 +140,8 @@ div.hidden {
 
 .filters {
     max-width: 30em;
+}
+
+.aligned-glosses {
+    text-indent: 3em hanging each-line;
 }

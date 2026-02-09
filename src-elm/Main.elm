@@ -1602,7 +1602,7 @@ viewVista model tp vista =
                             []
                         ]
                     ]
-                , Html.ol [ Attr.class "all-glosses" ]
+                , Html.ul [ Attr.class "all-glosses" ]
                     (List.map (viewInterlinearIndexItem vista.project) is)
                 ]
 
@@ -1817,17 +1817,21 @@ viewDescription description =
 viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearIndexItem proj int =
     Html.li []
-        [ viewInterlinearItem proj int
-        , Html.a
-            [ Attr.href "#"
-            , Event.onClick <|
-                RequestAllDocId proj <|
-                    String.join ""
-                        [ "interlinear/"
-                        , UUID.toString int.id
-                        ]
-            ]
-            [ Html.text "Open" ]
+        [ Html.article []
+              [ viewInterlinearItem proj int
+              , Html.footer []
+                     [ Html.a
+                           [ Attr.href "#"
+                           , Event.onClick <|
+                               RequestAllDocId proj <|
+                                   String.join ""
+                                       [ "interlinear/"
+                                       , UUID.toString int.id
+                                       ]
+                           ]
+                           [ Html.text "View" ]
+                     ]
+              ]
         ]
 
 
@@ -1857,13 +1861,18 @@ viewAnn jdg src brk gls =
             "" :: String.split " " brk
 
         gls_ =
-            "" :: String.split " " gls
+            if String.isEmpty gls then
+                "" :: List.repeat ((List.length src_) - 1) "—"
+
+            else
+                "" :: String.split " " gls
 
         aligned =
+            
             LE.zip3 src_ brk_ gls_
     in
     List.map viewGlossTriple aligned
-        |> Html.div [ Attr.class "aligned-glosses" ]
+        |> Html.p [ Attr.class "aligned-glosses" ]
 
 
 viewGlossTriple : ( String, String, String ) -> Html.Html Msg
