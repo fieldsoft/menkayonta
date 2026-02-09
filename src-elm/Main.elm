@@ -1818,24 +1818,26 @@ viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearIndexItem proj int =
     Html.li []
         [ viewInterlinearItem proj int
-        , Html.a
-            [ Attr.href "#"
-            , Attr.class "nav-link"
-            , Event.onClick <|
-                RequestAllDocId proj <|
-                    String.join ""
-                        [ "interlinear/"
-                        , UUID.toString int.id
-                        ]
+        , Html.div [ Attr.class "gloss-controls" ]
+            [ Html.a
+                  [ Attr.href "#"
+                  , Attr.class "nav-link"
+                  , Event.onClick <|
+                      RequestAllDocId proj <|
+                          String.join ""
+                              [ "interlinear/"
+                              , UUID.toString int.id
+                              ]
+                  ]
+                  [ Html.text "View" ]
+            , Html.a
+                  [ Attr.href "#"
+                  , Attr.class "nav-link"
+                  , Event.onClick <|
+                      EditInterlinear int.id int
+                  ]
+                  [ Html.text "Edit" ]
             ]
-            [ Html.text "View" ]
-        , Html.a
-            [ Attr.href "#"
-            , Attr.class "nav-link"
-            , Event.onClick <|
-                EditInterlinear int.id int
-            ]
-            [ Html.text "Edit" ]
         ]
 
 

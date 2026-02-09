@@ -139,7 +139,7 @@ div.hidden {
 
 .aligned-glosses {
     text-indent: -1em;
-    padding-left: 1em;
+    padding-left: 1.5em;
 }
 
 .gloss-column {
@@ -154,4 +154,8 @@ div.hidden {
 
 .nav-link {
     padding: 0.5em;
+}
+
+.gloss-controls {
+    text-align: right;
 }
