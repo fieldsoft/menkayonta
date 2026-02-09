@@ -102,11 +102,6 @@ ul.all-glosses li {
     list-style-type: none;
 }
 
-.gloss-column {
-    display: inline-table;
-    padding: 0.25em;
-}
-
 .docview {
     padding: 1rem;
 }
@@ -143,5 +138,13 @@ div.hidden {
 }
 
 .aligned-glosses {
-    text-indent: 3em hanging each-line;
+    text-indent: -1em;
+    padding-left: 1em;
 }
+
+.gloss-column {
+    display: inline-table;
+    padding: 0.25em;
+    text-indent: 0;
+}
+
