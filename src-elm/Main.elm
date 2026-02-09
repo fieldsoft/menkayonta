@@ -1182,11 +1182,11 @@ handleVista vista short full model =
         key =
             getProjectKey vista.project model
                 |> Maybe.withDefault ""
-                           
+
         title =
             getProjectTitle vista.project model
                 |> Maybe.withDefault ""
-                           
+
         vistas =
             Dict.insert vista.identifier vista model.tabs.vistas
 
@@ -1318,13 +1318,13 @@ view model =
             Html.div
                 [ Attr.id "content"
                 , Attr.classList
-                      [ ("multiple-columns"
-                        , columnCount (Dict.keys model.tabs.ventanas) > 1
-                        )
-                      , ("multiple-rows"
-                        , multipleRows (Dict.keys model.tabs.ventanas)
-                        )
-                      ]
+                    [ ( "multiple-columns"
+                      , columnCount (Dict.keys model.tabs.ventanas) > 1
+                      )
+                    , ( "multiple-rows"
+                      , multipleRows (Dict.keys model.tabs.ventanas)
+                      )
+                    ]
                 ]
                 (Dict.map (viewColumn model) tabtree
                     |> Dict.toList
@@ -1817,21 +1817,25 @@ viewDescription description =
 viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearIndexItem proj int =
     Html.li []
-        [ Html.article []
-              [ viewInterlinearItem proj int
-              , Html.footer []
-                     [ Html.a
-                           [ Attr.href "#"
-                           , Event.onClick <|
-                               RequestAllDocId proj <|
-                                   String.join ""
-                                       [ "interlinear/"
-                                       , UUID.toString int.id
-                                       ]
-                           ]
-                           [ Html.text "View" ]
-                     ]
-              ]
+        [ viewInterlinearItem proj int
+        , Html.a
+            [ Attr.href "#"
+            , Attr.class "nav-link"
+            , Event.onClick <|
+                RequestAllDocId proj <|
+                    String.join ""
+                        [ "interlinear/"
+                        , UUID.toString int.id
+                        ]
+            ]
+            [ Html.text "View" ]
+        , Html.a
+            [ Attr.href "#"
+            , Attr.class "nav-link"
+            , Event.onClick <|
+                EditInterlinear int.id int
+            ]
+            [ Html.text "Edit" ]
         ]
 
 
@@ -1839,48 +1843,65 @@ viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearItem proj int =
     let
         srcLine =
+            Html.span [ Attr.class "gloss-source-text" ]
+                [ Html.text (int.ann.judgment ++ " " ++ int.text) ]
+
+        annLines =
             if int.ann.breaks /= "" then
-                viewAnn int.ann.judgment int.text int.ann.breaks int.ann.glosses
+                viewAnn int.ann.breaks int.ann.glosses
 
             else
-                Html.p [] [ Html.text (int.ann.judgment ++ " " ++ int.text) ]
+                Html.text ""
+
+        transLine tr =
+            String.join ""
+                [ tr.judgment
+                , " "
+                , "'"
+                , tr.translation
+                , "'"
+                ]
 
         transLines =
-            List.map (\t -> Html.p [] [ Html.text t.translation ]) (Dict.values int.translations)
+            List.map
+                (\t ->
+                    Html.p []
+                        [ Html.text (transLine t) ]
+                )
+                (Dict.values int.translations)
     in
-    Html.div [] (srcLine :: transLines)
+    Html.article []
+        [ Html.header [] [ srcLine ]
+        , annLines
+        , Html.footer [] transLines
+        ]
 
 
-viewAnn : String -> String -> String -> String -> Html.Html Msg
-viewAnn jdg src brk gls =
+viewAnn : String -> String -> Html.Html Msg
+viewAnn brk gls =
     let
-        src_ =
-            jdg :: String.split " " src
-
         brk_ =
-            "" :: String.split " " brk
+            String.split " " brk
 
         gls_ =
             if String.isEmpty gls then
-                "" :: List.repeat ((List.length src_) - 1) "—"
+                List.repeat (List.length brk_) "—"
 
             else
-                "" :: String.split " " gls
+                String.split " " gls
 
         aligned =
-            
-            LE.zip3 src_ brk_ gls_
+            LE.zip brk_ gls_
     in
-    List.map viewGlossTriple aligned
+    List.map viewGlosses aligned
         |> Html.p [ Attr.class "aligned-glosses" ]
 
 
-viewGlossTriple : ( String, String, String ) -> Html.Html Msg
-viewGlossTriple ( a, b, c ) =
+viewGlosses : ( String, String ) -> Html.Html Msg
+viewGlosses ( a, b ) =
     Html.div [ Attr.class "gloss-column" ]
         [ Html.div [] [ Html.text a ]
         , Html.div [] [ Html.text b ]
-        , Html.div [] [ Html.text c ]
         ]
 
 

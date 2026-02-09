@@ -148,3 +148,10 @@ div.hidden {
     text-indent: 0;
 }
 
+.gloss-source-text {
+    font-size: 110%;
+}
+
+.nav-link {
+    padding: 0.5em;
+}
