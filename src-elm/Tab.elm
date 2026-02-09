@@ -12,6 +12,7 @@ module Tab exposing
     , Vista
     , Vistas
     , columnCount
+    , multipleRows
     , defVParams
     , getByVista
     , initData
@@ -902,4 +903,21 @@ columnCount tabs =
     in
     List.foldl accCol Set.empty tabs
         |> Set.size
+
            
+multipleRows : List Path -> Bool
+multipleRows tabs =
+    let
+        accRow : Path -> Dict Int (Set Int) -> Dict Int (Set Int)
+        accRow (c, (r, _)) acc =
+            case Dict.get c acc of
+                Nothing ->
+                    Dict.insert c (Set.insert r Set.empty) acc
+
+                Just rows ->
+                    Dict.insert c (Set.insert r rows) acc
+    in
+    List.foldl accRow Dict.empty tabs
+        |> Dict.filter (\k v -> Set.size v > 1)
+        |> Dict.isEmpty
+        |> not

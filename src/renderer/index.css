@@ -36,15 +36,18 @@ main {
     min-width: 700px;
 }
 
+.tab-row {
+    flex: 1 1 auto;
+}
+
 .multiple-columns .tab-column {
-    max-height: 95dvh;
     display: flex;
     flex: 1 0 700px;
     flex-direction: column;
 }
 
-.tab-row {
-    flex: 1 1 auto;
+.multiple-rows .tab-column {
+    max-height: 95dvh;
 }
 
 .multiple-rows .tab-row {

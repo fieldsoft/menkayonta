@@ -35,6 +35,7 @@ import Tab
         , columnCount
         , defVParams
         , getByVista
+        , multipleRows
         , pathToString
         , tabpath
         , treeifyTabs
@@ -1310,6 +1311,9 @@ view model =
                 , Attr.classList
                       [ ("multiple-columns"
                         , columnCount (Dict.keys model.tabs.ventanas) > 1
+                        )
+                      , ("multiple-rows"
+                        , multipleRows (Dict.keys model.tabs.ventanas)
                         )
                       ]
                 ]
