@@ -701,7 +701,7 @@ update msg model =
                                     let
                                         full =
                                             String.join " "
-                                                [ "Gloss: ", i.text ]
+                                                [ "Gloss:", i.text ]
 
                                         short =
                                             if String.length i.text > 5 then
@@ -1170,13 +1170,13 @@ prepInterlinearSave int project me time =
 
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
 handleVista vista short full model =
-    case getProjectTitle vista.project model of
+    case getProjectKey vista.project model of
         Nothing ->
             ( { model | error = "No such project" }
             , Cmd.none
             )
 
-        Just title ->
+        Just key ->
             let
                 vistas =
                     Dict.insert vista.identifier vista model.tabs.vistas
@@ -1201,8 +1201,8 @@ handleVista vista short full model =
                 Nothing ->
                     let
                         vt =
-                            { title = title ++ ": " ++ short
-                            , fullTitle = title ++ ": " ++ full
+                            { title = key ++ ": " ++ short
+                            , fullTitle = key ++ ": " ++ full
                             , vista = vista.identifier
                             , params = { defVParams | length = 20 }
                             }
@@ -1898,6 +1898,22 @@ getProjectTitle projid model =
     in
     LE.find (\x -> Just x.identifier == projuuid) projects
         |> Maybe.map .title
+
+
+getProjectKey : String -> Model -> Maybe String
+getProjectKey projid model =
+    let
+        projuuid =
+            UUID.fromString projid |> Result.toMaybe
+
+        projects =
+            Maybe.withDefault
+                { email = Nothing, name = Nothing, projects = [] }
+                model.gconfig
+                |> .projects
+    in
+    LE.find (\x -> Just x.identifier == projuuid) projects
+        |> Maybe.map .key
 
 
 reduceDoc : Envelope -> Result D.Error M.OneDoc
