@@ -11,6 +11,7 @@ module Tab exposing
     , VisVentanas
     , Vista
     , Vistas
+    , columnCount
     , defVParams
     , getByVista
     , initData
@@ -663,7 +664,7 @@ reassign old new model =
                 |> Maybe.map (\v -> Dict.insert new v closed.ventanas)
                 |> Maybe.withDefault closed.ventanas
     in
-    focus new  { closed | ventanas = ventanas }
+    focus new { closed | ventanas = ventanas }
 
 
 {-| Attempts to find the integer after the current one in a list and
@@ -890,3 +891,15 @@ focusWhenUnlocked tp model =
 
         Just _ ->
             model
+
+
+columnCount : List Path -> Int
+columnCount tabs =
+    let
+        accCol : Path -> Set Int -> Set Int
+        accCol (c, _) acc =
+            Set.insert c acc
+    in
+    List.foldl accCol Set.empty tabs
+        |> Set.size
+           

@@ -8,96 +8,21 @@
     --pico-form-element-spacing-horizontal: 0.5em;
 }
 
-body {
-    counter-reset: tokenblock;
+/* main contains the sidebar and content */
+main {
+    display: flex;
 }
 
-.section-number::after {
-    content: ". ";
+/* content contains 0 or more `.tab-column`s */
+#content {
+    display: flex;
 }
 
-span.task-status {
-    font-size: 80%;
-}
-
-.task-status {
-    margin-right: 0.5em;
-}
-
-org-note img {
-    width: 50%;
-}
-
-.invalid-true {
-    color: var(--pico-del-color);
-}
-
-.invalid-false {
-    color: var(--pico-ins-color);
-}
-
-.edit-controls button {
-    background-color: var(--pico-card-background-color);
-    border: none;
-    margin: 0;
-    padding: 0 0.25em;
-}
-
-h2 button {
-    margin-left: 1rem;
-}
-
-.whitespace {
-    white-space: pre-wrap;
-}
-
-.editing-token {
-    background-color: green;
-}
-
-.editing-range {
-    background-color: darkgreen;
-}
-
-.token-block {
-    counter-increment: tokenblock;
-}
-
-.token-line::before {
-    counter-increment: tokenline;
-    content: counter(tokenblock) "." counter(tokenline) " ";
-}
-
-.grid-with-side {
-    counter-reset: tokenline;
-    display: grid;
-    grid-template-columns: 1fr 5fr;
-    grid-column-gap: 0.5rem;
-}
-
-.token-edit-bar {
-    display: grid;
-    grid-template-columns: 8fr 1fr 1fr;
-}
-
-details {
-    cursor: default;
-}
-
-.tag {
-    background-color: var(--pico-contrast-background);
-    color: var(--pico-contrast-inverse);
-    margin: 0.25rem;
-    padding: 0.1rem;
-    border-radius: 4px;
-    display: inline-block;
-}
-
-.quiet {
-    background-color: var(--pico-background-color);
-}
-
-aside {
+/* The sidebar. */
+.side {
+    width: 200px;
+    min-width: 200px;
+    max-width: 200px;
     padding: 1em;
 }
 
@@ -106,19 +31,35 @@ aside {
     text-orientation: mixed;
 }
 
-div.focused {
-    border: solid;
-    border-width: 1px;
-    border-radius: 4px;
+/* Row and column containers. */
+.tab-column {
+    min-width: 700px;
 }
 
+.multiple-columns .tab-column {
+    max-height: 95dvh;
+    display: flex;
+    flex: 1 0 700px;
+    flex-direction: column;
+}
+
+.tab-row {
+    flex: 1 1 auto;
+}
+
+.multiple-rows .tab-row {
+    resize: vertical;
+    overflow-y: scroll;
+}
+
+.multiple-rows .tab-row:last-child {
+    resize: none;
+}
+
+/* The tab navigation area */
 button.focused {
     font-weight: bold;
     text-decoration-line: underline;
-}
-
-div.hidden {
-    display: none;
 }
 
 .tab-header {
@@ -147,23 +88,7 @@ div.hidden {
     text-decoration: none;
 }
 
-.tab-column {
-    max-width: 800px;
-    min-width: 45rem;
-    max-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-}
-
-.tab-row {
-    flex: 1 1 auto;
-    overflow-y: scroll;
-    resize: vertical;
-}
-
-.tab-row:last-child {
-    resize: none;
-}
+/* Vista internal */
 
 .tab-view {
     padding: 1rem;
@@ -196,11 +121,19 @@ div.hidden {
     width: 40rem;
 }
 
-main {
-    display: flex;
+.tag {
+    background-color: var(--pico-contrast-background);
+    color: var(--pico-contrast-inverse);
+    margin: 0.25rem;
+    padding: 0.1rem;
+    border-radius: 4px;
+    display: inline-block;
 }
 
-#content {
-    display: flex;
-    justify-content: center;
+div.hidden {
+    display: none;
+}
+
+.filters {
+    max-width: 30em;
 }

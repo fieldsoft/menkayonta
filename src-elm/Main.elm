@@ -32,6 +32,7 @@ import Tab
         , VisVentanas
         , Vista
         , Vistas
+        , columnCount
         , defVParams
         , getByVista
         , pathToString
@@ -54,6 +55,7 @@ type alias Model =
     , loading : Set String
     , seeds : UUID.Seeds
     , sideBar : Bool
+    , viewArea : Dimensions
     }
 
 
@@ -68,6 +70,7 @@ type Msg
     | ReceivedAllDoc E.Value
     | ReceivedGlobalConfig E.Value
     | ReceivedInterlinearIndex E.Value
+    | Received ReceiveType
     | RequestAllDocId String String
     | RequestDocId String String
     | RequestInterlinearIndex UUID.UUID
@@ -88,6 +91,23 @@ sendMsg : Msg -> Cmd Msg
 sendMsg msg =
     Task.succeed msg
         |> Task.perform identity
+
+
+type ReceiveType
+    = ViewArea E.Value
+
+
+type alias Dimensions =
+    { length : Int
+    , width : Int
+    }
+
+
+dimensionsDecoder : D.Decoder Dimensions
+dimensionsDecoder =
+    D.map2 Dimensions
+        (D.field "length" D.int)
+        (D.field "width" D.int)
 
 
 type alias Envelope =
@@ -161,10 +181,16 @@ main =
 
 
 type alias Flags =
-    { seed1 : Int
-    , seed2 : Int
-    , seed3 : Int
-    , seed4 : Int
+    { seeds :
+        { seed1 : Int
+        , seed2 : Int
+        , seed3 : Int
+        , seed4 : Int
+        }
+    , dimensions :
+        { length : Int
+        , width : Int
+        }
     }
 
 
@@ -172,10 +198,10 @@ init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
         seeds =
-            { seed1 = Random.initialSeed flags.seed1
-            , seed2 = Random.initialSeed flags.seed2
-            , seed3 = Random.initialSeed flags.seed3
-            , seed4 = Random.initialSeed flags.seed4
+            { seed1 = Random.initialSeed flags.seeds.seed1
+            , seed2 = Random.initialSeed flags.seeds.seed2
+            , seed3 = Random.initialSeed flags.seeds.seed3
+            , seed4 = Random.initialSeed flags.seeds.seed4
             }
 
         ( gmodel, gmsg ) =
@@ -195,6 +221,7 @@ init flags =
       , loading = Set.empty
       , seeds = seeds
       , sideBar = True
+      , viewArea = flags.dimensions
       }
     , Cmd.batch
         [ requestGlobalConfig ()
@@ -234,6 +261,18 @@ update msg model =
             ( { model | tabs = subModel }
             , Cmd.map Tab subCmd
             )
+
+        Received (ViewArea jsonValue) ->
+            case D.decodeValue dimensionsDecoder jsonValue of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok dimensions ->
+                    ( { model | viewArea = dimensions }
+                    , Cmd.none
+                    )
 
         ITE id subMsg ->
             let
@@ -732,10 +771,12 @@ update msg model =
                     model.tabs
 
                 newmodel =
-                    { model | tabs = { tabs
-                                         | vistas = vistas
-                                         , focusLock = Nothing
-                                     }
+                    { model
+                        | tabs =
+                            { tabs
+                                | vistas = vistas
+                                , focusLock = Nothing
+                            }
                     }
             in
             case getByVista "import-options" model.tabs.ventanas of
@@ -784,10 +825,12 @@ update msg model =
                     model.tabs
 
                 newmodel =
-                    { model | tabs = { tabs
-                                         | vistas = vistas
-                                         , focusLock = Nothing
-                                     }
+                    { model
+                        | tabs =
+                            { tabs
+                                | vistas = vistas
+                                , focusLock = Nothing
+                            }
                     }
             in
             case getByVista "global-settings" model.tabs.ventanas of
@@ -895,10 +938,12 @@ update msg model =
                     model.tabs
 
                 newmodel =
-                    { model | tabs = { tabs
-                                         | vistas = vistas
-                                         , focusLock = Nothing
-                                     }
+                    { model
+                        | tabs =
+                            { tabs
+                                | vistas = vistas
+                                , focusLock = Nothing
+                            }
                     }
             in
             case getByVista vistaId model.tabs.ventanas of
@@ -957,12 +1002,12 @@ update msg model =
                     { model
                         | seeds = seeds
                         , tabs =
-                          { tabs
-                              | vistas =
-                                Dict.insert id vista model.tabs.vistas
-                              , focusLock =
-                                Nothing
-                          }
+                            { tabs
+                                | vistas =
+                                    Dict.insert id vista model.tabs.vistas
+                                , focusLock =
+                                    Nothing
+                            }
                     }
             in
             ( newmodel
@@ -1027,10 +1072,12 @@ update msg model =
                             model.tabs
 
                         newmodel =
-                            { model | tabs = { tabs
-                                                 | vistas = vistas
-                                                 , focusLock = Nothing
-                                             }
+                            { model
+                                | tabs =
+                                    { tabs
+                                        | vistas = vistas
+                                        , focusLock = Nothing
+                                    }
                             }
                     in
                     ( newmodel
@@ -1171,6 +1218,7 @@ subscriptions _ =
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedInterlinearIndex ReceivedInterlinearIndex
         , receivedAllDoc ReceivedAllDoc
+        , receivedViewArea (\dimensions -> ViewArea dimensions |> Received)
         , newProject (\_ -> NewProject)
         , importOptions EditImporter
         , globalSettings ShowGlobalSettings
@@ -1217,14 +1265,14 @@ view model =
         [ if model.sideBar then
             Html.aside [ Attr.class "side" ]
                 [ Html.a
-                      [ Attr.href "#"
-                      , Event.onClick ToggleSidebar
-                      , Attr.title "Hide the sidebar"
-                      ]
-                      [ Html.text "Hide"
-                      , Html.hr [] []
-                      ]
-                 , Html.nav []
+                    [ Attr.href "#"
+                    , Event.onClick ToggleSidebar
+                    , Attr.title "Hide the sidebar"
+                    ]
+                    [ Html.text "Hide"
+                    , Html.hr [] []
+                    ]
+                , Html.nav []
                     [ Html.h4 [] [ Html.text "Projects" ]
                     , viewProjects model
                     , if Dict.isEmpty model.tabs.visVentanas then
@@ -1237,15 +1285,14 @@ view model =
                 ]
 
           else
-              Html.aside [ Attr.class "hidden-side" ]
-              [ Html.a
+            Html.aside [ Attr.class "hidden-side" ]
+                [ Html.a
                     [ Attr.href "#"
                     , Event.onClick ToggleSidebar
                     , Attr.title "View the side bar"
                     ]
                     [ Html.text "View Side Bar" ]
-              ]
-              
+                ]
         , if Dict.isEmpty tabtree then
             Html.div
                 []
@@ -1259,7 +1306,13 @@ view model =
 
           else
             Html.div
-                [ Attr.id "content" ]
+                [ Attr.id "content"
+                , Attr.classList
+                      [ ("multiple-columns"
+                        , columnCount (Dict.keys model.tabs.ventanas) > 1
+                        )
+                      ]
+                ]
                 (Dict.map (viewColumn model) tabtree
                     |> Dict.toList
                     |> List.map Tuple.second
@@ -1309,30 +1362,31 @@ viewTabHeader model tp =
         visible =
             visMember tp model.tabs.visVentanas
     in
-    Html.span [ ]
+    Html.span []
         [ Html.button
-              [ Event.onClick (Tab <| Tab.Select tp)
-              , Event.onDoubleClick (Tab <| Tab.Clone)
-              , Attr.id (pathToString tp)
-              , Attr.classList
-                    [ ( "focused", focused )
-                    , ( "secondary", not focused && visible )
-                    , ( "secondary outline", not focused && not visible )
-                    , ( "tab-nav", True )
-                    ]
-              , Attr.title ventana.fullTitle
-              ]
-              [ Html.text ventana.title ]
+            [ Event.onClick (Tab <| Tab.Select tp)
+            , Event.onDoubleClick (Tab <| Tab.Clone)
+            , Attr.id (pathToString tp)
+            , Attr.classList
+                [ ( "focused", focused )
+                , ( "secondary", not focused && visible )
+                , ( "secondary outline", not focused && not visible )
+                , ( "tab-nav", True )
+                ]
+            , Attr.title ventana.fullTitle
+            ]
+            [ Html.text ventana.title ]
         , Html.button
             [ Event.onClick (Tab <| Tab.Close <| Tab.Tab tp)
             , Attr.title "Close this tab"
             , Attr.classList
-                  [ ( "focused", focused )
-                  , ( "secondary", not focused && visible )
-                  , ( "secondary outline", not focused && not visible )
-                  , ( "close-button", True )
-                  ]
-            ] [ Html.text "×" ]
+                [ ( "focused", focused )
+                , ( "secondary", not focused && visible )
+                , ( "secondary outline", not focused && not visible )
+                , ( "close-button", True )
+                ]
+            ]
+            [ Html.text "×" ]
         ]
 
 
@@ -1345,7 +1399,7 @@ viewTab model tp =
             , ( "tab-view", True )
             ]
         ]
-        [ Html.div [ Event.onClick (Tab <| Tab.Select tp)]
+        [ Html.div [ Event.onClick (Tab <| Tab.Select tp) ]
             [ Dict.get tp model.tabs.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.tabs.vistas)
                 |> Maybe.map (viewVista model tp)
@@ -1377,10 +1431,11 @@ viewTabListItem tp ventana =
     Html.li []
         [ Html.a
             [ Attr.href "#"
-            , Event.onClick <| MultiMsg
-                [ Tab <| Tab.Select tp
-                , Tab <| Tab.Goto tp
-                ]
+            , Event.onClick <|
+                MultiMsg
+                    [ Tab <| Tab.Select tp
+                    , Tab <| Tab.Goto tp
+                    ]
             , Attr.class "secondary"
             ]
             [ Html.text ventana.fullTitle ]
@@ -1495,40 +1550,44 @@ viewVista model tp vista =
                     String.fromInt params.length
             in
             Html.div []
-                [ Html.label []
-                    [ Html.text <|
-                        if params.length <= intTotal then
-                            "Show (" ++ len ++ " of " ++ total ++ ")"
+                [ Html.div [ Attr.class "filters" ]
+                    [ Html.label []
+                        [ Html.text <|
+                            if params.length <= intTotal then
+                                "Show (" ++ len ++ " of " ++ total ++ ")"
 
-                        else
-                            "Showing all items."
-                    , Html.input
-                        ([ Attr.type_ "text"
-                         , Attr.placeholder len
-                         , Event.onInput
-                            (\s ->
-                                Tab.Change Tab.Length tp s
-                                    |> Tab
-                            )
-                         ]
-                            ++ (if params.length > 0 then
-                                    [ Attr.value len ]
+                            else
+                                "Showing all items."
+                        , Html.input
+                            ([ Attr.type_ "text"
+                             , Attr.placeholder len
+                             , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Length tp s
+                                        |> Tab
+                                )
+                             ]
+                                ++ (if params.length > 0 then
+                                        [ Attr.value len ]
 
-                                else
-                                    []
-                               )
-                        )
-                        []
-                    , Html.input
-                        [ Attr.type_ "text"
-                        , Attr.value ss
-                        , Event.onInput
-                            (\s ->
-                                Tab.Change Tab.Search tp s
-                                    |> Tab
+                                    else
+                                        []
+                                   )
                             )
+                            []
+                        , Html.input
+                            [ Attr.type_ "text"
+                            , Attr.value ss
+                            , Attr.placeholder "Search"
+                            , Attr.attribute "aria-label" "Search"
+                            , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Search tp s
+                                        |> Tab
+                                )
+                            ]
+                            []
                         ]
-                        []
                     ]
                 , Html.ol [ Attr.class "all-glosses" ]
                     (List.map (viewInterlinearIndexItem vista.project) is)
@@ -1905,6 +1964,11 @@ port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
 
 
 port receivedAllDoc : (E.Value -> msg) -> Sub msg
+
+
+{-| Received information about client area size.
+-}
+port receivedViewArea : (E.Value -> msg) -> Sub msg
 
 
 {-| The "New Project" menu item was clicked.

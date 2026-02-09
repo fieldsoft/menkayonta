@@ -4,11 +4,26 @@ const randomSeeds = crypto.getRandomValues(typedArray)
 const app = window.Elm.Main.init({
   node: document.getElementById('root'),
   flags: {
-    seed1: randomSeeds[0],
-    seed2: randomSeeds[1],
-    seed3: randomSeeds[2],
-    seed4: randomSeeds[3],
+    seeds: {
+      seed1: randomSeeds[0],
+      seed2: randomSeeds[1],
+      seed3: randomSeeds[2],
+      seed4: randomSeeds[3],
+    },
+    dimensions: {
+      length: document.documentElement.clientWidth,
+      width: document.documentElement.clientHeight,
+    },
   },
+})
+
+window.addEventListener('resize', (_event) => {
+  const dimensions = {
+    length: document.documentElement.clientWidth,
+    width: document.documentElement.clientHeight,
+  }
+
+  app.ports.receivedViewArea.send(dimensions)
 })
 
 app.ports.send.subscribe((envelope) => {
