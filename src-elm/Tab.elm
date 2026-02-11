@@ -1,6 +1,5 @@
 module Tab exposing
-    ( CloseType(..)
-    , Direction(..)
+    ( Direction(..)
     , Model
     , Msg(..)
     , Param(..)
@@ -35,7 +34,7 @@ import Task
 
 type Msg
     = Clone
-    | Close CloseType
+    | Close Path
     | Focus Path
     | Goto Path
     | Move Direction
@@ -69,11 +68,6 @@ type alias Model =
 type Param
     = Search
     | Length
-
-
-type CloseType
-    = Focused
-    | Tab Path
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -302,14 +296,7 @@ update msg model =
         Focus tp ->
             ( focusWhenUnlocked tp model, Cmd.none )
 
-        Close Focused ->
-            let
-                tp =
-                    Maybe.withDefault (tabpath -1 -1 -1) model.focused
-            in
-            ( closeTab True tp model, Cmd.none )
-
-        Close (Tab tp) ->
+        Close tp ->
             ( closeTab True tp model, Cmd.none )
 
         Clone ->

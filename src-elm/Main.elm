@@ -295,6 +295,14 @@ update msg model =
                     getByVista id_ model.tabs.ventanas
             in
             case ( maybeVista, maybeTab ) of
+                ( Nothing, _ ) ->
+                    -- Something is wrong. Ignore the message.
+                    ( model, Cmd.none )
+                        
+                ( _, Nothing ) ->
+                    -- Something is wrong. Ignore the message.
+                    ( model, Cmd.none )
+
                 ( Just vista_, Just tp ) ->
                     let
                         oldModel =
@@ -328,7 +336,7 @@ update msg model =
                         Form.Interlinear.Cancel ->
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg closeFocused
+                                [ sendMsg (Tab (Tab.Close tp))
                                 , Cmd.map (ITE id) subCmd
                                 ]
                             )
@@ -343,7 +351,7 @@ update msg model =
                             in
                             ( nmodel
                             , Cmd.batch
-                                [ sendMsg closeFocused
+                                [ sendMsg (Tab (Tab.Close tp))
                                 , Task.perform
                                     (Stamp envelopePart send)
                                     Time.now
@@ -354,219 +362,265 @@ update msg model =
                         _ ->
                             ( nmodel, Cmd.map (ITE id) subCmd )
 
-                _ ->
-                    -- Something is wrong. Ignore the message.
-                    ( model, Cmd.none )
-
         IM subMsg ->
             let
-                oldModel =
-                    Dict.get "import-options" model.tabs.vistas
-                        |> Maybe.map .content
-                        |> (\c ->
-                                case c of
-                                    Just (Content.IM model_) ->
-                                        model_
-
-                                    _ ->
-                                        -- this has no filepath, so it
-                                        -- will do nothing.
-                                        Form.Importer.initData
-                           )
-
-                ( subModel, subCmd ) =
-                    Form.Importer.update subMsg oldModel
-
-                vista =
-                    { importOptionsVista | content = Content.IM subModel }
-
-                vistas =
-                    Dict.insert "import-options" vista model.tabs.vistas
-
-                tabs =
-                    model.tabs
-
-                nmodel =
-                    { model | tabs = { tabs | vistas = vistas } }
+                maybeTab =
+                    getByVista "import-options" model.tabs.ventanas
             in
-            -- For most messages, a pass-through is sufficient. In
-            -- some cases, there are side effects and UI events that
-            -- need to be triggered outside the submodule.
-            case subMsg of
-                Form.Importer.Cancel ->
-                    ( nmodel
-                    , Cmd.batch
-                        [ sendMsg closeFocused
-                        , Cmd.map IM subCmd
-                        ]
-                    )
+            case maybeTab of
+                Nothing ->
+                    ( model, Cmd.none )
 
-                Form.Importer.Import ->
+                Just tp ->
                     let
-                        jsonValue =
-                            E.object
-                                [ ( "filepath"
-                                  , E.string subModel.filepath
-                                  )
-                                , ( "kind"
-                                  , E.string subModel.kind.value
-                                  )
-                                , ( "project"
-                                  , E.string subModel.project.value
-                                  )
-                                ]
-                    in
-                    ( nmodel
-                    , Cmd.batch
-                        [ sendMsg closeFocused
-                        , importFile jsonValue
-                        , Cmd.map IM subCmd
-                        ]
-                    )
+                        oldModel =
+                            Dict.get "import-options" model.tabs.vistas
+                                |> Maybe.map .content
+                                |> (\c ->
+                                        case c of
+                                            Just (Content.IM model_) ->
+                                                model_
 
-                _ ->
-                    ( nmodel, Cmd.map IM subCmd )
+                                            _ ->
+                                                -- this has no
+                                                -- filepath, so it
+                                                -- will do nothing.
+                                                Form.Importer.initData
+                                   )
+
+                        ( subModel, subCmd ) =
+                            Form.Importer.update subMsg oldModel
+
+                        vista =
+                            { importOptionsVista
+                                | content = Content.IM subModel
+                            }
+
+                        vistas =
+                            Dict.insert
+                                "import-options"
+                                vista
+                                model.tabs.vistas
+
+                        tabs =
+                            model.tabs
+
+                        nmodel =
+                            { model | tabs = { tabs | vistas = vistas } }
+                    in
+                    -- For most messages, a pass-through is
+                    -- sufficient. In some cases, there are side
+                    -- effects and UI events that need to be triggered
+                    -- outside the submodule.
+                    case subMsg of
+                        Form.Importer.Cancel ->
+                            ( nmodel
+                            , Cmd.batch
+                                [ sendMsg (Tab (Tab.Close tp))
+                                , Cmd.map IM subCmd
+                                ]
+                            )
+
+                        Form.Importer.Import ->
+                            let
+                                jsonValue =
+                                    E.object
+                                        [ ( "filepath"
+                                          , E.string subModel.filepath
+                                          )
+                                        , ( "kind"
+                                          , E.string subModel.kind.value
+                                          )
+                                        , ( "project"
+                                          , E.string subModel.project.value
+                                          )
+                                        ]
+                            in
+                            ( nmodel
+                            , Cmd.batch
+                                [ sendMsg (Tab (Tab.Close tp))
+                                , importFile jsonValue
+                                , Cmd.map IM subCmd
+                                ]
+                            )
+
+                        _ ->
+                            ( nmodel, Cmd.map IM subCmd )
 
         GF subMsg ->
             let
-                oldModel =
-                    Dict.get "global-settings" model.tabs.vistas
-                        |> Maybe.map .content
-                        |> (\c ->
-                                case c of
-                                    Just (Content.GF model_) ->
-                                        model_
-
-                                    _ ->
-                                        Form.Global.initData
-                           )
-
-                ( subModel, subCmd ) =
-                    Form.Global.update subMsg oldModel
-
-                vista =
-                    { globalSettingsVista | content = Content.GF subModel }
-
-                vistas =
-                    Dict.insert "global-settings" vista model.tabs.vistas
-
-                tabs =
-                    model.tabs
-
-                nmodel =
-                    { model | tabs = { tabs | vistas = vistas } }
+                maybeTab =
+                    getByVista "global-settings" model.tabs.ventanas
             in
-            -- For most messages, a pass-through is sufficient. In
-            -- some cases, there are side effects and UI events that
-            -- need to be triggered outside the submodule.
-            case subMsg of
-                Form.Global.Cancel ->
-                    ( nmodel
-                    , Cmd.batch
-                        [ sendMsg closeFocused
-                        , Cmd.map GF subCmd
-                        ]
-                    )
+            case maybeTab of
+                Nothing ->
+                    ( model, Cmd.none )
 
-                Form.Global.Save ->
+                Just tp ->
                     let
-                        jsonValue =
-                            E.object
-                                [ ( "email"
-                                  , E.string subModel.email.value
-                                  )
-                                , ( "name", E.string subModel.name.value )
-                                ]
-                    in
-                    ( nmodel
-                    , Cmd.batch
-                        [ sendMsg closeFocused
-                        , updateGlobalSettings jsonValue
-                        , Cmd.map GF subCmd
-                        ]
-                    )
+                        oldModel =
+                            Dict.get "global-settings" model.tabs.vistas
+                                |> Maybe.map .content
+                                |> (\c ->
+                                        case c of
+                                            Just (Content.GF model_) ->
+                                                model_
 
-                _ ->
-                    ( nmodel, Cmd.map GF subCmd )
+                                            _ ->
+                                                Form.Global.initData
+                                   )
+
+                        ( subModel, subCmd ) =
+                            Form.Global.update subMsg oldModel
+
+                        vista =
+                            { globalSettingsVista
+                                | content = Content.GF subModel
+                            }
+
+                        vistas =
+                            Dict.insert
+                                "global-settings"
+                                    vista
+                                        model.tabs.vistas
+
+                        tabs =
+                            model.tabs
+
+                        nmodel =
+                            { model | tabs = { tabs | vistas = vistas } }
+                    in
+                    -- For most messages, a pass-through is
+                    -- sufficient. In some cases, there are side
+                    -- effects and UI events that need to be triggered
+                    -- outside the submodule.
+                    case subMsg of
+                        Form.Global.Cancel ->
+                            ( nmodel
+                            , Cmd.batch
+                                  [ sendMsg (Tab (Tab.Close tp))
+                                  , Cmd.map GF subCmd
+                                  ]
+                            )
+
+                        Form.Global.Save ->
+                            let
+                                jsonValue =
+                                    E.object
+                                        [ ( "email"
+                                          , E.string subModel.email.value
+                                          )
+                                        , ( "name"
+                                          , E.string subModel.name.value
+                                          )
+                                        ]
+                            in
+                            ( nmodel
+                            , Cmd.batch
+                                  [ sendMsg (Tab (Tab.Close tp))
+                                  , updateGlobalSettings jsonValue
+                                  , Cmd.map GF subCmd
+                                  ]
+                            )
+
+                        _ ->
+                            ( nmodel, Cmd.map GF subCmd )
 
         PR id subMsg ->
             let
-                vistaId =
-                    "FORM::" ++ UUID.toString id
+                maybeTab =
+                    getByVista "global-settings" model.tabs.ventanas
+            in
+            case maybeTab of
+                Nothing ->
+                    ( model, Cmd.none )
+                        
+                Just tp ->
+                    let
+                        vistaId =
+                            "FORM::" ++ UUID.toString id
 
-                oldVista =
-                    case Dict.get vistaId model.tabs.vistas of
-                        Nothing ->
-                            { project = "global"
-                            , kind = "new-project"
-                            , identifier = vistaId
-                            , content =
-                                Content.PR (Form.Project.initData id)
-                            }
+                        oldVista =
+                            case Dict.get vistaId model.tabs.vistas of
+                                Nothing ->
+                                    { project = "global"
+                                    , kind = "new-project"
+                                    , identifier = vistaId
+                                    , content =
+                                        Content.PR
+                                            (Form.Project.initData id)
+                                    }
 
-                        Just vista_ ->
-                            vista_
+                                Just vista_ ->
+                                    vista_
 
-                oldModel =
-                    case oldVista.content of
-                        Content.PR model_ ->
-                            model_
+                        oldModel =
+                            case oldVista.content of
+                                Content.PR model_ ->
+                                    model_
+
+                                _ ->
+                                    Form.Project.initData id
+
+                        ( subModel, subCmd ) =
+                            Form.Project.update subMsg oldModel
+
+                        vista =
+                            { oldVista | content = Content.PR subModel }
+
+                        vistas =
+                            Dict.insert vistaId vista model.tabs.vistas
+
+                        tabs =
+                            model.tabs
+
+                        nmodel =
+                            { model | tabs = { tabs | vistas = vistas } }
+                    in
+                    -- For most messages, a pass-through is
+                    -- sufficient. In some cases, there are side
+                    -- effects and UI events that need to be triggered
+                    -- outside the submodule.
+                    case subMsg of
+                        Form.Project.Cancel ->
+                            ( nmodel
+                            , Cmd.batch
+                                  [ sendMsg (Tab (Tab.Close tp))
+                                  , Cmd.map (PR id) subCmd
+                                  ]
+                            )
+
+                        Form.Project.Save ->
+                            let
+                                jsonValue =
+                                    E.object
+                                        [ ( "title"
+                                          , E.string subModel.title.value
+                                          )
+                                        , ( "identifier"
+                                          , E.string
+                                                (UUID.toString
+                                                     subModel.identifier
+                                                )
+                                          )
+                                        , ( "url"
+                                          , E.string subModel.url.value
+                                          )
+                                        , ( "key"
+                                          , E.string subModel.key.value
+                                          )
+                                        ]
+                            in
+                            ( nmodel
+                            , Cmd.batch
+                                  [ sendMsg (Tab (Tab.Close tp))
+                                  , updateProject jsonValue
+                                  , Cmd.map (PR id) subCmd
+                                  ]
+                            )
 
                         _ ->
-                            Form.Project.initData id
-
-                ( subModel, subCmd ) =
-                    Form.Project.update subMsg oldModel
-
-                vista =
-                    { oldVista | content = Content.PR subModel }
-
-                vistas =
-                    Dict.insert vistaId vista model.tabs.vistas
-
-                tabs =
-                    model.tabs
-
-                nmodel =
-                    { model | tabs = { tabs | vistas = vistas } }
-            in
-            -- For most messages, a pass-through is sufficient. In
-            -- some cases, there are side effects and UI events that
-            -- need to be triggered outside the submodule.
-            case subMsg of
-                Form.Project.Cancel ->
-                    ( nmodel
-                    , Cmd.batch
-                        [ sendMsg closeFocused
-                        , Cmd.map (PR id) subCmd
-                        ]
-                    )
-
-                Form.Project.Save ->
-                    let
-                        jsonValue =
-                            E.object
-                                [ ( "title"
-                                  , E.string subModel.title.value
-                                  )
-                                , ( "identifier"
-                                  , E.string
-                                        (UUID.toString subModel.identifier)
-                                  )
-                                , ( "url", E.string subModel.url.value )
-                                , ( "key", E.string subModel.key.value )
-                                ]
-                    in
-                    ( nmodel
-                    , Cmd.batch
-                        [ sendMsg closeFocused
-                        , updateProject jsonValue
-                        , Cmd.map (PR id) subCmd
-                        ]
-                    )
-
-                _ ->
-                    ( nmodel, Cmd.map (PR id) subCmd )
+                            ( nmodel, Cmd.map (PR id) subCmd )
 
         SetWindowTitle title ->
             ( model, setWindowTitle title )
@@ -1238,7 +1292,7 @@ handleVista vista short full model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedInterlinearIndex ReceivedInterlinearIndex
@@ -1251,7 +1305,15 @@ subscriptions _ =
         , moveRight_ (\_ -> Tab <| Tab.Move Right)
         , moveUp_ (\_ -> Tab <| Tab.Move Up)
         , moveDown_ (\_ -> Tab <| Tab.Move Down)
-        , closeTab_ (\_ -> closeFocused)
+        , closeTab_
+            (\_ ->
+                case model.tabs.focused of
+                    Nothing ->
+                        None
+
+                    Just tp ->
+                        Tab (Tab.Close tp)
+            )
         , cloneTab_ (\_ -> Tab Tab.Clone)
         , toggleSidebar (\_ -> ToggleSidebar)
         ]
@@ -1405,7 +1467,7 @@ viewTabHeader model tp =
             ]
             [ Html.text ventana.title ]
         , Html.button
-            [ Event.onClick (Tab <| Tab.Close <| Tab.Tab tp)
+            [ Event.onClick (Tab <| Tab.Close tp)
             , Attr.title "Close this tab"
             , Attr.classList
                 [ ( "focused", focused )
@@ -1427,7 +1489,7 @@ viewTab model tp =
             , ( "tab-view", True )
             ]
         ]
-        [ Html.div [ Event.onClick (Tab <| Tab.Select tp) ]
+        [ Html.div []
             [ Dict.get tp model.tabs.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.tabs.vistas)
                 |> Maybe.map (viewVista model tp)
@@ -1986,13 +2048,6 @@ reduceDoc env =
 
         Err e ->
             Err e
-
-
-{-| The `Tab.Close Tab.Focused` message.
--}
-closeFocused : Msg
-closeFocused =
-    Tab <| Tab.Close Tab.Focused
 
 
 
