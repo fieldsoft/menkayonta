@@ -84,6 +84,7 @@ type Msg
     | Stamp (Time.Posix -> Envelope) (E.Value -> Cmd Msg) Time.Posix
     | Tab Tab.Msg
     | ToggleSidebar
+    | UserClick Msg
 
 
 {-| Inject a message into `Cmd`
@@ -249,6 +250,13 @@ update msg model =
             in
             ( model, cmd envelope )
 
+        UserClick clickMsg ->
+            let
+                ( subModel, _ ) =
+                    Tab.update Tab.Unlock model.tabs
+            in
+            ( { model | tabs = subModel }, sendMsg clickMsg )
+
         ToggleSidebar ->
             ( { model | sideBar = not model.sideBar }
             , Cmd.none
@@ -397,9 +405,15 @@ update msg model =
                     let
                         jsonValue =
                             E.object
-                                [ ( "filepath", E.string subModel.filepath )
-                                , ( "kind", E.string subModel.kind.value )
-                                , ( "project", E.string subModel.project.value )
+                                [ ( "filepath"
+                                  , E.string subModel.filepath
+                                  )
+                                , ( "kind"
+                                  , E.string subModel.kind.value
+                                  )
+                                , ( "project"
+                                  , E.string subModel.project.value
+                                  )
                                 ]
                     in
                     ( nmodel
@@ -656,7 +670,10 @@ update msg model =
 
                         Ok vals ->
                             let
-                                filterInter : M.Value -> List Interlinear -> List Interlinear
+                                filterInter :
+                                    M.Value
+                                    -> List Interlinear
+                                    -> List Interlinear
                                 filterInter val ints =
                                     case val of
                                         M.MyInterlinear int ->
@@ -670,10 +687,14 @@ update msg model =
                                         List.foldl filterInter [] vals
 
                                 vista =
-                                    { project = env.project
-                                    , kind = "interlinear-index"
-                                    , identifier = "GLOSSES::" ++ env.project
-                                    , content = content
+                                    { project =
+                                        env.project
+                                    , kind =
+                                        "interlinear-index"
+                                    , identifier =
+                                        "GLOSSES::" ++ env.project
+                                    , content =
+                                        content
                                     }
                             in
                             handleVista
@@ -939,13 +960,7 @@ update msg model =
                     model.tabs
 
                 newmodel =
-                    { model
-                        | tabs =
-                            { tabs
-                                | vistas = vistas
-                                , focusLock = Nothing
-                            }
-                    }
+                    { model | tabs = { tabs | vistas = vistas } }
             in
             case getByVista vistaId model.tabs.ventanas of
                 Nothing ->
@@ -963,7 +978,10 @@ update msg model =
 
                 Just tp ->
                     ( newmodel
-                    , sendMsg (Tab <| Tab.Goto tp)
+                    , Cmd.batch
+                        [ sendMsg (Tab <| Tab.Goto tp)
+                        , sendMsg (Tab <| Tab.Select tp)
+                        ]
                     )
 
         NewInterlinear project ->
@@ -1007,16 +1025,13 @@ update msg model =
                 tabs =
                     model.tabs
 
+                vistas =
+                    Dict.insert id vista model.tabs.vistas
+
                 newmodel =
                     { model
                         | seeds = seeds
-                        , tabs =
-                            { tabs
-                                | vistas =
-                                    Dict.insert id vista model.tabs.vistas
-                                , focusLock =
-                                    Nothing
-                            }
+                        , tabs = { tabs | vistas = vistas }
                     }
             in
             ( newmodel
@@ -1481,7 +1496,8 @@ viewProject model p =
             [ Html.li []
                 [ Html.a
                     [ Attr.href "#"
-                    , Event.onClick <| EditProject pmodel
+                    , Event.onClick <|
+                        UserClick (EditProject pmodel)
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Settings" ]
@@ -1490,10 +1506,7 @@ viewProject model p =
                 [ Html.a
                     [ Attr.href "#"
                     , Event.onClick <|
-                        MultiMsg
-                            [ Tab Tab.Unlock
-                            , RequestInterlinearIndex p.identifier
-                            ]
+                        UserClick (RequestInterlinearIndex p.identifier)
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Gloss Index" ]
@@ -1502,7 +1515,7 @@ viewProject model p =
                 [ Html.a
                     [ Attr.href "#"
                     , Event.onClick <|
-                        NewInterlinear p.identifier
+                        UserClick (NewInterlinear p.identifier)
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Gloss New Item" ]
@@ -1820,23 +1833,24 @@ viewInterlinearIndexItem proj int =
         [ viewInterlinearItem proj int
         , Html.div [ Attr.class "gloss-controls" ]
             [ Html.a
-                  [ Attr.href "#"
-                  , Attr.class "nav-link"
-                  , Event.onClick <|
-                      RequestAllDocId proj <|
-                          String.join ""
-                              [ "interlinear/"
-                              , UUID.toString int.id
-                              ]
-                  ]
-                  [ Html.text "View" ]
+                [ Attr.href "#"
+                , Attr.class "nav-link"
+                , Event.onClick <|
+                    UserClick <|
+                        RequestAllDocId proj <|
+                            String.join ""
+                                [ "interlinear/"
+                                , UUID.toString int.id
+                                ]
+                ]
+                [ Html.text "View" ]
             , Html.a
-                  [ Attr.href "#"
-                  , Attr.class "nav-link"
-                  , Event.onClick <|
-                      EditInterlinear int.id int
-                  ]
-                  [ Html.text "Edit" ]
+                [ Attr.href "#"
+                , Attr.class "nav-link"
+                , Event.onClick <|
+                    UserClick (EditInterlinear int.id int)
+                ]
+                [ Html.text "Edit" ]
             ]
         ]
 
