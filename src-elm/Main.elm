@@ -528,8 +528,11 @@ update msg model =
 
         PR id subMsg ->
             let
+                vistaId =
+                    "FORM::" ++ UUID.toString id
+
                 maybeTab =
-                    getByVista "global-settings" model.tabs.ventanas
+                    getByVista vistaId model.tabs.ventanas
             in
             case maybeTab of
                 Nothing ->
@@ -537,9 +540,6 @@ update msg model =
                         
                 Just tp ->
                     let
-                        vistaId =
-                            "FORM::" ++ UUID.toString id
-
                         oldVista =
                             case Dict.get vistaId model.tabs.vistas of
                                 Nothing ->
