@@ -49,7 +49,7 @@ import Url
 
 
 type alias Model =
-    { gconfig : Maybe GlobalConfig
+    { gconfig : GlobalConfig
     , me : Maybe M.Person
     , tabs : Tab.Model
     , error : String
@@ -216,7 +216,7 @@ init flags =
                     (\gs -> Dict.insert "global-settings" gs globalVistas)
                 |> Maybe.withDefault globalVistas
     in
-    ( { gconfig = Nothing
+    ( { gconfig = { email = Nothing, name = Nothing, projects = [] }
       , me = Nothing
       , tabs = Tab.initData gv
       , error = ""
@@ -652,7 +652,7 @@ update msg model =
 
                         newmodel =
                             { model
-                                | gconfig = Just gc_
+                                | gconfig = gc_
                                 , me = person
                             }
 
@@ -814,18 +814,13 @@ update msg model =
         EditImporter filepath ->
             let
                 projectOptions =
-                    case model.gconfig of
-                        Nothing ->
-                            []
-
-                        Just gconf ->
-                            gconf.projects
-                                |> List.map
-                                    (\x ->
-                                        ( x.title
-                                        , UUID.toString x.identifier
-                                        )
-                                    )
+                    model.gconfig.projects
+                        |> List.map
+                           (\x ->
+                                ( x.title
+                                , UUID.toString x.identifier
+                                )
+                           )
 
                 ( subModel, subCmd ) =
                     Form.Importer.init filepath projectOptions
@@ -1500,13 +1495,8 @@ viewTab model tp =
 
 viewProjects : Model -> Html.Html Msg
 viewProjects model =
-    case model.gconfig of
-        Nothing ->
-            Html.text "Waiting for configuration to load"
-
-        Just gconfig ->
-            Html.ul [] <|
-                List.map (viewProject model) gconfig.projects
+    Html.ul [] <|
+        List.map (viewProject model) model.gconfig.projects
 
 
 viewTabList : Ventanas -> Html.Html Msg
@@ -2008,10 +1998,7 @@ getProjectTitle projid model =
             UUID.fromString projid |> Result.toMaybe
 
         projects =
-            Maybe.withDefault
-                { email = Nothing, name = Nothing, projects = [] }
-                model.gconfig
-                |> .projects
+            model.gconfig.projects
     in
     LE.find (\x -> Just x.identifier == projuuid) projects
         |> Maybe.map .title
@@ -2024,10 +2011,7 @@ getProjectKey projid model =
             UUID.fromString projid |> Result.toMaybe
 
         projects =
-            Maybe.withDefault
-                { email = Nothing, name = Nothing, projects = [] }
-                model.gconfig
-                |> .projects
+            model.gconfig.projects
     in
     LE.find (\x -> Just x.identifier == projuuid) projects
         |> Maybe.map .key
