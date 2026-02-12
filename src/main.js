@@ -366,8 +366,8 @@ const writeProjConf = async (identifier, configData) => {
 const openGlobalConf = async () => {
   const initialConf = {
     projects: [],
-    name: null,
-    email: null,
+    name: '',
+    email: '',
   }
 
   try {
