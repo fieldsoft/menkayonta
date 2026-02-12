@@ -227,60 +227,42 @@ update msg model =
                     ( model, Cmd.none )
 
         New ventana ->
-            if Dict.isEmpty model.ventanas then
-                let
-                    c =
-                        model.counter
+            let
+                c =
+                    model.counter
+            in
+            case model.focused of
+                Nothing ->
+                    let
+                        tp =
+                            tabpath c c c
 
-                    tp =
-                        tabpath c c c
+                        newmodel =
+                            { model
+                                | counter = c + 1
+                                , ventanas = Dict.singleton tp ventana
+                                , visVentanas = visInsert tp Dict.empty
+                            }
+                    in
+                    ( focusWhenUnlocked tp newmodel, Cmd.none )
 
-                    newmodel =
-                        { model
-                            | counter = c + 1
-                            , ventanas = Dict.singleton tp ventana
-                            , visVentanas = visInsert tp Dict.empty
-                            , focused = Just tp
-                            , focusLock = Just tp
-                        }
-                in
-                ( newmodel, Cmd.none )
+                Just focused ->
+                    let
+                        ( column, ( row, _ ) ) =
+                            focused
+                                
+                        tp =
+                            tabpath column row c
 
-            else
-                let
-                    c =
-                        model.counter
-
-                    {- The focused property is used to get the column
-                       and row that the user has been interacting
-                       with. It is wrapped in a Maybe. It should not be
-                       Nothing unless there are no ventanas, which
-                       should not be the case in this 'else' block. In
-                       the unlikely case of a bad state, the input model
-                       is returned. Perhaps an error would be better.
-                    -}
-                    newtab =
-                        case model.focused of
-                            Nothing ->
-                                tabpath -1 -1 -1
-
-                            -- We want to open the tab in the same row.
-                            Just tp1 ->
-                                let
-                                    ( column, ( row, _ ) ) =
-                                        tp1
-                                in
-                                tabpath column row c
-
-                    newmodel =
-                        { model
-                            | counter =
-                                c + 1
-                            , ventanas =
-                                Dict.insert newtab ventana model.ventanas
-                        }
-                in
-                ( focusWhenUnlocked newtab newmodel, Cmd.none )
+                        newmodel =
+                            { model
+                                | counter =
+                                  c + 1
+                                , ventanas =
+                                  Dict.insert tp ventana model.ventanas
+                            }
+                    in
+                    ( focusWhenUnlocked tp newmodel, Cmd.none )
 
         -- Goto triggers a viewport operation so that a tab is visible.
         Goto tp ->
@@ -364,13 +346,18 @@ update msg model =
                                     -- rows of the current column
                                     rows =
                                         trows (tcolumn fp) keys
+
+                                    needsCreation =
+                                        isCreationNecessary dir fp ( cols
+                                                                   , rows
+                                                                   )
                                 in
                                 {- Does the position of the tab's
                                    column or row require that a new
                                    tab or column be added to supply a
                                    target?
                                 -}
-                                if createNecessary dir fp ( cols, rows ) then
+                                if needsCreation then
                                     let
                                         newtp =
                                             newTabPath dir fp c
@@ -441,7 +428,7 @@ insertTabPath dir tp ( cols, rows ) keys =
 
 
 {-| Use the counter (c) to provide new Tab.Paths that will be rendered
-below, above, to the left or right of the focused tab.
+below, above, to the left or right of the focused tab. The row value is always changed to ensure 
 -}
 newTabPath : Direction -> Path -> Int -> Path
 newTabPath dir tp c =
@@ -463,8 +450,8 @@ newTabPath dir tp c =
 columns or rows to determine if the current item is on the border
 of a column or row structure.
 -}
-createNecessary : Direction -> Path -> ( List Int, List Int ) -> Bool
-createNecessary dir tp ( cols, rows ) =
+isCreationNecessary : Direction -> Path -> ( List Int, List Int ) -> Bool
+isCreationNecessary dir tp ( cols, rows ) =
     case dir of
         Right ->
             Just (tcolumn tp) == LE.last cols
@@ -559,7 +546,7 @@ closeTab closevista tp model =
         newHistory =
             List.filter
                 (\t -> t /= tp)
-                model.focusHistory
+                (refreshHistory model.focusHistory (Dict.keys ventanas))
 
         -- The closest tab to the closed tab.
         near =
@@ -570,13 +557,19 @@ closeTab closevista tp model =
         notClosed =
             visRemove tp model.visVentanas
 
-        -- visVentanas with the nearest visible
-        nearvis =
-            near
-                |> Maybe.map (\t -> visInsert t notClosed)
-                -- Logically, if there is no nearest, nothing was
-                -- visible.
-                |> Maybe.withDefault notClosed
+        -- visVentanas were the nearest element that shares a row with
+        -- the element to be closed is set to visible.
+        rowvis =
+            case near of
+                Just ( c, ( r, t ) ) ->
+                    if c == column && r == row then
+                        visInsert (c,(r,t)) notClosed
+
+                    else
+                        notClosed
+
+                Nothing ->
+                    notClosed
 
         -- Calculate new values for these variables.
         ( visible, focused, history ) =
@@ -584,13 +577,17 @@ closeTab closevista tp model =
                 if wasFocused then
                     case newHistory of
                         f :: h ->
-                            ( visInsert f nearvis, Just f, h )
+                            -- The focus function adds the focused
+                            -- item to the visVentanas dict, so we
+                            -- only want to ensure that there is
+                            -- something visible in the row.
+                            ( rowvis, Just f, h )
 
                         [] ->
-                            ( nearvis, near, [] )
+                            ( rowvis, near, [] )
 
                 else
-                    ( nearvis, model.focused, newHistory )
+                    ( rowvis, model.focused, newHistory )
 
             else
                 ( notClosed, model.focused, newHistory )
@@ -622,14 +619,21 @@ closeTab closevista tp model =
             else
                 model.vistas
     in
-    { model
-        | ventanas = Dict.remove tp model.ventanas
-        , focused = focused
-        , visVentanas = visible
-        , vistas = vistas
-        , focusHistory = history
-        , focusLock = focused
-    }
+    case focused of
+        Nothing ->
+            -- The final window was closed.
+            initData ( Dict.filter
+                           (\v _ -> List.member v model.globalVistas )
+                           model.vistas
+                     )
+
+        Just focusedTab ->
+            focus focusedTab
+                { model
+                    | ventanas = ventanas
+                    , visVentanas = visible
+                    , vistas = vistas
+                }
 
 
 closeAll : String -> Model -> Model
@@ -644,15 +648,16 @@ will be focused. This may change in the future.
 reassign : Path -> Path -> Model -> Model
 reassign old new model =
     let
-        closed =
-            closeTab False old model
-
         ventanas =
             Dict.get old model.ventanas
-                |> Maybe.map (\v -> Dict.insert new v closed.ventanas)
-                |> Maybe.withDefault closed.ventanas
+                |> Maybe.map (\v -> Dict.insert new v model.ventanas)
+                |> Maybe.withDefault model.ventanas
+
+        model_ =
+            focus new { model | ventanas = ventanas }
     in
-    focus new { closed | ventanas = ventanas }
+    closeTab False old model_
+                             
 
 
 {-| Attempts to find the integer after the current one in a list and
@@ -853,15 +858,23 @@ focus tp model =
         tabs =
             Dict.keys model.ventanas
 
+        requiresAdd previous_ =
+            Just tp /= model.focused &&
+                Just previous_ /= List.head model.focusHistory
+
         history =
             case model.focused of
                 Nothing ->
                     refreshHistory model.focusHistory tabs
 
                 Just previous ->
-                    refreshHistory
+                    if requiresAdd previous then
+                        refreshHistory
                         (previous :: model.focusHistory)
                         tabs
+
+                    else
+                        refreshHistory model.focusHistory tabs
     in
     { model
         | focused = Just tp
