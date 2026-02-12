@@ -81,8 +81,8 @@ init value =
         Ok gf ->
             ( initData
             , Cmd.batch
-                  [ sendMsg <| Email <| Maybe.withDefault "" gf.email
-                  , sendMsg <| Name <| Maybe.withDefault "" gf.name
+                  [ sendMsg <| Email gf.email
+                  , sendMsg <| Name gf.name
                   ]
             )
         

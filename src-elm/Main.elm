@@ -216,7 +216,7 @@ init flags =
                     (\gs -> Dict.insert "global-settings" gs globalVistas)
                 |> Maybe.withDefault globalVistas
     in
-    ( { gconfig = { email = Nothing, name = Nothing, projects = [] }
+    ( { gconfig = { email = "", name = "", projects = [] }
       , me = Nothing
       , tabs = Tab.initData gv
       , error = ""
@@ -635,25 +635,27 @@ update msg model =
                 Ok gc_ ->
                     let
                         -- The email and name values may be blank.
-                        person : Maybe M.Person
+                        person : M.Person
                         person =
-                            let
-                                h1 email name =
-                                    { id = email
-                                    , rev = Nothing
-                                    , version = 1
-                                    , names = Dict.singleton 0 name
-                                    }
+                           { id = gc_.email
+                           , rev = Nothing
+                           , version = 1
+                           , names = Dict.singleton 0 gc_.name
+                           }
 
-                                h0 email =
-                                    gc_.name |> Maybe.map (h1 email)
-                            in
-                            gc_.email |> Maybe.andThen h0
-
+                        invalidPerson =
+                            String.isEmpty gc_.name ||
+                                String.isEmpty gc_.email
+                                    
                         newmodel =
                             { model
                                 | gconfig = gc_
-                                , me = person
+                                , me =
+                                    if invalidPerson then
+                                        Nothing
+
+                                    else
+                                        Just person
                             }
 
                         openForm =
@@ -662,15 +664,11 @@ update msg model =
                         -- When the data is incomplere, open the form
                         -- so the user can add their name and email.
                         command =
-                            case ( gc_.name, gc_.email ) of
-                                ( Nothing, _ ) ->
-                                    openForm
+                            if invalidPerson then
+                                openForm
 
-                                ( _, Nothing ) ->
-                                    openForm
-
-                                _ ->
-                                    Cmd.none
+                            else
+                                Cmd.none
                     in
                     ( newmodel, command )
 

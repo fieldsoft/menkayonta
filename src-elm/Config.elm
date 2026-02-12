@@ -12,8 +12,8 @@ import UUID
 
 type alias GlobalConfig =
     { projects : List ProjectInfo
-    , name : Maybe String
-    , email : Maybe String
+    , name : String
+    , email : String
     }
 
 
@@ -38,8 +38,8 @@ globalConfigDecoder : D.Decoder GlobalConfig
 globalConfigDecoder =
     D.map3 GlobalConfig
         (D.field "projects" <| D.list projectInfoDecoder)
-        (D.field "name" <| D.nullable D.string)
-        (D.field "email" <| D.nullable D.string)
+        (D.field "name" D.string)
+        (D.field "email" D.string)
 
 
 projectInfoDecoder : D.Decoder ProjectInfo
