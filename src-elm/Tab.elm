@@ -380,8 +380,8 @@ update msg model =
             ( newmodel, Cmd.none )
 
 
-{-| insertTab.Path, newTab.Path, and createNecessary are all helpers for
-Move Direction. Each provides Direction specific code for some
+{-| insertTabPath, newTabPath, and isCreationNecessary are all helpers
+for Move Direction. Each provides Direction specific code for some
 aspect of the Move operation. This is for the case when movement
 places the focused tab in a preexisting row with tabs.
 -}
@@ -427,8 +427,9 @@ insertTabPath dir tp ( cols, rows ) keys =
             tabpath (tcolumn tp) row (ttab tp)
 
 
-{-| Use the counter (c) to provide new Tab.Paths that will be rendered
-below, above, to the left or right of the focused tab. The row value is always changed to ensure 
+{-| Use the counter, `c`, to provide new Paths that will be rendered
+below, above, to the left or right of the focused tab. The row value
+is always changed to ensure
 -}
 newTabPath : Direction -> Path -> Int -> Path
 newTabPath dir tp c =
