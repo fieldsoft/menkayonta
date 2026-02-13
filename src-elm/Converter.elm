@@ -232,8 +232,8 @@ update msg model =
 
         Next ->
             case model.from of
-                -- Processing has finished, as made evident by the
-                -- empty from list.
+                -- An empty list indicates that processing has
+                -- finished.
                 [] ->
                     let
                         job =
@@ -267,12 +267,11 @@ resolveStage curr model =
             M.InterlinearId curr.uuid
     in
     case model.stage of
-        -- At this stage, the original dative form object is saved in
-        -- a modification document. This makes it available for later
-        -- examination if needed, or to potentially reverse the
-        -- import. In most other cases there is a stage handling
-        -- function associated with the stage, but OriginalS is fairly
-        -- simple.
+        -- At this stage, the original dative 'form' object is saved
+        -- in a `modification` document. This makes it available for
+        -- later examination if needed. In most other cases there is a
+        -- stage handling function associated with the stage, but
+        -- OriginalS is fairly simple.
         OriginalS ->
             let
                 ( modid, mod ) =
