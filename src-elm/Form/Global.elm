@@ -62,6 +62,7 @@ sendMsg msg =
 
 {-| A starter Data instance.
 -}
+initData : Model
 initData =
     { changed = False
     , submitted = False
