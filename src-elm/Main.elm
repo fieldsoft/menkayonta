@@ -1207,7 +1207,7 @@ prepInterlinearSave int project me time =
                 , docid = M.InterlinearId int.id
                 , time = time
                 , person = M.PersonId meId
-                , fragment = []
+                , fragment = Nothing
                 }
             , rev = Nothing
             , version = 1

@@ -502,7 +502,7 @@ utilityStage { docid, utilityVal, model } =
             { id =
                 { kind = "dative"
                 , docid = docid
-                , fragment = []
+                , fragment = Nothing
                 }
             , rev = Nothing
             , version = 1
@@ -766,7 +766,7 @@ constructTag kind docid =
     { id =
         { kind = kind
         , docid = docid
-        , fragment = []
+        , fragment = Nothing
         }
     , rev = Nothing
     , version = 1
@@ -780,7 +780,7 @@ constructProperty kind str docid =
         { kind = kind
         , value = str
         , docid = docid
-        , fragment = []
+        , fragment = Nothing
         }
     , rev = Nothing
     , version = 1
@@ -807,7 +807,7 @@ constructDescription kind value docid =
     { id =
         { kind = kind
         , docid = docid
-        , fragment = []
+        , fragment = Nothing
         }
     , rev = Nothing
     , version = 1
@@ -908,7 +908,7 @@ constructModifier { kind, time, docid, pid, json } =
         , docid = docid
         , time = time
         , person = M.PersonId pid
-        , fragment = []
+        , fragment = Nothing
         }
     , rev = Nothing
     , version = 1

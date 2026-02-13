@@ -34,6 +34,9 @@ import Json.Encode as E
 import Maybe.Extra as ME
 import Time
 import UUID exposing (UUID)
+import Url
+import Url.Builder exposing (Root(..))
+import Url.Parser as UP exposing ((</>))
 
 
 {-| These are the basic kinds of values that are used to represent
@@ -117,7 +120,7 @@ type alias Interlinear =
 type alias DescriptionId =
     { kind : String
     , docid : DocId
-    , fragment : List String
+    , fragment : Maybe String
     }
 
 
@@ -132,7 +135,7 @@ type alias Description =
 type alias TagId =
     { kind : String
     , docid : DocId
-    , fragment : List String
+    , fragment : Maybe String
     }
 
 
@@ -147,7 +150,7 @@ type alias PropertyId =
     { kind : String
     , value : String
     , docid : DocId
-    , fragment : List String
+    , fragment : Maybe String
     }
 
 
@@ -171,7 +174,7 @@ type alias ModificationId =
     , docid : DocId
     , time : Time.Posix
     , person : DocId
-    , fragment : List String
+    , fragment : Maybe String
     }
 
 
@@ -188,7 +191,7 @@ type alias Modification =
 type alias UtilityId =
     { kind : String
     , docid : DocId
-    , fragment : List String
+    , fragment : Maybe String
     }
 
 
@@ -217,74 +220,147 @@ documentIdentifier idpair =
             Nothing
 
 
-stringToIdentifier : String -> Maybe Identifier
-stringToIdentifier idstring =
+idParser : UP.Parser (Identifier -> a) a
+idParser =
     let
-        idlists =
-            case String.split "#" idstring of
-                one :: two :: [] ->
-                    ( String.split "/" one, String.split "/" two )
+        interlinearId : UP.Parser (UUID.UUID -> b) b
+        interlinearId =
+            UP.custom "UUID"
+                (\s ->
+                    UUID.fromString s
+                        |> Result.toMaybe
+                )
 
-                hd :: [] ->
-                    ( String.split "/" hd, [] )
+        personId : UP.Parser (String -> b) b
+        personId =
+            UP.custom "EMAIL"
+                (\s ->
+                    Url.percentDecode s
+                        |> Maybe.andThen Email.fromString
+                        |> Maybe.map Email.toString
+                )
 
-                _ ->
-                    -- This case is a bad id, it will be caught in the
-                    -- main body of the function.
-                    ( [], [] )
+        urlTime : UP.Parser (Time.Posix -> b) b
+        urlTime =
+            UP.custom "TIME.POSIX"
+                (\s ->
+                    String.toInt s
+                        |> Maybe.map Time.millisToPosix
+                )
+
+        docId : UP.Parser (DocId -> b) b
+        docId =
+            UP.oneOf
+                [ UP.map InterlinearId
+                    (UP.s "interlinear" </> interlinearId)
+                , UP.map PersonId
+                    (UP.s "person" </> personId)
+                ]
+
+        urlDecode : String -> String
+        urlDecode s =
+            Url.percentDecode s
+                |> Maybe.withDefault s
+
+        tagId : DocId -> String -> Maybe String -> Identifier
+        tagId docid kind fragment =
+            { kind = urlDecode kind
+            , docid = docid
+            , fragment = fragment
+            }
+                |> MyTagId
+
+        descriptionId : DocId -> String -> Maybe String -> Identifier
+        descriptionId docid kind fragment =
+            { kind = urlDecode kind
+            , docid = docid
+            , fragment = fragment
+            }
+                |> MyDescriptionId
+
+        propertyId :
+            DocId
+            -> String
+            -> String
+            -> Maybe String
+            -> Identifier
+        propertyId docid kind value fragment =
+            { kind = urlDecode kind
+            , value = urlDecode value
+            , docid = docid
+            , fragment = fragment
+            }
+                |> MyPropertyId
+
+        utilityId : String -> DocId -> Maybe String -> Identifier
+        utilityId kind docid fragment =
+            { kind = urlDecode kind
+            , docid = docid
+            , fragment = fragment
+            }
+                |> MyUtilityId
+
+        modificationId :
+            DocId
+            -> String
+            -> Time.Posix
+            -> String
+            -> Maybe String
+            -> Identifier
+        modificationId docid kind time person fragment =
+            { kind = urlDecode kind
+            , docid = docid
+            , time = time
+            , person = PersonId person
+            , fragment = fragment
+            }
+                |> MyModificationId
+
+        ppid s =
+            MyDocId (PersonId s)
     in
-    case idlists of
-        ( d1 :: d2 :: [], [] ) ->
-            documentIdentifier ( d1, d2 ) |> Maybe.map MyDocId
-
-        ( d1 :: d2 :: "tag" :: kind :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> TagId kind d fragment)
-                |> Maybe.map MyTagId
-
-        ( d1 :: d2 :: "description" :: kind :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> DescriptionId kind d fragment)
-                |> Maybe.map MyDescriptionId
-
-        ( "utility" :: kind :: d1 :: d2 :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> UtilityId kind d fragment)
-                |> Maybe.map MyUtilityId
-
-        ( d1 :: d2 :: "property" :: kind :: value :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.map (\d -> PropertyId kind value d fragment)
-                |> Maybe.map MyPropertyId
-
-        ( d1 :: d2 :: "modification" :: kind :: time :: person :: [], fragment ) ->
-            documentIdentifier ( d1, d2 )
-                |> Maybe.andThen
-                    (\d ->
-                        documentIdentifier ( "person", person )
-                            |> Maybe.andThen
-                                (\p ->
-                                    String.toInt time
-                                        |> Maybe.map Time.millisToPosix
-                                        |> Maybe.map
-                                            (\t ->
-                                                { kind = kind
-                                                , docid = d
-                                                , time = t
-                                                , person = p
-                                                , fragment = fragment
-                                                }
-                                            )
-                                )
-                    )
-                |> Maybe.map MyModificationId
-
-        _ ->
-            Nothing
+    UP.oneOf
+        [ UP.map MyDocId docId
+        , UP.map tagId
+            (docId
+                </> UP.s "tag"
+                </> UP.string
+                </> UP.fragment identity
+            )
+        , UP.map descriptionId
+            (docId
+                </> UP.s "description"
+                </> UP.string
+                </> UP.fragment identity
+            )
+        , UP.map utilityId
+            (UP.s "utility"
+                </> UP.string
+                </> docId
+                </> UP.fragment identity
+            )
+        , UP.map propertyId
+            (docId
+                </> UP.s "property"
+                </> UP.string
+                </> UP.string
+                </> UP.fragment identity
+            )
+        , UP.map modificationId
+            (docId
+                </> UP.s "modification"
+                </> UP.string
+                </> urlTime
+                </> personId
+                </> UP.fragment identity
+            )
+        ]
 
 
-
-{- Functions for converting Identifiers to Strings -}
+stringToIdentifier : String -> Maybe Identifier
+stringToIdentifier s =
+    Url.fromString ("http://example.com/" ++ s)
+        |> Maybe.andThen (UP.parse idParser)
 
 
 {-| Convert and Identifier to a String.
@@ -311,25 +387,28 @@ identifierToString ident =
             utilityIdToString ident_
 
 
-docIdToString : DocId -> String
-docIdToString docid =
-    let
-        appendUUID doctype uuid =
-            doctype ++ "/" ++ UUID.toString uuid
-    in
+docIdToList : DocId -> List String
+docIdToList docid =
     case docid of
         PersonId id ->
-            "person" ++ "/" ++ id
+            [ "person", id ]
+                |> List.map Url.percentEncode
 
         InterlinearId uuid ->
-            appendUUID "interlinear" uuid
+            [ "interlinear", UUID.toString uuid ]
+                |> List.map Url.percentEncode
+
+
+docIdToString : DocId -> String
+docIdToString docid =
+    Url.Builder.relative (docIdToList docid) []
 
 
 {-| Unlike docIdToString, this returns only the string representation
-of the UUID part.
+of the id part, rather than a URL path-like object.
 -}
-docUuidToString : DocId -> String
-docUuidToString docid =
+docIdToSimpleString : DocId -> String
+docIdToSimpleString docid =
     case docid of
         PersonId id ->
             id
@@ -340,50 +419,69 @@ docUuidToString docid =
 
 descriptionIdToString : DescriptionId -> String
 descriptionIdToString descriptionid =
-    [ docIdToString descriptionid.docid
-    , "description"
-    , descriptionid.kind
-    ]
-        |> addFrag descriptionid.fragment
+    let
+        path =
+            docIdToList descriptionid.docid
+                ++ [ "description"
+                   , descriptionid.kind
+                   ]
+                |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] descriptionid.fragment
 
 
 modificationIdToString : ModificationId -> String
 modificationIdToString modid =
-    [ docIdToString modid.docid
-    , "modification"
-    , modid.kind
-    , Time.posixToMillis modid.time |> String.fromInt
-    , docUuidToString modid.person
-    ]
-        |> addFrag modid.fragment
+    let
+        path =
+            docIdToList modid.docid
+                ++ [ "modification"
+                   , modid.kind
+                   , Time.posixToMillis modid.time |> String.fromInt
+                   , docIdToSimpleString modid.person
+                   ]
+                |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] modid.fragment
 
 
 tagIdToString : TagId -> String
 tagIdToString tagid =
-    [ docIdToString tagid.docid
-    , "tag"
-    , tagid.kind
-    ]
-        |> addFrag tagid.fragment
+    let
+        path =
+            docIdToList tagid.docid
+                ++ [ "tag"
+                   , tagid.kind
+                   ]
+                |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] tagid.fragment
 
 
 propertyIdToString : PropertyId -> String
 propertyIdToString propertyid =
-    [ docIdToString propertyid.docid
-    , "property"
-    , propertyid.kind
-    , propertyid.value
-    ]
-        |> addFrag propertyid.fragment
+    let
+        path =
+            docIdToList propertyid.docid
+                ++ [ "property"
+                   , propertyid.kind
+                   , propertyid.value
+                   ]
+                |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] propertyid.fragment
 
 
 utilityIdToString : UtilityId -> String
 utilityIdToString utilityid =
-    [ "utility"
-    , utilityid.kind
-    , docIdToString utilityid.docid
-    ]
-        |> addFrag utilityid.fragment
+    let
+        path =
+            "utility"
+                :: utilityid.kind
+                :: docIdToList utilityid.docid
+                |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] utilityid.fragment
 
 
 

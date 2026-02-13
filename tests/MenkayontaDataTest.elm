@@ -6,6 +6,7 @@ import Random
 import Test exposing (..)
 import Time
 import UUID
+import Url
 
 
 uuid : UUID.UUID
@@ -25,6 +26,7 @@ suite =
     describe "Menkayonta Data Types"
         [ idToStringTests
         , stringToIdTests
+        , reversals
         ]
 
 
@@ -45,92 +47,146 @@ stringToIdTests =
                     (String.join "/" [ "person", "e@w.com" ]
                         |> stringToIdentifier
                     )
-        , test "Tag without fragment" <|
-            \_ ->
-                Expect.equal
-                    ({ kind = "tagname"
-                     , docid = intid
-                     , fragment = []
-                     }
-                    |> MyTagId |> Just
-                    )
-                    (String.join "/" [ "interlinear"
-                                     , UUID.toString uuid
-                                     , "tag"
-                                     , "tagname"
-                                     ]
-                        |> stringToIdentifier
-                    )      
-        , test "Description without fragment" <|
-            \_ ->
-                Expect.equal
-                    ({ kind = "descriptionname"
-                     , docid = intid
-                     , fragment = []
-                     }
-                    |> MyDescriptionId |> Just
-                    )
-                    (String.join "/" [ "interlinear"
-                                     , UUID.toString uuid
-                                     , "description"
-                                     , "descriptionname"
-                                     ]
-                        |> stringToIdentifier
-                    )      
-        , test "Utility without fragment" <|
-            \_ ->
-                Expect.equal
-                    ({ kind = "utilname"
-                     , docid = intid
-                     , fragment = []
-                     }
-                    |> MyUtilityId |> Just
-                    )
-                    (String.join "/" [ "utility"
-                                     , "utilname"
-                                     , "interlinear"
-                                     , UUID.toString uuid
-                                     ]
-                        |> stringToIdentifier
-                    )      
-        , test "Property without fragment" <|
-            \_ ->
-                Expect.equal
-                    ({ kind = "propname"
-                     , value = "propvalue"
-                     , docid = intid
-                     , fragment = []
-                     }
-                    |> MyPropertyId |> Just
-                    )
-                    (String.join "/" [ "interlinear"
-                                     , UUID.toString uuid
-                                     , "property"
-                                     , "propname"
-                                     , "propvalue"
-                                     ]
-                        |> stringToIdentifier
-                    )      
-        , test "Modification without fragment" <|
-            \_ ->
-                Expect.equal
-                    ({ kind = "modname"
-                     , person = PersonId "e@w.com"
-                     , time = Time.millisToPosix 0
-                     , docid = intid
-                     , fragment = []
-                     }
-                    |> MyModificationId |> Just
-                    )
-                    (String.join "/" [ "interlinear"
-                                     , UUID.toString uuid
-                                     , "modification"
-                                     , "modname"
-                                     , "0"
-                                     , "e@w.com"
-                                     ]
-                        |> stringToIdentifier
-                    )      
+        , describe "without fragments"
+            [ test "Tag" <|
+                \_ ->
+                    Expect.equal
+                        ({ kind = "tagname"
+                         , docid = intid
+                         , fragment = Nothing
+                         }
+                            |> MyTagId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "interlinear"
+                            , UUID.toString uuid
+                            , "tag"
+                            , "tagname"
+                            ]
+                            |> stringToIdentifier
+                        )
+            , test "Utility" <|
+                \_ ->
+                    Expect.equal
+                        ({ kind = "utilname"
+                         , docid = intid
+                         , fragment = Nothing
+                         }
+                            |> MyUtilityId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "utility"
+                            , "utilname"
+                            , "interlinear"
+                            , UUID.toString uuid
+                            ]
+                            |> stringToIdentifier
+                        )
+            , test "Property" <|
+                \_ ->
+                    Expect.equal
+                        ({ kind = "propname"
+                         , value = "propvalue"
+                         , docid = intid
+                         , fragment = Nothing
+                         }
+                            |> MyPropertyId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "interlinear"
+                            , UUID.toString uuid
+                            , "property"
+                            , "propname"
+                            , "propvalue"
+                            ]
+                            |> stringToIdentifier
+                        )
+            , test "Modification" <|
+                \_ ->
+                    Expect.equal
+                        ({ kind = "modname"
+                         , person = PersonId "e@w.com"
+                         , time = Time.millisToPosix 0
+                         , docid = intid
+                         , fragment = Nothing
+                         }
+                            |> MyModificationId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "interlinear"
+                            , UUID.toString uuid
+                            , "modification"
+                            , "modname"
+                            , "0"
+                            , "e@w.com"
+                            ]
+                            |> stringToIdentifier
+                        )
+            , test "Description" <|
+                \_ ->
+                    Expect.equal
+                        ({ kind = "descriptionname"
+                         , docid = intid
+                         , fragment = Nothing
+                         }
+                            |> MyDescriptionId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "interlinear"
+                            , UUID.toString uuid
+                            , "description"
+                            , "descriptionname"
+                            ]
+                            |> stringToIdentifier
+                        )
+            ]
+        , describe "with fragment"
+            [ test "Tag" <|
+                \_ ->
+                    Expect.equal
+                        ({ kind = "tagname"
+                         , docid = intid
+                         , fragment = Just "$.store.book[3].author"
+                         }
+                            |> MyTagId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "interlinear"
+                            , UUID.toString uuid
+                            , "tag"
+                            , "tagname"
+                            ]
+                            |> (\x -> x :: [ "$.store.book[3].author" ])
+                            |> String.join "#"
+                            |> stringToIdentifier
+                        )
+            , test "Description" <|
+                \_ ->
+                    Expect.equal
+                        ({ kind = "descriptionname"
+                         , docid = intid
+                         , fragment = Just "$.store.book[3].author"
+                         }
+                            |> MyDescriptionId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "interlinear"
+                            , UUID.toString uuid
+                            , "description"
+                            , "descriptionname"
+                            ]
+                            |> (\x -> x :: [ "$.store.book[3].author" ])
+                            |> String.join "#"
+                            |> stringToIdentifier
+                        )
+            ]
         ]
 
 
@@ -148,7 +204,10 @@ idToStringTests =
         , test "Person Doc" <|
             \_ ->
                 Expect.equal
-                    (String.join "/" [ "person", "e@w.com" ])
+                    (String.join "/" [ "person"
+                                     , Url.percentEncode "e@w.com"
+                                     ]
+                    )
                     (PersonId "e@w.com"
                         |> MyDocId
                         |> identifierToString
@@ -165,7 +224,7 @@ idToStringTests =
                     )
                     ({ kind = "tagname"
                      , docid = intid
-                     , fragment = []
+                     , fragment = Nothing
                      }
                         |> MyTagId
                         |> identifierToString
@@ -184,7 +243,7 @@ idToStringTests =
                     ({ kind = "propname"
                      , value = "propvalue"
                      , docid = intid
-                     , fragment = []
+                     , fragment = Nothing
                      }
                         |> MyPropertyId
                         |> identifierToString
@@ -201,7 +260,7 @@ idToStringTests =
                     )
                     ({ kind = "descriptionname"
                      , docid = intid
-                     , fragment = []
+                     , fragment = Nothing
                      }
                         |> MyDescriptionId
                         |> identifierToString
@@ -215,14 +274,14 @@ idToStringTests =
                         , "modification"
                         , "modname"
                         , "0"
-                        , "e@w.com"
+                        , Url.percentEncode "e@w.com"
                         ]
                     )
                     ({ kind = "modname"
                      , time = Time.millisToPosix 0
                      , docid = intid
                      , person = PersonId "e@w.com"
-                     , fragment = []
+                     , fragment = Nothing
                      }
                         |> MyModificationId
                         |> identifierToString
@@ -239,9 +298,37 @@ idToStringTests =
                     )
                     ({ kind = "utilname"
                      , docid = intid
-                     , fragment = []
+                     , fragment = Nothing
                      }
                         |> MyUtilityId
                         |> identifierToString
+                    )
+        ]
+
+
+reversals : Test
+reversals =
+    describe "Correct escaping"
+        [ test "slash in the input" <|
+            \_ ->
+                Expect.equal
+                    ({ kind = "mod/name"
+                     , time = Time.millisToPosix 0
+                     , docid = intid
+                     , person = PersonId "e@w.com"
+                     , fragment = Nothing
+                     }
+                        |> MyModificationId
+                        |> Just
+                    )
+                    ({ kind = "mod/name"
+                     , time = Time.millisToPosix 0
+                     , docid = intid
+                     , person = PersonId "e@w.com"
+                     , fragment = Nothing
+                     }
+                        |> MyModificationId
+                        |> (\x -> Debug.log "shown" (identifierToString x))
+                        |> stringToIdentifier
                     )
         ]
