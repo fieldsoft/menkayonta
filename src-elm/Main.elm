@@ -1710,7 +1710,7 @@ viewInterlinearOneDoc vista od int =
                 [ M.InterlinearId int.id
                     |> M.MyDocId
                     |> M.identifierToString
-                    |> (++) "ID: "
+                    |> \x -> "ID: " ++ x
                     |> Html.text
                 ]
             ]

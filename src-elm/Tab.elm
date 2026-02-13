@@ -604,7 +604,7 @@ closeTab closevista tp model =
         multiref =
             getAllByVista vista model.ventanas
                 |> List.length
-                |> (<) 1
+                |> \x -> 1 < x
 
         nonglobal =
             not <| List.member vista gvistas
