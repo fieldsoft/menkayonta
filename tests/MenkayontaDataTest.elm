@@ -1,9 +1,22 @@
 module MenkayontaDataTest exposing (suite)
 
 import Expect exposing (Expectation)
-import Menkayonta exposing (..)
+import Menkayonta
+    exposing
+        ( DocId
+        , InterlinearId
+        , MyDescriptionId
+        , MyDocId
+        , MyModificationId
+        , MyPropertyId
+        , MyTagId
+        , MyUtilityId
+        , PersonId
+        , identifierToString
+        , stringToIdentifier
+        )
 import Random
-import Test exposing (..)
+import Test exposing (Test, describe, test)
 import Time
 import UUID
 import Url
@@ -204,9 +217,10 @@ idToStringTests =
         , test "Person Doc" <|
             \_ ->
                 Expect.equal
-                    (String.join "/" [ "person"
-                                     , Url.percentEncode "e@w.com"
-                                     ]
+                    (String.join "/"
+                        [ "person"
+                        , Url.percentEncode "e@w.com"
+                        ]
                     )
                     (PersonId "e@w.com"
                         |> MyDocId
@@ -328,7 +342,7 @@ reversals =
                      , fragment = Nothing
                      }
                         |> MyModificationId
-                        |> (\x -> Debug.log "shown" (identifierToString x))
+                        |> identifierToString
                         |> stringToIdentifier
                     )
         ]

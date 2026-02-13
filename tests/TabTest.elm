@@ -4,8 +4,27 @@ import Content
 import Dict exposing (Dict)
 import Expect exposing (Expectation)
 import Form.Global
-import Tab exposing (..)
-import Test exposing (..)
+import Tab
+    exposing
+        ( Close
+        , Down
+        , Focus
+        , Goto
+        , Left
+        , Model
+        , Move
+        , Msg
+        , New
+        , None
+        , Right
+        , Unlock
+        , Up
+        , Ventana
+        , Vista
+        , initData
+        , update
+        )
+import Test exposing (Test, describe, test)
 
 
 simpleContent : Form.Global.Model

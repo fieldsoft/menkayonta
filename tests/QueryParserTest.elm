@@ -4,7 +4,7 @@ import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
 import Parser
 import QueryParser exposing (Expr(..), parse)
-import Test exposing (..)
+import Test exposing (Test, describe, test)
 
 
 suite : Test
