@@ -2527,7 +2527,24 @@ function _Platform_mergeExportsDebug(moduleName, obj, exports)
 			: (obj[name] = exports[name]);
 	}
 }
-var $elm$core$List$cons = _List_cons;
+
+
+function _Url_percentEncode(string)
+{
+	return encodeURIComponent(string);
+}
+
+function _Url_percentDecode(string)
+{
+	try
+	{
+		return $elm$core$Maybe$Just(decodeURIComponent(string));
+	}
+	catch (e)
+	{
+		return $elm$core$Maybe$Nothing;
+	}
+}var $elm$core$List$cons = _List_cons;
 var $elm$core$Elm$JsArray$foldr = _JsArray_foldr;
 var $elm$core$Array$foldr = F3(
 	function (func, baseCase, _v0) {
@@ -4821,11 +4838,48 @@ var $author$project$Menkayonta$addRev = F2(
 						},
 						rev))));
 	});
-var $author$project$Menkayonta$addFrag = F2(
-	function (s1, s2) {
-		var s1_ = A2($elm$core$String$join, '/', s1);
-		return (s1_ === '') ? A2($elm$core$String$join, '/', s2) : (A2($elm$core$String$join, '/', s2) + ('#' + s1_));
+var $elm$url$Url$Builder$Relative = {$: 'Relative'};
+var $elm$url$Url$Builder$rootToPrePath = function (root) {
+	switch (root.$) {
+		case 'Absolute':
+			return '/';
+		case 'Relative':
+			return '';
+		default:
+			var prePath = root.a;
+			return prePath + '/';
+	}
+};
+var $elm$url$Url$Builder$toQueryPair = function (_v0) {
+	var key = _v0.a;
+	var value = _v0.b;
+	return key + ('=' + value);
+};
+var $elm$url$Url$Builder$toQuery = function (parameters) {
+	if (!parameters.b) {
+		return '';
+	} else {
+		return '?' + A2(
+			$elm$core$String$join,
+			'&',
+			A2($elm$core$List$map, $elm$url$Url$Builder$toQueryPair, parameters));
+	}
+};
+var $elm$url$Url$Builder$custom = F4(
+	function (root, pathSegments, parameters, maybeFragment) {
+		var fragmentless = _Utils_ap(
+			$elm$url$Url$Builder$rootToPrePath(root),
+			_Utils_ap(
+				A2($elm$core$String$join, '/', pathSegments),
+				$elm$url$Url$Builder$toQuery(parameters)));
+		if (maybeFragment.$ === 'Nothing') {
+			return fragmentless;
+		} else {
+			var fragment = maybeFragment.a;
+			return fragmentless + ('#' + fragment);
+		}
 	});
+var $elm$url$Url$percentEncode = _Url_percentEncode;
 var $elm$core$Bitwise$shiftRightBy = _Bitwise_shiftRightBy;
 var $elm$core$String$repeatHelp = F3(
 	function (n, chunk, result) {
@@ -4952,29 +5006,35 @@ var $TSFoster$elm_uuid$UUID$toStringWith = F2(
 												A2($TSFoster$elm_uuid$UUID$toHex, _List_Nil, d)))))))))));
 	});
 var $TSFoster$elm_uuid$UUID$toString = $TSFoster$elm_uuid$UUID$toStringWith('-');
-var $author$project$Menkayonta$docIdToString = function (docid) {
-	var appendUUID = F2(
-		function (doctype, uuid) {
-			return doctype + ('/' + $TSFoster$elm_uuid$UUID$toString(uuid));
-		});
+var $author$project$Menkayonta$docIdToList = function (docid) {
 	if (docid.$ === 'PersonId') {
 		var id = docid.a;
-		return 'person' + ('/' + id);
+		return A2(
+			$elm$core$List$map,
+			$elm$url$Url$percentEncode,
+			_List_fromArray(
+				['person', id]));
 	} else {
 		var uuid = docid.a;
-		return A2(appendUUID, 'interlinear', uuid);
+		return A2(
+			$elm$core$List$map,
+			$elm$url$Url$percentEncode,
+			_List_fromArray(
+				[
+					'interlinear',
+					$TSFoster$elm_uuid$UUID$toString(uuid)
+				]));
 	}
 };
 var $author$project$Menkayonta$descriptionIdToString = function (descriptionid) {
-	return A2(
-		$author$project$Menkayonta$addFrag,
-		descriptionid.fragment,
-		_List_fromArray(
-			[
-				$author$project$Menkayonta$docIdToString(descriptionid.docid),
-				'description',
-				descriptionid.kind
-			]));
+	var path = A2(
+		$elm$core$List$map,
+		$elm$url$Url$percentEncode,
+		_Utils_ap(
+			$author$project$Menkayonta$docIdToList(descriptionid.docid),
+			_List_fromArray(
+				['description', descriptionid.kind])));
+	return A4($elm$url$Url$Builder$custom, $elm$url$Url$Builder$Relative, path, _List_Nil, descriptionid.fragment);
 };
 var $elm$json$Json$Encode$int = _Json_wrap;
 var $author$project$Menkayonta$descriptionEncoder = function (description) {
@@ -5057,6 +5117,18 @@ var $elm$json$Json$Encode$dict = F3(
 				_Json_emptyObject(_Utils_Tuple0),
 				dictionary));
 	});
+var $elm$url$Url$Builder$relative = F2(
+	function (pathSegments, parameters) {
+		return _Utils_ap(
+			A2($elm$core$String$join, '/', pathSegments),
+			$elm$url$Url$Builder$toQuery(parameters));
+	});
+var $author$project$Menkayonta$docIdToString = function (docid) {
+	return A2(
+		$elm$url$Url$Builder$relative,
+		$author$project$Menkayonta$docIdToList(docid),
+		_List_Nil);
+};
 var $author$project$Menkayonta$translationEncoder = function (tr) {
 	return $elm$json$Json$Encode$object(
 		_List_fromArray(
@@ -5094,7 +5166,7 @@ var $author$project$Menkayonta$interlinearEncoder = function (_int) {
 				A3($elm$json$Json$Encode$dict, $elm$core$String$fromInt, $author$project$Menkayonta$translationEncoder, _int.translations))
 			]));
 };
-var $author$project$Menkayonta$docUuidToString = function (docid) {
+var $author$project$Menkayonta$docIdToSimpleString = function (docid) {
 	if (docid.$ === 'PersonId') {
 		var id = docid.a;
 		return id;
@@ -5108,18 +5180,20 @@ var $elm$time$Time$posixToMillis = function (_v0) {
 	return millis;
 };
 var $author$project$Menkayonta$modificationIdToString = function (modid) {
-	return A2(
-		$author$project$Menkayonta$addFrag,
-		modid.fragment,
-		_List_fromArray(
-			[
-				$author$project$Menkayonta$docIdToString(modid.docid),
-				'modification',
-				modid.kind,
-				$elm$core$String$fromInt(
-				$elm$time$Time$posixToMillis(modid.time)),
-				$author$project$Menkayonta$docUuidToString(modid.person)
-			]));
+	var path = A2(
+		$elm$core$List$map,
+		$elm$url$Url$percentEncode,
+		_Utils_ap(
+			$author$project$Menkayonta$docIdToList(modid.docid),
+			_List_fromArray(
+				[
+					'modification',
+					modid.kind,
+					$elm$core$String$fromInt(
+					$elm$time$Time$posixToMillis(modid.time)),
+					$author$project$Menkayonta$docIdToSimpleString(modid.person)
+				])));
+	return A4($elm$url$Url$Builder$custom, $elm$url$Url$Builder$Relative, path, _List_Nil, modid.fragment);
 };
 var $author$project$Menkayonta$modificationEncoder = function (modification) {
 	return A2(
@@ -5166,16 +5240,14 @@ var $author$project$Menkayonta$personEncoder = function (person) {
 			]));
 };
 var $author$project$Menkayonta$propertyIdToString = function (propertyid) {
-	return A2(
-		$author$project$Menkayonta$addFrag,
-		propertyid.fragment,
-		_List_fromArray(
-			[
-				$author$project$Menkayonta$docIdToString(propertyid.docid),
-				'property',
-				propertyid.kind,
-				propertyid.value
-			]));
+	var path = A2(
+		$elm$core$List$map,
+		$elm$url$Url$percentEncode,
+		_Utils_ap(
+			$author$project$Menkayonta$docIdToList(propertyid.docid),
+			_List_fromArray(
+				['property', propertyid.kind, propertyid.value])));
+	return A4($elm$url$Url$Builder$custom, $elm$url$Url$Builder$Relative, path, _List_Nil, propertyid.fragment);
 };
 var $author$project$Menkayonta$propertyEncoder = function (property) {
 	return A2(
@@ -5193,15 +5265,14 @@ var $author$project$Menkayonta$propertyEncoder = function (property) {
 			]));
 };
 var $author$project$Menkayonta$tagIdToString = function (tagid) {
-	return A2(
-		$author$project$Menkayonta$addFrag,
-		tagid.fragment,
-		_List_fromArray(
-			[
-				$author$project$Menkayonta$docIdToString(tagid.docid),
-				'tag',
-				tagid.kind
-			]));
+	var path = A2(
+		$elm$core$List$map,
+		$elm$url$Url$percentEncode,
+		_Utils_ap(
+			$author$project$Menkayonta$docIdToList(tagid.docid),
+			_List_fromArray(
+				['tag', tagid.kind])));
+	return A4($elm$url$Url$Builder$custom, $elm$url$Url$Builder$Relative, path, _List_Nil, tagid.fragment);
 };
 var $author$project$Menkayonta$tagEncoder = function (tag) {
 	return A2(
@@ -5219,15 +5290,17 @@ var $author$project$Menkayonta$tagEncoder = function (tag) {
 			]));
 };
 var $author$project$Menkayonta$utilityIdToString = function (utilityid) {
-	return A2(
-		$author$project$Menkayonta$addFrag,
-		utilityid.fragment,
-		_List_fromArray(
-			[
-				'utility',
+	var path = A2(
+		$elm$core$List$map,
+		$elm$url$Url$percentEncode,
+		A2(
+			$elm$core$List$cons,
+			'utility',
+			A2(
+				$elm$core$List$cons,
 				utilityid.kind,
-				$author$project$Menkayonta$docIdToString(utilityid.docid)
-			]));
+				$author$project$Menkayonta$docIdToList(utilityid.docid))));
+	return A4($elm$url$Url$Builder$custom, $elm$url$Url$Builder$Relative, path, _List_Nil, utilityid.fragment);
 };
 var $author$project$Menkayonta$utilityEncoder = function (utility) {
 	return A2(
@@ -5428,7 +5501,7 @@ var $author$project$Converter$constructModifier = function (_v0) {
 			docversion: 0,
 			id: {
 				docid: docid,
-				fragment: _List_Nil,
+				fragment: $elm$core$Maybe$Nothing,
 				kind: kind,
 				person: $author$project$Menkayonta$PersonId(pid),
 				time: time
@@ -5507,7 +5580,7 @@ var $author$project$Converter$constructDescription = F3(
 				$author$project$Menkayonta$MyDescription(x));
 		}(
 			{
-				id: {docid: docid, fragment: _List_Nil, kind: kind},
+				id: {docid: docid, fragment: $elm$core$Maybe$Nothing, kind: kind},
 				rev: $elm$core$Maybe$Nothing,
 				value: value,
 				version: 1
@@ -5641,7 +5714,7 @@ var $author$project$Converter$constructProperty = F3(
 				$author$project$Menkayonta$MyProperty(x));
 		}(
 			{
-				id: {docid: docid, fragment: _List_Nil, kind: kind, value: str},
+				id: {docid: docid, fragment: $elm$core$Maybe$Nothing, kind: kind, value: str},
 				rev: $elm$core$Maybe$Nothing,
 				version: 1
 			});
@@ -6259,7 +6332,7 @@ var $author$project$Converter$constructTag = F2(
 				$author$project$Menkayonta$MyTag(x));
 		}(
 			{
-				id: {docid: docid, fragment: _List_Nil, kind: kind},
+				id: {docid: docid, fragment: $elm$core$Maybe$Nothing, kind: kind},
 				rev: $elm$core$Maybe$Nothing,
 				version: 1
 			});
@@ -6456,7 +6529,7 @@ var $author$project$Converter$utilityStage = function (_v0) {
 	var utilityVal = _v0.utilityVal;
 	var model = _v0.model;
 	var utility = {
-		id: {docid: docid, fragment: _List_Nil, kind: 'dative'},
+		id: {docid: docid, fragment: $elm$core$Maybe$Nothing, kind: 'dative'},
 		rev: $elm$core$Maybe$Nothing,
 		value: utilityVal,
 		version: 1
