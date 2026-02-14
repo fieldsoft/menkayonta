@@ -17,7 +17,6 @@ module Menkayonta exposing
     , Utility
     , UtilityId
     , Value(..)
-    , decoder
     , encoder
     , identifierToString
     , listDecoder
