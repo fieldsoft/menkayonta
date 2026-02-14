@@ -1392,27 +1392,17 @@ prepInterlinearSave int project me time =
             , docversion = int.version
             , value = M.encoder (M.MyInterlinear interlinear)
             }
-
-        envelope : Envelope
-        envelope =
-            { command =
-                "update-doc"
-            , project =
-                project
-            , address =
-                M.identifierToString
-                    (M.MyDocId <|
-                        M.InterlinearId int.id
-                    )
-            , content =
-                [ M.MyInterlinear interlinear
-                , M.MyModification modification
-                ]
-                    |> List.map M.encoder
-                    |> E.list identity
-            }
     in
-    envelope
+    { command = "update-doc"
+    , project = project
+    , address = M.identifierToString (M.MyDocId <| M.InterlinearId int.id)
+    , content =
+        [ M.MyInterlinear interlinear
+        , M.MyModification modification
+        ]
+            |> List.map M.encoder
+            |> E.list identity
+    }
 
 
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
