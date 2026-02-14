@@ -158,29 +158,27 @@ init int =
             Dict.keys int.translations
                 |> List.maximum
                 |> Maybe.withDefault 0
-
-        model : Model
-        model =
-            { id = int.id
-            , rev = int.rev
-            , version = int.version
-            , changed = False
-            , submitted = False
-            , error = ""
-            , valid = True
-            , text =
-                { value = int.text
-                , valid = True
-                , error = ""
-                , changed = False
-                , original = int.text
-                }
-            , annotations = ann
-            , translations = trans
-            , counter = counter
-            }
     in
-    ( model, Cmd.none )
+    ( { id = int.id
+      , rev = int.rev
+      , version = int.version
+      , changed = False
+      , submitted = False
+      , error = ""
+      , valid = True
+      , text =
+            { value = int.text
+            , valid = True
+            , error = ""
+            , changed = False
+            , original = int.text
+            }
+      , annotations = ann
+      , translations = trans
+      , counter = counter
+      }
+    , Cmd.none
+    )
 
 
 {-| A starter Data instance.
@@ -211,80 +209,6 @@ initData id =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
-        tokens : String -> Int
-        tokens s =
-            String.words s
-                -- Don't include the empty string
-                |> List.filter (\x -> String.length x > 0)
-                |> List.length
-
-        breax : String -> List Int
-        breax s =
-            String.words s
-                -- Don't include the empty string
-                |> List.filter (\x -> String.length x > 0)
-                |> List.map (\x -> List.length <| String.split "-" x)
-
-        breakMismatch :
-            String
-            -> String
-            ->
-                Maybe
-                    { token1 : String
-                    , token2 : String
-                    , length1 : Int
-                    , length2 : Int
-                    }
-        breakMismatch s1 s2 =
-            let
-                brx1 : List Int
-                brx1 =
-                    breax s1
-
-                brx2 : List Int
-                brx2 =
-                    breax s2
-
-                -- Find the first index where the number of breaks is
-                -- unequal.
-                idx : Maybe Int
-                idx =
-                    List.map2 (\a1 a2 -> a1 == a2) brx1 brx2
-                        |> LE.findIndex not
-
-                -- Get the token from the first list of tokens (if it
-                -- exists) that had an unequal number of breaks to
-                -- some item in the second list of tokens.
-                token1 : Maybe String
-                token1 =
-                    Maybe.andThen (\i -> LE.getAt i (String.words s1)) idx
-
-                token2 : Maybe String
-                token2 =
-                    Maybe.andThen (\i -> LE.getAt i (String.words s2)) idx
-
-                -- Get the lenth differences between the tokens.
-                length1 : Maybe Int
-                length1 =
-                    Maybe.andThen (\i -> LE.getAt i brx1) idx
-
-                length2 : Maybe Int
-                length2 =
-                    Maybe.andThen (\i -> LE.getAt i brx2) idx
-            in
-            Maybe.map4
-                (\t1 t2 l1 l2 ->
-                    { token1 = t1
-                    , token2 = t2
-                    , length1 = l1
-                    , length2 = l2
-                    }
-                )
-                token1
-                token2
-                length1
-                length2
-
         text : StringField
         text =
             model.text
@@ -349,47 +273,16 @@ update msg model =
         -- Set top level validity and error messages accordingly.
         validate : Model -> Model
         validate model_ =
-            let
-                valid_ : Bool
-                valid_ =
-                    valid model_
-            in
             { model_
                 | changed = True
-                , valid = valid_
+                , valid = valid model_
                 , error =
-                    if valid_ then
+                    if valid model_ then
                         ""
 
                     else
                         toperr
             }
-
-        -- The reason for dividing the list in this way is ensuring
-        -- that the user doesn't have the elements of the user
-        -- interface jump around while editing. It will also preserve
-        -- the order from the Dict the items were derived from. See
-        -- below for example usage.
-        divided :
-            Int
-            ->
-                Maybe
-                    ( List Translation
-                    , Translation
-                    , List Translation
-                    )
-        divided id_ =
-            LE.splitWhen (\x -> x.id == id_) translations
-                |> Maybe.andThen
-                    (\( x, y ) ->
-                        List.head y
-                            |> Maybe.andThen
-                                (\h ->
-                                    List.tail y
-                                        |> Maybe.map
-                                            (\z -> ( x, h, z ))
-                                )
-                    )
 
         textTokens : Int
         textTokens =
@@ -431,10 +324,6 @@ update msg model =
 
         Breaks str ->
             let
-                newTokens : Int
-                newTokens =
-                    tokens str
-
                 ok : Model
                 ok =
                     { model
@@ -454,43 +343,45 @@ update msg model =
             if String.isEmpty (String.trim str) then
                 ( ok, Cmd.none )
 
-            else if newTokens == textTokens then
-                ( ok, Cmd.none )
-
             else
                 let
-                    err : String
-                    err =
-                        [ "The number of tokens is not equal."
-                        , "The text has"
-                        , String.fromInt textTokens ++ "."
-                        , "This line has"
-                        , String.fromInt newTokens ++ "."
-                        ]
-                            |> String.join " "
+                    newTokens : Int
+                    newTokens =
+                        tokens str
                 in
-                ( validate
-                    { model
-                        | annotations =
-                            { annotations
-                                | breaks =
-                                    { breaks
-                                        | value = str
-                                        , valid = False
-                                        , error = err
-                                        , changed = True
-                                    }
-                            }
-                    }
-                , Cmd.none
-                )
+                if newTokens == textTokens then
+                    ( ok, Cmd.none )
+
+                else
+                    let
+                        err : String
+                        err =
+                            [ "The number of tokens is not equal."
+                            , "The text has"
+                            , String.fromInt textTokens ++ "."
+                            , "This line has"
+                            , String.fromInt newTokens ++ "."
+                            ]
+                                |> String.join " "
+                    in
+                    ( validate
+                        { model
+                            | annotations =
+                                { annotations
+                                    | breaks =
+                                        { breaks
+                                            | value = str
+                                            , valid = False
+                                            , error = err
+                                            , changed = True
+                                        }
+                                }
+                        }
+                    , Cmd.none
+                    )
 
         Glosses str ->
             let
-                newTokens : Int
-                newTokens =
-                    tokens str
-
                 ok : Model
                 ok =
                     { model
@@ -511,6 +402,11 @@ update msg model =
                 ( ok, Cmd.none )
 
             else
+                let
+                    newTokens : Int
+                    newTokens =
+                        tokens str
+                in
                 case
                     ( newTokens == textTokens
                     , breakMismatch breaks.value str
@@ -577,10 +473,6 @@ update msg model =
 
         Phonemic str ->
             let
-                newTokens : Int
-                newTokens =
-                    tokens str
-
                 ok : Model
                 ok =
                     { model
@@ -600,36 +492,42 @@ update msg model =
             if String.isEmpty (String.trim str) then
                 ( ok, Cmd.none )
 
-            else if newTokens == textTokens then
-                ( ok, Cmd.none )
-
             else
                 let
-                    err : String
-                    err =
-                        [ "The number of tokens is not equal."
-                        , "The text has"
-                        , String.fromInt textTokens ++ "."
-                        , "This line has"
-                        , String.fromInt newTokens ++ "."
-                        ]
-                            |> String.join " "
+                    newTokens : Int
+                    newTokens =
+                        tokens str
                 in
-                ( validate
-                    { model
-                        | annotations =
-                            { annotations
-                                | phonemic =
-                                    { phonemic
-                                        | value = str
-                                        , valid = False
-                                        , error = err
-                                        , changed = True
-                                    }
-                            }
-                    }
-                , Cmd.none
-                )
+                if newTokens == textTokens then
+                    ( ok, Cmd.none )
+
+                else
+                    let
+                        err : String
+                        err =
+                            [ "The number of tokens is not equal."
+                            , "The text has"
+                            , String.fromInt textTokens ++ "."
+                            , "This line has"
+                            , String.fromInt newTokens ++ "."
+                            ]
+                                |> String.join " "
+                    in
+                    ( validate
+                        { model
+                            | annotations =
+                                { annotations
+                                    | phonemic =
+                                        { phonemic
+                                            | value = str
+                                            , valid = False
+                                            , error = err
+                                            , changed = True
+                                        }
+                                }
+                        }
+                    , Cmd.none
+                    )
 
         Judgment str ->
             ( validate
@@ -692,8 +590,8 @@ update msg model =
                         ( validate model, Cmd.none )
 
                 Just id ->
-                    case divided id of
-                        Just ( prefix, translation, suffix ) ->
+                    case divided id translations of
+                        Just ( pre, translation, post ) ->
                             let
                                 ntranslation : Translation
                                 ntranslation =
@@ -703,7 +601,7 @@ update msg model =
 
                                 ntranslations : List Translation
                                 ntranslations =
-                                    prefix ++ (ntranslation :: suffix)
+                                    pre ++ (ntranslation :: post)
                             in
                             ( validate
                                 { model
@@ -716,56 +614,49 @@ update msg model =
                             ( validate model, Cmd.none )
 
         TTranslation id str ->
-            case divided id of
-                Just ( prefix, translation, suffix ) ->
+            case divided id translations of
+                Just ( pre, translation, post ) ->
                     let
                         ttranslation : StringField
                         ttranslation =
                             translation.translation
 
-                        goodTranslation : Translation
-                        goodTranslation =
-                            { translation
-                                | translation =
-                                    { ttranslation
-                                        | value = str
-                                        , valid = True
-                                        , error = ""
-                                        , changed = True
-                                    }
-                            }
-
-                        err : String
-                        err =
-                            [ "The translation cannot be blank."
-                            , "If you want to remove the translation,"
-                            , "you must delete it."
-                            ]
-                                |> String.join " "
-
-                        badTranslation : Translation
-                        badTranslation =
-                            { translation
-                                | translation =
-                                    { ttranslation
-                                        | value = str
-                                        , valid = False
-                                        , error = err
-                                        , changed = True
-                                    }
-                            }
-
                         ntranslation : Translation
                         ntranslation =
                             if String.isEmpty (String.trim str) then
-                                badTranslation
+                                let
+                                    err : String
+                                    err =
+                                        [ "The translation cannot be blank."
+                                        , "If you want to remove the translation,"
+                                        , "you must delete it."
+                                        ]
+                                            |> String.join " "
+                                in
+                                { translation
+                                    | translation =
+                                        { ttranslation
+                                            | value = str
+                                            , valid = False
+                                            , error = err
+                                            , changed = True
+                                        }
+                                }
 
                             else
-                                goodTranslation
+                                { translation
+                                    | translation =
+                                        { ttranslation
+                                            | value = str
+                                            , valid = True
+                                            , error = ""
+                                            , changed = True
+                                        }
+                                }
 
                         ntranslations : List Translation
                         ntranslations =
-                            prefix ++ (ntranslation :: suffix)
+                            pre ++ (ntranslation :: post)
                     in
                     ( validate { model | translations = ntranslations }
                     , Cmd.none
@@ -776,8 +667,8 @@ update msg model =
                     ( model, Cmd.none )
 
         TJudgment id str ->
-            case divided id of
-                Just ( prefix, translation, suffix ) ->
+            case divided id translations of
+                Just ( pre, translation, post ) ->
                     let
                         tjudgment : StringField
                         tjudgment =
@@ -797,7 +688,7 @@ update msg model =
 
                         ntranslations : List Translation
                         ntranslations =
-                            prefix ++ (ntranslation :: suffix)
+                            pre ++ (ntranslation :: post)
                     in
                     ( validate { model | translations = ntranslations }
                     , Cmd.none
@@ -1070,3 +961,111 @@ viewTrans trans =
 roleAttr : String -> Html.Attribute msg
 roleAttr role =
     Attr.attribute "role" role
+
+
+
+{- Helper functions -}
+
+
+{-| The number of tokens in a string.
+-}
+tokens : String -> Int
+tokens s =
+    String.words s
+        -- Don't include the empty string
+        |> List.filter (\x -> String.length x > 0)
+        |> List.length
+
+
+{-| The number of affix breaks per token in a string
+-}
+breax : String -> List Int
+breax s =
+    String.words s
+        -- Don't include the empty string
+        |> List.filter (\x -> String.length x > 0)
+        |> List.map (\x -> List.length <| String.split "-" x)
+
+
+{-| An instance of a mismatch in the number of affix breaks for two
+tokens in different glossing lines (breaks and glosses). The
+mismatching tokens are reported, as well as the different lengths,
+measured in affix breaks.
+-}
+type alias Mismatch =
+    { token1 : String
+    , token2 : String
+    , length1 : Int
+    , length2 : Int
+    }
+
+
+{-| If there are no affix break mismatches in the two strings, return
+Nothing, otherwise, provide a summary of the mismatch to report in the
+view.
+-}
+breakMismatch : String -> String -> Maybe Mismatch
+breakMismatch s1 s2 =
+    let
+        brx1 : List Int
+        brx1 =
+            breax s1
+
+        brx2 : List Int
+        brx2 =
+            breax s2
+
+        -- Find the first index where the number of breaks is
+        -- unequal.
+        idx : Maybe Int
+        idx =
+            List.map2 (\a1 a2 -> a1 == a2) brx1 brx2
+                |> LE.findIndex not
+
+        -- Get the token from the first list of tokens (if it
+        -- exists) that had an unequal number of breaks to
+        -- some item in the second list of tokens.
+        token1 : Maybe String
+        token1 =
+            Maybe.andThen (\i -> LE.getAt i (String.words s1)) idx
+
+        token2 : Maybe String
+        token2 =
+            Maybe.andThen (\i -> LE.getAt i (String.words s2)) idx
+
+        -- Get the lenth differences between the tokens.
+        length1 : Maybe Int
+        length1 =
+            Maybe.andThen (\i -> LE.getAt i brx1) idx
+
+        length2 : Maybe Int
+        length2 =
+            Maybe.andThen (\i -> LE.getAt i brx2) idx
+    in
+    Maybe.map4 (\t1 t2 l1 l2 -> Mismatch t1 t2 l1 l2)
+        token1
+        token2
+        length1
+        length2
+
+
+{-| Used for dividing a list of translations.
+-}
+type alias Divided =
+    ( List Translation, Translation, List Translation )
+
+
+{-| The reason for dividing the list in this way is to ensure that the
+user doesn't have the elements of the user interface jump around while
+editing. It will also preserve the order from the Dict the items were
+derived from. See below for example usage.
+-}
+divided : Int -> List Translation -> Maybe Divided
+divided id_ translations =
+    -- Divide the list at the requested id.
+    case LE.splitWhen (\x -> x.id == id_) translations of
+        Just ( pre, h :: post ) ->
+            Just ( pre, h, post )
+
+        _ ->
+            Nothing

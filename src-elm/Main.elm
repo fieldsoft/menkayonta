@@ -705,15 +705,6 @@ update msg model =
 
                 Ok gc_ ->
                     let
-                        -- The email and name values may be blank.
-                        person : M.Person
-                        person =
-                            { id = gc_.email
-                            , rev = Nothing
-                            , version = 1
-                            , names = Dict.singleton 0 gc_.name
-                            }
-
                         invalidPerson : Bool
                         invalidPerson =
                             String.isEmpty gc_.name
@@ -728,19 +719,21 @@ update msg model =
                                         Nothing
 
                                     else
-                                        Just person
+                                        Just
+                                            { id = gc_.email
+                                            , rev = Nothing
+                                            , version = 1
+                                            , names =
+                                                Dict.singleton 0 gc_.name
+                                            }
                             }
 
-                        openForm : Cmd Msg
-                        openForm =
-                            sendMsg (ShowGlobalSettings gc)
-
-                        -- When the data is incomplere, open the form
+                        -- When the data is incomplete, open the form
                         -- so the user can add their name and email.
                         command : Cmd Msg
                         command =
                             if invalidPerson then
-                                openForm
+                                sendMsg (ShowGlobalSettings gc)
 
                             else
                                 Cmd.none
@@ -1125,10 +1118,6 @@ update msg model =
                 vistaId =
                     "FORM::" ++ id
 
-                tabtitle : String
-                tabtitle =
-                    project.title.value ++ " Settings"
-
                 vista : Vista
                 vista =
                     { project = id
@@ -1152,6 +1141,10 @@ update msg model =
             case getByVista vistaId model.tabs.ventanas of
                 Nothing ->
                     let
+                        tabtitle : String
+                        tabtitle =
+                            project.title.value ++ " Settings"
+
                         ventana : Ventana
                         ventana =
                             { title = tabtitle
@@ -1408,16 +1401,6 @@ prepInterlinearSave int project me time =
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
 handleVista vista short full model =
     let
-        key : String
-        key =
-            getProjectKey vista.project model
-                |> Maybe.withDefault ""
-
-        title : String
-        title =
-            getProjectTitle vista.project model
-                |> Maybe.withDefault ""
-
         vistas : Dict String Vista
         vistas =
             Dict.insert vista.identifier vista model.tabs.vistas
@@ -1444,6 +1427,16 @@ handleVista vista short full model =
     case getByVista vista.identifier model.tabs.ventanas of
         Nothing ->
             let
+                key : String
+                key =
+                    getProjectKey vista.project model
+                        |> Maybe.withDefault ""
+
+                title : String
+                title =
+                    getProjectTitle vista.project model
+                        |> Maybe.withDefault ""
+
                 ventana : Ventana
                 ventana =
                     { title = key ++ ": " ++ short
@@ -1799,11 +1792,6 @@ viewVista model tp vista =
                 intTotal =
                     List.length searched
 
-                -- For displaying
-                total : String
-                total =
-                    intTotal |> String.fromInt
-
                 is : List M.Interlinear
                 is =
                     List.take params.length searched
@@ -1817,6 +1805,12 @@ viewVista model tp vista =
                     [ Html.label []
                         [ Html.text <|
                             if params.length <= intTotal then
+                                let
+                                    -- For displaying
+                                    total : String
+                                    total =
+                                        intTotal |> String.fromInt
+                                in
                                 "Show (" ++ len ++ " of " ++ total ++ ")"
 
                             else
@@ -2208,13 +2202,14 @@ reduceDoc env =
         content : Result D.Error (List M.Value)
         content =
             env.content |> D.decodeValue M.listDecoder
-
-        initial : M.OneDoc
-        initial =
-            M.OneDoc Nothing [] [] [] []
     in
     case content of
         Ok content_ ->
+            let
+                initial : M.OneDoc
+                initial =
+                    M.OneDoc Nothing [] [] [] []
+            in
             Ok <| List.foldl M.oneBuilder initial content_
 
         Err e ->

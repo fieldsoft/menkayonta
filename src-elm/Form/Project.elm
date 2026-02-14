@@ -90,18 +90,6 @@ init model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
-        title : StringField
-        title =
-            model.title
-
-        url : StringField
-        url =
-            model.url
-
-        key : StringField
-        key =
-            model.url
-
         toperr : String
         toperr =
             "Please correct form."
@@ -116,16 +104,11 @@ update msg model =
 
         validate : Model -> Model
         validate model_ =
-            let
-                valid_ : Bool
-                valid_ =
-                    valid model_
-            in
             { model_
                 | changed = True
-                , valid = valid_
+                , valid = valid model_
                 , error =
-                    if valid_ then
+                    if valid model_ then
                         ""
 
                     else
@@ -138,6 +121,11 @@ update msg model =
             ( model, Cmd.none )
 
         Title str ->
+            let
+                title : StringField
+                title =
+                    model.title
+            in
             if String.isEmpty str then
                 ( validate
                     { model
@@ -167,6 +155,11 @@ update msg model =
                 )
 
         Key str ->
+            let
+                key : StringField
+                key =
+                    model.url
+            in
             if String.length str /= 1 then
                 ( validate
                     { model
@@ -196,6 +189,11 @@ update msg model =
                 )
 
         Url str ->
+            let
+                url : StringField
+                url =
+                    model.url
+            in
             case ( String.isEmpty str, Url.fromString str ) of
                 ( False, Nothing ) ->
                     let

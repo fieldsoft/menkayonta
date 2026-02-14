@@ -62,45 +62,26 @@ initData =
 
 init : String -> List ( String, String ) -> ( Model, Cmd Msg )
 init filepath projectOptions =
-    let
-        model : Model
-        model =
-            { initData
-                | filepath = filepath
-                , kind =
-                    { blankSelect
-                        | options =
-                            [ ( "Dative Form Json"
-                              , "Dative Form Json"
-                              )
-                            ]
-                    }
-                , project =
-                    { blankSelect | options = projectOptions }
+    ( { initData
+        | filepath = filepath
+        , kind =
+            { blankSelect
+                | options =
+                    [ ( "Dative Form Json"
+                      , "Dative Form Json"
+                      )
+                    ]
             }
-    in
-    ( model, Cmd.none )
+        , project =
+            { blankSelect | options = projectOptions }
+      }
+    , Cmd.none
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
-        kind : SelectField
-        kind =
-            model.kind
-
-        kindopts : List String
-        kindopts =
-            List.map Tuple.second kind.options
-
-        project : SelectField
-        project =
-            model.project
-
-        projopts : List String
-        projopts =
-            List.map Tuple.second project.options
-
         toperr : String
         toperr =
             "Pleae correct form."
@@ -114,16 +95,11 @@ update msg model =
 
         validate : Model -> Model
         validate model_ =
-            let
-                valid_ : Bool
-                valid_ =
-                    valid model_
-            in
             { model_
                 | changed = True
-                , valid = valid_
+                , valid = valid model_
                 , error =
-                    if valid_ then
+                    if valid model_ then
                         ""
 
                     else
@@ -135,6 +111,15 @@ update msg model =
             ( model, Cmd.none )
 
         Kind str ->
+            let
+                kind : SelectField
+                kind =
+                    model.kind
+
+                kindopts : List String
+                kindopts =
+                    List.map Tuple.second kind.options
+            in
             if List.member str kindopts then
                 ( validate
                     { model
@@ -164,6 +149,15 @@ update msg model =
                 )
 
         Project str ->
+            let
+                project : SelectField
+                project =
+                    model.project
+
+                projopts : List String
+                projopts =
+                    List.map Tuple.second project.options
+            in
             if List.member str projopts then
                 ( validate
                     { model

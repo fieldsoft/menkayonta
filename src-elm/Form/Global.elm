@@ -1,10 +1,10 @@
 module Form.Global exposing
     ( Model
     , Msg(..)
-    , update
-    , view
     , init
     , initData
+    , update
+    , view
     )
 
 import Config
@@ -26,8 +26,8 @@ import Form.Shared
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Json.Encode as E
 import Json.Decode as D
+import Json.Encode as E
 import Task
 
 
@@ -82,25 +82,17 @@ init value =
         Ok gf ->
             ( initData
             , Cmd.batch
-                  [ sendMsg <| Email gf.email
-                  , sendMsg <| Name gf.name
-                  ]
+                [ sendMsg <| Email gf.email
+                , sendMsg <| Name gf.name
+                ]
             )
-        
+
 
 {-| This handles events specific to particular fields.
 -}
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
-        email : StringField
-        email =
-            model.email
-
-        name : StringField
-        name =
-            model.name
-
         toperr : String
         toperr =
             "Please correct form."
@@ -114,16 +106,11 @@ update msg model =
 
         validate : Model -> Model
         validate model_ =
-            let
-                valid_ : Bool
-                valid_ =
-                    valid model_
-            in
             { model_
                 | changed = True
-                , valid = valid_
+                , valid = valid model_
                 , error =
-                    if valid_ then
+                    if valid model_ then
                         ""
 
                     else
@@ -136,17 +123,22 @@ update msg model =
             ( model, Cmd.none )
 
         Email str ->
+            let
+                email : StringField
+                email =
+                    model.email
+            in
             if String.isEmpty str then
                 ( validate
-                      { model
-                          | email =
+                    { model
+                        | email =
                             { email
                                 | value = str
                                 , valid = False
                                 , error = "An email address is required."
                                 , changed = True
                             }
-                      }
+                    }
                 , Cmd.none
                 )
 
@@ -154,58 +146,63 @@ update msg model =
                 case Email.fromString str of
                     Nothing ->
                         ( validate
-                              { model
-                                  | email =
+                            { model
+                                | email =
                                     { email
                                         | value = str
                                         , valid = False
                                         , error = "Invalid email address."
                                         , changed = True
                                     }
-                              }
+                            }
                         , Cmd.none
                         )
 
                     Just _ ->
                         ( validate
-                              { model
-                                  | email =
+                            { model
+                                | email =
                                     { email
                                         | value = str
                                         , valid = True
                                         , error = ""
                                         , changed = True
                                     }
-                              }
+                            }
                         , Cmd.none
                         )
 
         Name str ->
+            let
+                name : StringField
+                name =
+                    model.name
+            in
             if String.isEmpty str then
                 ( validate
-                      { model
-                          | name =
+                    { model
+                        | name =
                             { name
                                 | value = str
                                 , valid = False
                                 , error = "A name is required."
                                 , changed = True
                             }
-                      }
+                    }
                 , Cmd.none
                 )
 
             else
                 ( validate
-                      { model
-                          | name =
+                    { model
+                        | name =
                             { name
                                 | value = str
                                 , valid = True
                                 , error = ""
                                 , changed = True
                             }
-                      }
+                    }
                 , Cmd.none
                 )
 

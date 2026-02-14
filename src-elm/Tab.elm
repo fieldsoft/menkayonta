@@ -204,14 +204,13 @@ update msg model =
                     ( model, Cmd.none )
 
         Change Length tp str ->
-            let
-                num : Int
-                num =
-                    Maybe.withDefault 0 (String.toInt str)
-            in
             case Dict.get tp model.ventanas of
                 Just ventana ->
                     let
+                        num : Int
+                        num =
+                            Maybe.withDefault 0 (String.toInt str)
+
                         params : VentanaParams
                         params =
                             ventana.params
@@ -341,18 +340,6 @@ update msg model =
                 vs =
                     model.ventanas
 
-                c : Int
-                c =
-                    model.counter
-
-                keys : List Path
-                keys =
-                    Dict.keys vs
-
-                cols : List Int
-                cols =
-                    tcolumns keys
-
                 newmodel : Model
                 newmodel =
                     if Dict.isEmpty vs || Dict.size vs == 1 then
@@ -362,6 +349,14 @@ update msg model =
                         case model.focused of
                             Just fp ->
                                 let
+                                    keys : List Path
+                                    keys =
+                                        Dict.keys vs
+
+                                    cols : List Int
+                                    cols =
+                                        tcolumns keys
+
                                     -- rows of the current column
                                     rows : List Int
                                     rows =
@@ -382,6 +377,10 @@ update msg model =
                                 -}
                                 if needsCreation then
                                     let
+                                        c : Int
+                                        c =
+                                            model.counter
+
                                         newtp : Path
                                         newtp =
                                             newTabPath dir fp c
@@ -578,48 +577,16 @@ closeTab closevista tp model =
             Just (ttab tp)
                 == Dict.get ( tcolumn tp, trow tp ) model.visVentanas
 
-        -- Was the tab focused?
-        wasFocused : Bool
-        wasFocused =
-            model.focused == Just tp
-
         -- ventans without closed tab
         ventanas : Dict Path Ventana
         ventanas =
             Dict.remove tp model.ventanas
-
-        -- The history with the closed tab excluded.
-        newHistory : List Path
-        newHistory =
-            List.filter
-                (\t -> t /= tp)
-                (refreshHistory model.focusHistory (Dict.keys ventanas))
-
-        -- The closest tab to the closed tab.
-        near : Maybe Path
-        near =
-            nearest tp (Dict.keys ventanas)
 
         -- The remaining visible ventanas if the current one has been
         -- removed.
         notClosed : Dict ( Int, Int ) Int
         notClosed =
             visRemove tp model.visVentanas
-
-        -- visVentanas were the nearest element that shares a row with
-        -- the element to be closed is set to visible.
-        rowvis : Dict ( Int, Int ) Int
-        rowvis =
-            case near of
-                Just ( c, ( r, t ) ) ->
-                    if c == tcolumn tp && r == trow tp then
-                        visInsert ( c, ( r, t ) ) notClosed
-
-                    else
-                        notClosed
-
-                Nothing ->
-                    notClosed
 
         -- Calculate new values for these variables.
         newvars :
@@ -628,7 +595,44 @@ closeTab closevista tp model =
             }
         newvars =
             if wasVisible then
+                let
+                    -- Was the tab focused?
+                    wasFocused : Bool
+                    wasFocused =
+                        model.focused == Just tp
+
+                    -- The closest tab to the closed tab.
+                    near : Maybe Path
+                    near =
+                        nearest tp (Dict.keys ventanas)
+
+                    -- visVentanas were the nearest element that
+                    -- shares a row with the element to be closed is
+                    -- set to visible.
+                    rowvis : Dict ( Int, Int ) Int
+                    rowvis =
+                        case near of
+                            Just ( c, ( r, t ) ) ->
+                                if c == tcolumn tp && r == trow tp then
+                                    visInsert ( c, ( r, t ) ) notClosed
+
+                                else
+                                    notClosed
+
+                            Nothing ->
+                                notClosed
+                in
                 if wasFocused then
+                    let
+                        -- The history with the closed tab excluded.
+                        newHistory : List Path
+                        newHistory =
+                            List.filter
+                                (\t -> t /= tp)
+                                (refreshHistory model.focusHistory
+                                    (Dict.keys ventanas)
+                                )
+                    in
                     case newHistory of
                         f :: h ->
                             -- The focus function adds the focused
@@ -653,38 +657,6 @@ closeTab closevista tp model =
                 { visible = notClosed
                 , focused = model.focused
                 }
-
-        gvistas : List String
-        gvistas =
-            model.globalVistas
-
-        vistaId : String
-        vistaId =
-            Dict.get tp model.ventanas
-                |> Maybe.map .vista
-                |> Maybe.withDefault "fake"
-
-        multiref : Bool
-        multiref =
-            getAllByVista vistaId model.ventanas
-                |> List.length
-                |> (\x -> 1 < x)
-
-        nonglobal : Bool
-        nonglobal =
-            not <| List.member vistaId gvistas
-
-        -- When the tab's vista isn't global, meaning always
-        -- available, and there are not multiple references to the
-        -- vista, and the function was called with the closevista
-        -- option set to true, remove the vista.
-        vistas : Dict String Vista
-        vistas =
-            if nonglobal && not multiref && closevista then
-                Dict.remove vistaId model.vistas
-
-            else
-                model.vistas
     in
     case newvars.focused of
         Nothing ->
@@ -696,6 +668,39 @@ closeTab closevista tp model =
                 )
 
         Just focusedTab ->
+            let
+                gvistas : List String
+                gvistas =
+                    model.globalVistas
+
+                vistaId : String
+                vistaId =
+                    Dict.get tp model.ventanas
+                        |> Maybe.map .vista
+                        |> Maybe.withDefault "fake"
+
+                multiref : Bool
+                multiref =
+                    getAllByVista vistaId model.ventanas
+                        |> List.length
+                        |> (\x -> 1 < x)
+
+                nonglobal : Bool
+                nonglobal =
+                    not <| List.member vistaId gvistas
+
+                -- When the tab's vista isn't global, meaning always
+                -- available, and there are not multiple references to the
+                -- vista, and the function was called with the closevista
+                -- option set to true, remove the vista.
+                vistas : Dict String Vista
+                vistas =
+                    if nonglobal && not multiref && closevista then
+                        Dict.remove vistaId model.vistas
+
+                    else
+                        model.vistas
+            in
             focus focusedTab
                 { model
                     | ventanas = ventanas
