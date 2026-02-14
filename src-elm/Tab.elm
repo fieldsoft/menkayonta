@@ -634,7 +634,7 @@ closeTab closevista tp model =
                                 )
                     in
                     case newHistory of
-                        f :: h ->
+                        f :: _ ->
                             -- The focus function adds the focused
                             -- item to the visVentanas dict, so we
                             -- only want to ensure that there is
