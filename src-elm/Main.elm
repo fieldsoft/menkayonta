@@ -73,9 +73,9 @@ type Msg
     | ReceivedInterlinearIndex E.Value
     | Received ReceiveType
     | RequestAllDocId String String
-    | RequestDocId String String
+      -- | RequestDocId String String
     | RequestInterlinearIndex UUID.UUID
-    | SetWindowTitle String
+      -- | SetWindowTitle String
     | ShowGlobalSettings E.Value
     | NewInterlinear UUID.UUID
     | EditInterlinear UUID.UUID M.Interlinear
@@ -693,9 +693,8 @@ update msg model =
                         _ ->
                             ( nmodel, Cmd.map (PR id) p.cmd )
 
-        SetWindowTitle title ->
-            ( model, setWindowTitle title )
-
+        -- SetWindowTitle title ->
+        --     ( model, setWindowTitle title )
         ReceivedGlobalConfig gc ->
             case D.decodeValue Config.globalConfigDecoder gc of
                 Err err ->
@@ -751,19 +750,18 @@ update msg model =
             )
 
         -- This is not currently used
-        RequestDocId project id ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-docid"
-                        , project = project
-                        , address = id
-                        , content = E.null
-                        }
-            in
-            ( model, send envelope )
-
+        -- RequestDocId project id ->
+        --     let
+        --         envelope : E.Value
+        --         envelope =
+        --             envelopeEncoder
+        --                 { command = "request-docid"
+        --                 , project = project
+        --                 , address = id
+        --                 , content = E.null
+        --                 }
+        --     in
+        --     ( model, send envelope )
         RequestAllDocId project id ->
             let
                 envelope : E.Value
