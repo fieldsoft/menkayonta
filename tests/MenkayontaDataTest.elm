@@ -3,15 +3,8 @@ module MenkayontaDataTest exposing (suite)
 import Expect
 import Menkayonta
     exposing
-        ( DocId
-        , InterlinearId
-        , MyDescriptionId
-        , MyDocId
-        , MyModificationId
-        , MyPropertyId
-        , MyTagId
-        , MyUtilityId
-        , PersonId
+        ( DocId(..)
+        , Identifier(..)
         , identifierToString
         , stringToIdentifier
         )

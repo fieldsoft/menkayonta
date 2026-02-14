@@ -4,19 +4,9 @@ import Dict
 import Expect
 import Tab
     exposing
-        ( Close
-        , Down
-        , Focus
-        , Goto
-        , Left
+        ( Msg(..)
+        , Direction(..)
         , Model
-        , Move
-        , Msg
-        , New
-        , None
-        , Right
-        , Unlock
-        , Up
         , Ventana
         , initData
         , update
