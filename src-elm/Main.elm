@@ -1572,14 +1572,14 @@ view model =
 viewColumn : Model -> Int -> Dict Int (Set Int) -> Html.Html Msg
 viewColumn model col rows =
     Html.div [ Attr.class "tab-column" ]
-        (Dict.map (viewRow model col (Dict.size rows)) rows
+        (Dict.map (viewRow model col) rows
             |> Dict.toList
             |> List.map Tuple.second
         )
 
 
-viewRow : Model -> Int -> Int -> Int -> Set Int -> Html.Html Msg
-viewRow model col _ row tabs =
+viewRow : Model -> Int -> Int -> Set Int -> Html.Html Msg
+viewRow model col row tabs =
     Html.div [ Attr.class "tab-row" ]
         [ Html.nav
             [ Attr.class "tab-header" ]
@@ -1871,20 +1871,20 @@ viewOneDoc vista od =
                             ]
                         ]
                     ]
-                , viewInterlinearOneDoc vista od int
+                , viewInterlinearOneDoc od int
                 ]
 
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
 
 
-viewInterlinearOneDoc : Vista -> M.OneDoc -> M.Interlinear -> Html.Html Msg
-viewInterlinearOneDoc vista od int =
+viewInterlinearOneDoc : M.OneDoc -> M.Interlinear -> Html.Html Msg
+viewInterlinearOneDoc od int =
     Html.div [ Attr.class "docview" ]
         [ Html.h2 []
             [ Html.text "Interlinear Gloss" ]
         , Html.article []
-            [ viewInterlinearItem vista.project int
+            [ viewInterlinearItem int
             , Html.footer []
                 [ M.InterlinearId int.id
                     |> M.MyDocId
@@ -2066,7 +2066,7 @@ viewDescription description =
 viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearIndexItem proj int =
     Html.li []
-        [ viewInterlinearItem proj int
+        [ viewInterlinearItem int
         , Html.div [ Attr.class "gloss-controls" ]
             [ Html.a
                 [ Attr.href "#"
@@ -2091,8 +2091,8 @@ viewInterlinearIndexItem proj int =
         ]
 
 
-viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
-viewInterlinearItem proj int =
+viewInterlinearItem : M.Interlinear -> Html.Html Msg
+viewInterlinearItem int =
     let
         srcLine : Html.Html Msg
         srcLine =

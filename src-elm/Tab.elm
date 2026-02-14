@@ -1017,6 +1017,6 @@ multipleRows tabs =
                     Dict.insert c (Set.insert r rows) acc
     in
     List.foldl accRow Dict.empty tabs
-        |> Dict.filter (\k v -> Set.size v > 1)
+        |> Dict.filter (\_ v -> Set.size v > 1)
         |> Dict.isEmpty
         |> not
