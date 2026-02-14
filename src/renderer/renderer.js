@@ -30,9 +30,9 @@ app.ports.send.subscribe((envelope) => {
   window.electronAPI.command(envelope)
 })
 
-app.ports.setWindowTitle.subscribe((title) => {
-  window.electronAPI.setTitle(title)
-})
+// app.ports.setWindowTitle.subscribe((title) => {
+//   window.electronAPI.setTitle(title)
+// })
 
 app.ports.requestGlobalConfig.subscribe(async () => {
   const gconfig = await window.electronAPI.requestGlobalConfig()
