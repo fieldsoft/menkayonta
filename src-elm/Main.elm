@@ -1,4 +1,4 @@
-port module Main exposing (main)
+port module Main exposing (Dimensions, Flags, Model, Msg, main)
 
 import Browser
 import Config exposing (GlobalConfig, GlobalSettings, ProjectInfo)
@@ -911,8 +911,8 @@ update msg model =
                     }
                 i =
                     case Form.Importer.init filepath projectOptions of
-                         ( imodel, icmd ) ->
-                             { model = imodel, cmd = icmd }
+                        ( imodel, icmd ) ->
+                            { model = imodel, cmd = icmd }
 
                 content : Content
                 content =
@@ -1059,8 +1059,10 @@ update msg model =
                     , cmd : Cmd Form.Project.Msg
                     }
                 p =
-                    case Form.Project.init
-                        (Form.Project.initData step.uuid) of
+                    case
+                        Form.Project.init
+                            (Form.Project.initData step.uuid)
+                    of
                         ( pmodel, pcmd ) ->
                             { model = pmodel, cmd = pcmd }
 
@@ -1253,9 +1255,9 @@ update msg model =
                 Nothing ->
                     let
                         i :
-                           { model : Form.Interlinear.Model
-                           , cmd : Cmd Form.Interlinear.Msg
-                           }
+                            { model : Form.Interlinear.Model
+                            , cmd : Cmd Form.Interlinear.Msg
+                            }
                         i =
                             case Form.Interlinear.init int of
                                 ( imodel, icmd ) ->
@@ -1332,7 +1334,7 @@ subUpdate subupdate submsg submodel =
     subupdate submsg submodel
         |> (\x -> { model = Tuple.first x, cmd = Tuple.second x })
 
-           
+
 prepInterlinearSave : Form.Interlinear.Model -> String -> Maybe M.Person -> Time.Posix -> Envelope
 prepInterlinearSave int project me time =
     let

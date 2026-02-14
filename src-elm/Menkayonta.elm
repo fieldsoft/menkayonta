@@ -314,7 +314,6 @@ idParser =
             , fragment = fragment
             }
                 |> MyModificationId
-
     in
     UP.oneOf
         [ UP.map MyDocId docId

@@ -1,4 +1,4 @@
-port module Converter exposing (main)
+port module Converter exposing (Flags, Model, Msg, Stage, main)
 
 import DativeTypes as DT
 import Dict exposing (Dict)

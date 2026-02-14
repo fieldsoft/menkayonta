@@ -1,8 +1,11 @@
 module DativeTypes exposing
     ( DativeForm
-    , DativeSpeaker
-    , DativeToken
+    , DativeNamed
     , DativePerson
+    , DativeSpeaker
+    , DativeSubToken
+    , DativeToken
+    , DativeTranslation
     , dativeTokenEncoder
     , decoder
     , encoder
@@ -101,6 +104,7 @@ type alias DativeForm =
     , tags : List DativeNamed
     , files : List String
     }
+
 
 
 --     , tags : List DativeNamed

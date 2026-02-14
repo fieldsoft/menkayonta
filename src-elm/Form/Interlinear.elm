@@ -1,6 +1,8 @@
 module Form.Interlinear exposing
-    ( Model
+    ( Annotations
+    , Model
     , Msg(..)
+    , Translation
     , init
     , initData
     , update
@@ -54,7 +56,7 @@ group of translations.
 -}
 type Msg
     = Text String
-    | Breaks String 
+    | Breaks String
     | Glosses String
     | Phonemic String
     | Judgment String
@@ -64,7 +66,7 @@ type Msg
     | Save
     | Cancel
     | None
- 
+
 
 {-| Annotations are the non-translation annotations.
 -}
@@ -317,13 +319,13 @@ update msg model =
             translations_
                 |> List.map
                     (\x ->
-                         -- The translations are not required. So, any
-                         -- deleted translation is valid.
-                         if x.deleted then
-                             [ True ]
+                        -- The translations are not required. So, any
+                        -- deleted translation is valid.
+                        if x.deleted then
+                            [ True ]
 
-                         else
-                             [ x.translation.valid, x.judgment.valid ]
+                        else
+                            [ x.translation.valid, x.judgment.valid ]
                     )
                 |> List.concat
                 |> List.all identity
@@ -703,9 +705,10 @@ update msg model =
                                 ntranslations =
                                     prefix ++ (ntranslation :: suffix)
                             in
-                            ( validate { model
-                                           | translations = ntranslations
-                                       }
+                            ( validate
+                                { model
+                                    | translations = ntranslations
+                                }
                             , Cmd.none
                             )
 
