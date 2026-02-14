@@ -168,7 +168,7 @@ stringToIdTests =
                             , "tag"
                             , "tagname"
                             ]
-                            |> (\x -> x :: [ "$.store.book[3].author" ])
+                            |> (\x -> [ x, "$.store.book[3].author" ])
                             |> String.join "#"
                             |> stringToIdentifier
                         )
@@ -188,7 +188,7 @@ stringToIdTests =
                             , "description"
                             , "descriptionname"
                             ]
-                            |> (\x -> x :: [ "$.store.book[3].author" ])
+                            |> (\x -> [ x, "$.store.book[3].author" ])
                             |> String.join "#"
                             |> stringToIdentifier
                         )

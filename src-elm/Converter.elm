@@ -159,9 +159,11 @@ init flags =
             let
                 fakeuuid : UUID.UUID
                 fakeuuid =
-                    case UUID.step seeds of
-                        ( uuid, _ ) ->
-                            uuid
+                    let
+                        ( uuid, _ ) =
+                            UUID.step seeds
+                    in
+                    uuid
             in
             ( { seeds = seeds
               , project = fakeuuid
@@ -192,9 +194,11 @@ init flags =
             let
                 fakeuuid : UUID.UUID
                 fakeuuid =
-                    case UUID.step seeds of
-                        ( uuid, _ ) ->
-                            uuid
+                    let
+                        ( uuid, _ ) =
+                            UUID.step seeds
+                    in
+                    uuid
             in
             ( { seeds = seeds
               , project = fakeuuid
@@ -251,8 +255,7 @@ update msg model =
                                 model.project
                             , payload =
                                 Dict.values model.to
-                                    |> List.map M.encoder
-                                    |> E.list identity
+                                    |> E.list M.encoder
                             }
 
                         jval : E.Value
@@ -865,7 +868,7 @@ maybeConstProp kind str docid =
 
 constNonBlankProp : String -> String -> M.DocId -> Maybe IdVal
 constNonBlankProp kind str docid =
-    if String.length str == 0 then
+    if String.isEmpty str then
         Nothing
 
     else
@@ -892,7 +895,7 @@ constructDescription kind value docid =
 
 constNonBlankDesc : String -> String -> M.DocId -> Maybe IdVal
 constNonBlankDesc kind c docid =
-    if String.length c > 0 then
+    if not (String.isEmpty c) then
         constructDescription kind c docid |> Just
 
     else

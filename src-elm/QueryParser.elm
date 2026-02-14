@@ -116,7 +116,7 @@ quoteEnv q acc =
                     (token (String.fromChar q))
                 ]
         , token (String.fromChar q)
-            |> map (\_ -> Done (String.join "" (List.reverse acc)))
+            |> map (\_ -> Done (String.concat (List.reverse acc)))
         , chompWhile (\char -> char /= q && char /= '\\')
             |> getChompedString
             |> map (\chunk -> Loop (chunk :: acc))

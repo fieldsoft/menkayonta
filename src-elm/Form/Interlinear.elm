@@ -233,7 +233,7 @@ update msg model =
         translationsValid : List Translation -> Bool
         translationsValid translations_ =
             translations_
-                |> List.map
+                |> List.concatMap
                     (\x ->
                         -- The translations are not required. So, any
                         -- deleted translation is valid.
@@ -243,7 +243,6 @@ update msg model =
                         else
                             [ x.translation.valid, x.judgment.valid ]
                     )
-                |> List.concat
                 |> List.all identity
 
         -- Return false if there are any invalid items
@@ -965,7 +964,7 @@ tokens : String -> Int
 tokens s =
     String.words s
         -- Don't include the empty string
-        |> List.filter (\x -> String.length x > 0)
+        |> List.filter (\x -> not (String.isEmpty x))
         |> List.length
 
 
@@ -975,7 +974,7 @@ breax : String -> List Int
 breax s =
     String.words s
         -- Don't include the empty string
-        |> List.filter (\x -> String.length x > 0)
+        |> List.filter (\x -> not (String.isEmpty x))
         |> List.map (\x -> List.length <| String.split "-" x)
 
 

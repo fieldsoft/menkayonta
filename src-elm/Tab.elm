@@ -973,7 +973,7 @@ multipleRows tabs =
         accRow ( c, ( r, _ ) ) acc =
             case Dict.get c acc of
                 Nothing ->
-                    Dict.insert c (Set.insert r Set.empty) acc
+                    Dict.insert c (Set.singleton r) acc
 
                 Just rows ->
                     Dict.insert c (Set.insert r rows) acc

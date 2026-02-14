@@ -15,7 +15,7 @@ import Iso8601
 import Json.Decode as D
 import Json.Encode as E
 import List.Extra as LE
-import Menkayonta as M exposing (Interlinear)
+import Menkayonta as M
 import Random
 import Set exposing (Set)
 import Tab
@@ -203,9 +203,11 @@ init flags =
             , cmd : Cmd Form.Global.Msg
             }
         g =
-            case Form.Global.init E.null of
-                ( gmodel, gcmd ) ->
-                    { model = gmodel, cmd = gcmd }
+            let
+                ( gmodel, gcmd ) =
+                    Form.Global.init E.null
+            in
+            { model = gmodel, cmd = gcmd }
 
         gv : Dict String Vista
         gv =
@@ -784,8 +786,8 @@ update msg model =
                             let
                                 filterInter :
                                     M.Value
-                                    -> List Interlinear
-                                    -> List Interlinear
+                                    -> List M.Interlinear
+                                    -> List M.Interlinear
                                 filterInter val ints =
                                     case val of
                                         M.MyInterlinear int ->
@@ -843,7 +845,7 @@ update msg model =
                                         short : String
                                         short =
                                             if String.length i.text > 5 then
-                                                String.join ""
+                                                String.concat
                                                     [ "Gloss: "
                                                     , String.left 7 i.text
                                                     , "..."
@@ -877,24 +879,26 @@ update msg model =
         -- Open or focus the Import Options form with a filename.
         EditImporter filepath ->
             let
-                projectOptions : List ( String, String )
-                projectOptions =
-                    model.gconfig.projects
-                        |> List.map
-                            (\x ->
-                                ( x.title
-                                , UUID.toString x.identifier
-                                )
-                            )
-
                 i :
                     { model : Form.Importer.Model
                     , cmd : Cmd Form.Importer.Msg
                     }
                 i =
-                    case Form.Importer.init filepath projectOptions of
-                        ( imodel, icmd ) ->
-                            { model = imodel, cmd = icmd }
+                    let
+                        projectOptions : List ( String, String )
+                        projectOptions =
+                            model.gconfig.projects
+                                |> List.map
+                                    (\x ->
+                                        ( x.title
+                                        , UUID.toString x.identifier
+                                        )
+                                    )
+
+                        ( imodel, icmd ) =
+                            Form.Importer.init filepath projectOptions
+                    in
+                    { model = imodel, cmd = icmd }
 
                 content : Content
                 content =
@@ -961,9 +965,11 @@ update msg model =
                     , cmd : Cmd Form.Global.Msg
                     }
                 g =
-                    case Form.Global.init value of
-                        ( gmodel, gcmd ) ->
-                            { model = gmodel, cmd = gcmd }
+                    let
+                        ( gmodel, gcmd ) =
+                            Form.Global.init value
+                    in
+                    { model = gmodel, cmd = gcmd }
 
                 vista : Vista
                 vista =
@@ -1024,9 +1030,11 @@ update msg model =
                     , seeds : UUID.Seeds
                     }
                 step =
-                    case UUID.step model.seeds of
-                        ( uuid, seeds ) ->
-                            { uuid = uuid, seeds = seeds }
+                    let
+                        ( uuid, seeds ) =
+                            UUID.step model.seeds
+                    in
+                    { uuid = uuid, seeds = seeds }
 
                 id : String
                 id =
@@ -1041,12 +1049,12 @@ update msg model =
                     , cmd : Cmd Form.Project.Msg
                     }
                 p =
-                    case
-                        Form.Project.init
-                            (Form.Project.initData step.uuid)
-                    of
-                        ( pmodel, pcmd ) ->
-                            { model = pmodel, cmd = pcmd }
+                    let
+                        ( pmodel, pcmd ) =
+                            Form.Project.init
+                                (Form.Project.initData step.uuid)
+                    in
+                    { model = pmodel, cmd = pcmd }
 
                 vista : Vista
                 vista =
@@ -1161,9 +1169,11 @@ update msg model =
                     , seeds : UUID.Seeds
                     }
                 step =
-                    case UUID.step model.seeds of
-                        ( uuid, seeds ) ->
-                            { uuid = uuid, seeds = seeds }
+                    let
+                        ( uuid, seeds ) =
+                            UUID.step model.seeds
+                    in
+                    { uuid = uuid, seeds = seeds }
 
                 int : Form.Interlinear.Model
                 int =
@@ -1241,9 +1251,11 @@ update msg model =
                             , cmd : Cmd Form.Interlinear.Msg
                             }
                         i =
-                            case Form.Interlinear.init int of
-                                ( imodel, icmd ) ->
-                                    { model = imodel, cmd = icmd }
+                            let
+                                ( imodel, icmd ) =
+                                    Form.Interlinear.init int
+                            in
+                            { model = imodel, cmd = icmd }
 
                         full : String
                         full =
@@ -1253,7 +1265,7 @@ update msg model =
                         short : String
                         short =
                             if String.length int.text > 5 then
-                                String.join ""
+                                String.concat
                                     [ "Edit: "
                                     , String.left 7 int.text
                                     , "..."
@@ -1382,8 +1394,7 @@ prepInterlinearSave int project me time =
         [ M.MyInterlinear interlinear
         , M.MyModification modification
         ]
-            |> List.map M.encoder
-            |> E.list identity
+            |> E.list M.encoder
     }
 
 
@@ -1536,8 +1547,7 @@ view model =
                     ]
                 ]
                 (Dict.map (viewColumn model) tabtree
-                    |> Dict.toList
-                    |> List.map Tuple.second
+                    |> Dict.values
                 )
         ]
 
@@ -1546,8 +1556,7 @@ viewColumn : Model -> Int -> Dict Int (Set Int) -> Html.Html Msg
 viewColumn model col rows =
     Html.div [ Attr.class "tab-column" ]
         (Dict.map (viewRow model col) rows
-            |> Dict.toList
-            |> List.map Tuple.second
+            |> Dict.values
         )
 
 
@@ -1872,7 +1881,7 @@ viewInterlinearOneDoc od int =
         , Html.h2 []
             [ Html.text "Metadata" ]
         , Html.div [ Attr.class "metaview" ]
-            [ if List.length od.tags > 0 then
+            [ if not (List.isEmpty od.tags) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
@@ -1883,7 +1892,7 @@ viewInterlinearOneDoc od int =
 
               else
                 Html.text ""
-            , if List.length od.properties > 0 then
+            , if not (List.isEmpty od.properties) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
@@ -1894,7 +1903,7 @@ viewInterlinearOneDoc od int =
 
               else
                 Html.text ""
-            , if List.length od.descriptions > 0 then
+            , if not (List.isEmpty od.descriptions) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
@@ -2007,7 +2016,7 @@ viewInterlinearIndexItem proj int =
                 , Event.onClick <|
                     UserClick <|
                         RequestAllDocId proj <|
-                            String.join ""
+                            String.concat
                                 [ "interlinear/"
                                 , UUID.toString int.id
                                 ]
@@ -2042,7 +2051,7 @@ viewInterlinearItem int =
 
         transLine : M.Translation -> String
         transLine tr =
-            String.join ""
+            String.concat
                 [ tr.judgment
                 , " "
                 , "'"
@@ -2157,6 +2166,9 @@ port send : E.Value -> Cmd msg
 {-| The window title changes depending on the focused tab. This sends
 the signal to the backend to do so.
 -}
+
+
+
 -- port setWindowTitle : String -> Cmd msg
 
 

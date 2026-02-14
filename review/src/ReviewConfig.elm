@@ -49,6 +49,7 @@ config =
     , NoPrematureLetComputation.rule
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.CustomTypeConstructorArgs.rule
+        |> Rule.ignoreErrorsForFiles [ "src-elm/QueryParser.elm" ]
     , NoUnused.Dependencies.rule
     , NoUnused.Exports.rule
     , NoUnused.Parameters.rule
