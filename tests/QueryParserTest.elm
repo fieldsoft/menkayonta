@@ -1,8 +1,6 @@
 module QueryParserTest exposing (suite)
 
-import Expect exposing (Expectation)
-import Fuzz exposing (Fuzzer, int, list, string)
-import Parser
+import Expect
 import QueryParser exposing (Expr(..), parse)
 import Test exposing (Test, describe, test)
 

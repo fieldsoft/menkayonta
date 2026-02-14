@@ -12,10 +12,7 @@ module Form.Interlinear exposing
 import Dict
 import Form.Shared
     exposing
-        ( FieldDescription
-        , SelectField
-        , StringField
-        , blankSelect
+        ( StringField
         , blankString
         , displayField
         )
@@ -24,11 +21,6 @@ import Html.Attributes as Attr
 import Html.Events as Event
 import List.Extra as LE
 import Menkayonta
-    exposing
-        ( DocId(..)
-        , Identifier(..)
-        , identifierToString
-        )
 import UUID
 
 

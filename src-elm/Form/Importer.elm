@@ -9,8 +9,7 @@ module Form.Importer exposing
 
 import Form.Shared
     exposing
-        ( FieldDescription
-        , SelectField
+        ( SelectField
         , blankSelect
         , displayField
         , displaySelectField
@@ -18,8 +17,6 @@ import Form.Shared
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import UUID
-import Url
 
 
 type alias Model =

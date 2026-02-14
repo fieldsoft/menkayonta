@@ -9,17 +9,12 @@ module Form.Global exposing
 
 import Config
     exposing
-        ( GlobalConfig
-        , GlobalSettings
-        , ProjectInfo
-        , globalConfigDecoder
-        , projectInfoDecoder
+        ( globalConfigDecoder
         )
 import Email
 import Form.Shared
     exposing
-        ( FieldDescription
-        , StringField
+        ( StringField
         , blankString
         , displayField
         )

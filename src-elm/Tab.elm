@@ -27,7 +27,6 @@ import Content exposing (Content)
 import Dict exposing (Dict)
 import List.Extra as LE
 import Math.Vector3 as V3
-import Maybe.Extra as ME
 import Set exposing (Set)
 import Task
 
@@ -709,12 +708,6 @@ closeTab closevista tp model =
                 }
 
 
-closeAll : String -> Model -> Model
-closeAll vista model =
-    getAllByVista vista model.ventanas
-        |> List.foldl (closeTab False) model
-
-
 {-| Assign a ventana to a new tab. The assumption is that the ventana
 will be focused. This may change in the future.
 -}
@@ -882,12 +875,6 @@ visRemove tp vis =
         vis
 
 
-visToList : VisVentanas -> List Path
-visToList vv =
-    Dict.toList vv
-        |> List.map (\( ( c, r ), t ) -> ( c, ( r, t ) ))
-
-
 visMember : Path -> VisVentanas -> Bool
 visMember ( col, ( row, tab ) ) vv =
     case Dict.get ( col, row ) vv of
@@ -896,31 +883,6 @@ visMember ( col, ( row, tab ) ) vv =
 
         Just t ->
             ( col, ( row, tab ) ) == ( col, ( row, t ) )
-
-
-getVistaVentana : Path -> Model -> Maybe ( Vista, Ventana )
-getVistaVentana tp model =
-    Dict.get tp model.ventanas
-        |> Maybe.andThen
-            (\ventana ->
-                Dict.get ventana.vista model.vistas
-                    |> Maybe.map (\vista -> ( vista, ventana ))
-            )
-
-
-getContentVistaVentana :
-    Path
-    -> Model
-    -> Maybe ( Content, ( Vista, Ventana ) )
-getContentVistaVentana tp model =
-    getVistaVentana tp model
-        |> Maybe.map (\( vis, ven ) -> ( vis.content, ( vis, ven ) ))
-
-
-getContentVistaFromVistas : String -> Vistas -> Maybe ( Content, Vista )
-getContentVistaFromVistas vid vistas =
-    Dict.get vid vistas
-        |> Maybe.map (\vista -> ( vista.content, vista ))
 
 
 getByVista : String -> Dict Path Ventana -> Maybe Path

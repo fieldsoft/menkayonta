@@ -11,8 +11,7 @@ module Form.Project exposing
 import Config exposing (ProjectInfo)
 import Form.Shared
     exposing
-        ( FieldDescription
-        , StringField
+        ( StringField
         , blankString
         , displayField
         )

@@ -1,9 +1,7 @@
 module TabTest exposing (suite)
 
-import Content
-import Dict exposing (Dict)
-import Expect exposing (Expectation)
-import Form.Global
+import Dict
+import Expect
 import Tab
     exposing
         ( Close
@@ -20,25 +18,10 @@ import Tab
         , Unlock
         , Up
         , Ventana
-        , Vista
         , initData
         , update
         )
 import Test exposing (Test, describe, test)
-
-
-simpleContent : Form.Global.Model
-simpleContent =
-    Form.Global.initData
-
-
-simpleVista : Vista
-simpleVista =
-    { project = "global"
-    , kind = "global"
-    , identifier = "global"
-    , content = Content.GF simpleContent
-    }
 
 
 simpleVentana : Ventana

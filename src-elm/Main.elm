@@ -1,27 +1,22 @@
 port module Main exposing (Dimensions, Flags, Model, Msg, main)
 
 import Browser
-import Config exposing (GlobalConfig, GlobalSettings, ProjectInfo)
+import Config exposing (GlobalConfig, ProjectInfo)
 import Content exposing (Content(..))
 import Dict exposing (Dict)
-import Email exposing (Email)
 import Form.Global
 import Form.Importer
 import Form.Interlinear
 import Form.Project
-import Form.Shared exposing (blankSelect)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
 import Iso8601
 import Json.Decode as D
 import Json.Encode as E
-import Json.Encode.Extra as EE
 import List.Extra as LE
-import Maybe.Extra as ME
 import Menkayonta as M exposing (Interlinear)
 import Random
-import Result
 import Set exposing (Set)
 import Tab
     exposing
@@ -29,9 +24,7 @@ import Tab
         , Ventana
         , VentanaParams
         , Ventanas
-        , VisVentanas
         , Vista
-        , Vistas
         , columnCount
         , defVParams
         , getByVista
@@ -39,13 +32,11 @@ import Tab
         , pathToString
         , tabpath
         , treeifyTabs
-        , update
         , visMember
         )
 import Task
 import Time
 import UUID
-import Url
 
 
 type alias Model =
@@ -1477,24 +1468,6 @@ subscriptions model =
         ]
 
 
-{-| An HTML attibute that isn't included in the standard Elm library.
--}
-roleAttr : String -> Html.Attribute Msg
-roleAttr role =
-    Attr.attribute "role" role
-
-
-isInValidAttr : Bool -> Html.Attribute Msg
-isInValidAttr valid =
-    Attr.attribute "aria-invalid"
-        (if valid then
-            "false"
-
-         else
-            "true"
-        )
-
-
 viewUnknownProgress : List (Html.Attribute Msg) -> List (Html.Html Msg) -> Html.Html Msg
 viewUnknownProgress attrs children =
     Html.node "progress" attrs children
@@ -1960,16 +1933,6 @@ viewProperties props =
 
 viewProperty : M.Property -> Html.Html Msg
 viewProperty property =
-    let
-        doctype : String
-        doctype =
-            case property.id.docid of
-                M.InterlinearId _ ->
-                    "interlinear"
-
-                M.PersonId _ ->
-                    "person"
-    in
     Html.tr []
         [ Html.td []
             [ Html.text property.id.kind ]
@@ -1998,16 +1961,6 @@ viewModifications mods =
 
 viewModification : M.Modification -> Html.Html Msg
 viewModification modification =
-    let
-        doctype : String
-        doctype =
-            case modification.id.docid of
-                M.InterlinearId _ ->
-                    "interlinear"
-
-                M.PersonId _ ->
-                    "person"
-    in
     Html.tr []
         [ Html.td []
             [ Html.text modification.id.kind ]
@@ -2024,16 +1977,6 @@ viewTags tags =
 
 viewTag : M.Tag -> Html.Html Msg
 viewTag tag =
-    let
-        doctype : String
-        doctype =
-            case tag.id.docid of
-                M.InterlinearId _ ->
-                    "interlinear"
-
-                M.PersonId _ ->
-                    "person"
-    in
     Html.span [ Attr.class "tag" ] [ Html.text tag.id.kind ]
 
 
@@ -2045,16 +1988,6 @@ viewDescriptions descriptions =
 
 viewDescription : M.Description -> Html.Html Msg
 viewDescription description =
-    let
-        doctype : String
-        doctype =
-            case description.id.docid of
-                M.InterlinearId _ ->
-                    "interlinear"
-
-                M.PersonId _ ->
-                    "person"
-    in
     Html.details []
         [ Html.summary []
             [ Html.text description.id.kind ]
@@ -2224,20 +2157,10 @@ port send : E.Value -> Cmd msg
 {-| The window title changes depending on the focused tab. This sends
 the signal to the backend to do so.
 -}
-port setWindowTitle : String -> Cmd msg
-
-
-{-| The project index is a listing of all translated items with their
-translations, which serves as an entry point to a project. This port
-requests the index.
--}
-port requestProjectIndex : String -> Cmd msg
+-- port setWindowTitle : String -> Cmd msg
 
 
 port requestInterlinearIndex : String -> Cmd msg
-
-
-port requestPersonIndex : String -> Cmd msg
 
 
 {-| The global configuration lists projects and whether they are

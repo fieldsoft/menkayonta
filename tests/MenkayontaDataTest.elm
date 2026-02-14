@@ -1,6 +1,6 @@
 module MenkayontaDataTest exposing (suite)
 
-import Expect exposing (Expectation)
+import Expect
 import Menkayonta
     exposing
         ( DocId

@@ -1,9 +1,7 @@
 module Config exposing
     ( GlobalConfig
-    , GlobalSettings
     , ProjectInfo
     , globalConfigDecoder
-    , projectInfoDecoder
     )
 
 import Json.Decode as D
@@ -13,15 +11,6 @@ import UUID
 type alias GlobalConfig =
     { projects : List ProjectInfo
     , name : String
-    , email : String
-    }
-
-
-{-| This is the subset of global configuration that is not specific to
-a project.
--}
-type alias GlobalSettings =
-    { name : String
     , email : String
     }
 

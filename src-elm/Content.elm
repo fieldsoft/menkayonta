@@ -1,12 +1,10 @@
 module Content exposing (Content(..))
 
-import Menkayonta exposing (Interlinear, OneDoc)
-import Config exposing (ProjectInfo)
-import Json.Decode as D
 import Form.Global
+import Form.Importer
 import Form.Interlinear
 import Form.Project
-import Form.Importer
+import Menkayonta exposing (Interlinear, OneDoc)
 
 
 type Content

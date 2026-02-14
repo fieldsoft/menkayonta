@@ -24,12 +24,11 @@ module Menkayonta exposing
     , stringToIdentifier
     )
 
-import Dict exposing (Dict, values)
-import Email exposing (Email)
+import Dict exposing (Dict)
+import Email
 import Json.Decode as D
 import Json.Decode.Extra as DE
 import Json.Encode as E
-import Maybe.Extra as ME
 import Time
 import UUID exposing (UUID)
 import Url
@@ -75,15 +74,6 @@ metadata.
 -}
 type alias OneDoc =
     { doc : Maybe Value
-    , tags : List Tag
-    , properties : List Property
-    , descriptions : List Description
-    , modifications : List Modification
-    }
-
-
-type alias OnePersonDoc =
-    { person : Person
     , tags : List Tag
     , properties : List Property
     , descriptions : List Description
@@ -199,23 +189,6 @@ type alias Utility =
     , version : Int
     , value : E.Value
     }
-
-
-documentIdentifier : ( String, String ) -> Maybe DocId
-documentIdentifier idpair =
-    case idpair of
-        ( "interlinear", uuidstr ) ->
-            UUID.fromString uuidstr
-                |> Result.toMaybe
-                |> Maybe.map InterlinearId
-
-        ( "person", id ) ->
-            Email.fromString id
-                |> Maybe.map Email.toString
-                |> Maybe.map PersonId
-
-        _ ->
-            Nothing
 
 
 idParser : UP.Parser (Identifier -> a) a

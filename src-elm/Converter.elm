@@ -7,9 +7,7 @@ import Json.Decode as D
 import Json.Encode as E
 import Json.Encode.Extra as EE
 import Maybe.Extra as ME
-import Menkayonta as M exposing (Identifier(..))
-import Platform
-import Platform.Cmd as Cmd
+import Menkayonta as M
 import Random
 import Task
 import Time
