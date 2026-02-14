@@ -4084,8 +4084,11 @@ var $author$project$Converter$init = function (flags) {
 				},
 				$author$project$Converter$reportInfo('Converter Initialized'));
 		} else {
-			var _v1 = $TSFoster$elm_uuid$UUID$step(seeds);
-			var fakeuuid = _v1.a;
+			var fakeuuid = function () {
+				var _v1 = $TSFoster$elm_uuid$UUID$step(seeds);
+				var uuid = _v1.a;
+				return uuid;
+			}();
 			return _Utils_Tuple2(
 				{
 					from: _List_Nil,
@@ -4117,8 +4120,11 @@ var $author$project$Converter$init = function (flags) {
 				$author$project$Converter$reportError('The person flag is not a valid email address.'));
 		} else {
 			var _v3 = _v0.a;
-			var _v4 = $TSFoster$elm_uuid$UUID$step(seeds);
-			var fakeuuid = _v4.a;
+			var fakeuuid = function () {
+				var _v4 = $TSFoster$elm_uuid$UUID$step(seeds);
+				var uuid = _v4.a;
+				return uuid;
+			}();
 			return _Utils_Tuple2(
 				{
 					from: _List_Nil,
@@ -5492,9 +5498,10 @@ var $author$project$Converter$constructModifier = function (_v0) {
 	var pid = _v0.pid;
 	var json = _v0.json;
 	return function (mod) {
-		return _Utils_Tuple2(
-			$author$project$Menkayonta$MyModificationId(mod.id),
-			$author$project$Menkayonta$MyModification(mod));
+		return {
+			id: $author$project$Menkayonta$MyModificationId(mod.id),
+			val: $author$project$Menkayonta$MyModification(mod)
+		};
 	}(
 		{
 			comment: 'bulk import',
@@ -5575,9 +5582,10 @@ var $author$project$Menkayonta$MyDescriptionId = function (a) {
 var $author$project$Converter$constructDescription = F3(
 	function (kind, value, docid) {
 		return function (x) {
-			return _Utils_Tuple2(
-				$author$project$Menkayonta$MyDescriptionId(x.id),
-				$author$project$Menkayonta$MyDescription(x));
+			return {
+				id: $author$project$Menkayonta$MyDescriptionId(x.id),
+				val: $author$project$Menkayonta$MyDescription(x)
+			};
 		}(
 			{
 				id: {docid: docid, fragment: $elm$core$Maybe$Nothing, kind: kind},
@@ -5709,9 +5717,10 @@ var $author$project$Menkayonta$MyPropertyId = function (a) {
 var $author$project$Converter$constructProperty = F3(
 	function (kind, str, docid) {
 		return function (x) {
-			return _Utils_Tuple2(
-				$author$project$Menkayonta$MyPropertyId(x.id),
-				$author$project$Menkayonta$MyProperty(x));
+			return {
+				id: $author$project$Menkayonta$MyPropertyId(x.id),
+				val: $author$project$Menkayonta$MyProperty(x)
+			};
 		}(
 			{
 				id: {docid: docid, fragment: $elm$core$Maybe$Nothing, kind: kind, value: str},
@@ -5788,7 +5797,7 @@ var $author$project$Converter$constructPerson = function (pdata) {
 		version: 1
 	};
 	var stringid = $author$project$Converter$personIdString(email);
-	return _Utils_Tuple2(stringid, newperson);
+	return {person: newperson, stringId: stringid};
 };
 var $elm$core$Dict$get = F2(
 	function (targetKey, dict) {
@@ -5826,9 +5835,10 @@ var $author$project$Converter$perhapsMakePerson = F2(
 		var _v0 = A2($elm$core$Dict$get, dperson.id, model.people);
 		if (_v0.$ === 'Just') {
 			var person = _v0.a;
-			return _Utils_Tuple2(
-				$author$project$Converter$personIdString(person.id),
-				person);
+			return {
+				person: person,
+				stringId: $author$project$Converter$personIdString(person.id)
+			};
 		} else {
 			return $author$project$Converter$constructPerson(
 				{first: dperson.first_name, id: dperson.id, last: dperson.last_name});
@@ -5848,13 +5858,11 @@ var $author$project$Converter$when = F2(
 		return A3(
 			$elm_community$maybe_extra$Maybe$Extra$unwrap,
 			_default,
-			function (_v0) {
-				var x = _v0.a;
-				var y = _v0.b;
+			function (x) {
 				return A3(
 					$elm$core$Dict$insert,
-					$author$project$Menkayonta$identifierToString(x),
-					y,
+					$author$project$Menkayonta$identifierToString(x.id),
+					x.val,
 					_default);
 			},
 			input);
@@ -5864,6 +5872,9 @@ var $author$project$Converter$elicitorStage = function (_v0) {
 	var curr = _v0.curr;
 	var elicitor = _v0.elicitor;
 	var model = _v0.model;
+	var p = A2($author$project$Converter$perhapsMakePerson, elicitor, model);
+	var people = A3($elm$core$Dict$insert, elicitor.id, p.person, model.people);
+	var modDate_ = A4($author$project$Converter$modDate, 'elicitation', curr.date_elicited, docid, p.person.id);
 	var elicitationMethod = A3(
 		$author$project$Converter$maybeConstProp,
 		'elicitation method',
@@ -5875,11 +5886,6 @@ var $author$project$Converter$elicitorStage = function (_v0) {
 			curr.elicitation_method),
 		docid);
 	var comment_ = A3($author$project$Converter$constNonBlankDesc, 'comment', curr.comments, docid);
-	var _v1 = A2($author$project$Converter$perhapsMakePerson, elicitor, model);
-	var stringid = _v1.a;
-	var newperson = _v1.b;
-	var modDate_ = A4($author$project$Converter$modDate, 'elicitation', curr.date_elicited, docid, newperson.id);
-	var people = A3($elm$core$Dict$insert, elicitor.id, newperson, model.people);
 	var newto = A2(
 		$author$project$Converter$when,
 		elicitationMethod,
@@ -5891,8 +5897,8 @@ var $author$project$Converter$elicitorStage = function (_v0) {
 				comment_,
 				A3(
 					$elm$core$Dict$insert,
-					stringid,
-					$author$project$Menkayonta$MyPerson(newperson),
+					p.stringId,
+					$author$project$Menkayonta$MyPerson(p.person),
 					model.to))));
 	return _Utils_Tuple2(
 		_Utils_update(
@@ -6286,23 +6292,21 @@ var $author$project$Converter$entererStage = function (_v0) {
 	var curr = _v0.curr;
 	var enterer = _v0.enterer;
 	var model = _v0.model;
-	var _v1 = A2($author$project$Converter$perhapsMakePerson, enterer, model);
-	var stringid = _v1.a;
-	var newperson = _v1.b;
+	var p = A2($author$project$Converter$perhapsMakePerson, enterer, model);
+	var people = A3($elm$core$Dict$insert, enterer.id, p.person, model.people);
 	var modDate_ = A4(
 		$author$project$Converter$modDate,
 		'entered',
 		$elm$core$Maybe$Just(curr.datetime_entered),
 		docid,
-		newperson.id);
-	var people = A3($elm$core$Dict$insert, enterer.id, newperson, model.people);
+		p.person.id);
 	var newto = A2(
 		$author$project$Converter$when,
 		modDate_,
 		A3(
 			$elm$core$Dict$insert,
-			stringid,
-			$author$project$Menkayonta$MyPerson(newperson),
+			p.stringId,
+			$author$project$Menkayonta$MyPerson(p.person),
 			model.to));
 	return _Utils_Tuple2(
 		_Utils_update(
@@ -6327,9 +6331,10 @@ var $author$project$Menkayonta$MyTagId = function (a) {
 var $author$project$Converter$constructTag = F2(
 	function (kind, docid) {
 		return function (x) {
-			return _Utils_Tuple2(
-				$author$project$Menkayonta$MyTagId(x.id),
-				$author$project$Menkayonta$MyTag(x));
+			return {
+				id: $author$project$Menkayonta$MyTagId(x.id),
+				val: $author$project$Menkayonta$MyTag(x)
+			};
 		}(
 			{
 				id: {docid: docid, fragment: $elm$core$Maybe$Nothing, kind: kind},
@@ -6422,13 +6427,11 @@ var $author$project$Converter$interlinearStage = F2(
 									return A3(
 										$elm$core$List$foldl,
 										F2(
-											function (_v0, indict_) {
-												var id = _v0.a;
-												var val = _v0.b;
+											function (t, indict_) {
 												return A3(
 													$elm$core$Dict$insert,
-													$author$project$Menkayonta$identifierToString(id),
-													val,
+													$author$project$Menkayonta$identifierToString(t.id),
+													t.val,
 													indict_);
 											}),
 										indict,
@@ -6450,23 +6453,21 @@ var $author$project$Converter$modifierStage = function (_v0) {
 	var curr = _v0.curr;
 	var modifier = _v0.modifier;
 	var model = _v0.model;
-	var _v1 = A2($author$project$Converter$perhapsMakePerson, modifier, model);
-	var stringid = _v1.a;
-	var newperson = _v1.b;
+	var p = A2($author$project$Converter$perhapsMakePerson, modifier, model);
+	var people = A3($elm$core$Dict$insert, modifier.id, p.person, model.people);
 	var modDate_ = A4(
 		$author$project$Converter$modDate,
 		'updated',
 		$elm$core$Maybe$Just(curr.datetime_modified),
 		docid,
-		newperson.id);
-	var people = A3($elm$core$Dict$insert, modifier.id, newperson, model.people);
+		p.person.id);
 	var newto = A2(
 		$author$project$Converter$when,
 		modDate_,
 		A3(
 			$elm$core$Dict$insert,
-			stringid,
-			$author$project$Menkayonta$MyPerson(newperson),
+			p.stringId,
+			$author$project$Menkayonta$MyPerson(p.person),
 			model.to));
 	return _Utils_Tuple2(
 		_Utils_update(
@@ -6480,24 +6481,23 @@ var $author$project$Converter$speakerStage = function (_v0) {
 	var speaker = _v0.speaker;
 	var model = _v0.model;
 	var speakerComment = A3($author$project$Converter$constNonBlankDesc, 'speaker comment', curr.speaker_comments, docid);
-	var docDialect = A3($author$project$Converter$maybeConstProp, 'dialect', speaker.dialect, docid);
-	var _v1 = function () {
-		var _v2 = A2($elm$core$Dict$get, -speaker.id, model.people);
-		if (_v2.$ === 'Just') {
-			var person = _v2.a;
-			return _Utils_Tuple2(
-				$author$project$Converter$personIdString(person.id),
-				person);
+	var p = function () {
+		var _v1 = A2($elm$core$Dict$get, -speaker.id, model.people);
+		if (_v1.$ === 'Just') {
+			var person = _v1.a;
+			return {
+				person: person,
+				stringId: $author$project$Converter$personIdString(person.id)
+			};
 		} else {
 			return $author$project$Converter$constructPerson(
 				{first: speaker.first_name, id: speaker.id, last: speaker.last_name});
 		}
 	}();
-	var stringid = _v1.a;
-	var newperson = _v1.b;
-	var people = A3($elm$core$Dict$insert, -speaker.id, newperson, model.people);
-	var personid = $author$project$Menkayonta$PersonId(newperson.id);
+	var people = A3($elm$core$Dict$insert, -speaker.id, p.person, model.people);
+	var personid = $author$project$Menkayonta$PersonId(p.person.id);
 	var speakerDialect = A3($author$project$Converter$maybeConstProp, 'dialect', speaker.dialect, personid);
+	var docDialect = A3($author$project$Converter$maybeConstProp, 'dialect', speaker.dialect, docid);
 	var newto = A2(
 		$author$project$Converter$when,
 		speakerComment,
@@ -6509,8 +6509,8 @@ var $author$project$Converter$speakerStage = function (_v0) {
 				speakerDialect,
 				A3(
 					$elm$core$Dict$insert,
-					stringid,
-					$author$project$Menkayonta$MyPerson(newperson),
+					p.stringId,
+					$author$project$Menkayonta$MyPerson(p.person),
 					model.to))));
 	return _Utils_Tuple2(
 		_Utils_update(
@@ -6552,23 +6552,21 @@ var $author$project$Converter$verifierStage = function (_v0) {
 	var curr = _v0.curr;
 	var verifier = _v0.verifier;
 	var model = _v0.model;
-	var _v1 = A2($author$project$Converter$perhapsMakePerson, verifier, model);
-	var stringid = _v1.a;
-	var newperson = _v1.b;
+	var p = A2($author$project$Converter$perhapsMakePerson, verifier, model);
+	var people = A3($elm$core$Dict$insert, verifier.id, p.person, model.people);
 	var modDate_ = A4(
 		$author$project$Converter$modDate,
 		'verified',
 		$elm$core$Maybe$Just(curr.datetime_modified),
 		docid,
-		newperson.id);
-	var people = A3($elm$core$Dict$insert, verifier.id, newperson, model.people);
+		p.person.id);
 	var newto = A2(
 		$author$project$Converter$when,
 		modDate_,
 		A3(
 			$elm$core$Dict$insert,
-			stringid,
-			$author$project$Menkayonta$MyPerson(newperson),
+			p.stringId,
+			$author$project$Menkayonta$MyPerson(p.person),
 			model.to));
 	return _Utils_Tuple2(
 		_Utils_update(
@@ -6582,30 +6580,28 @@ var $author$project$Converter$resolveStage = F2(
 		var _v0 = model.stage;
 		switch (_v0.$) {
 			case 'OriginalS':
-				var _v1 = $author$project$Converter$constructModifier(
-					{
-						docid: docid,
-						json: $author$project$DativeTypes$encoder(curr),
-						kind: 'importsource',
-						pid: model.me,
-						time: model.time
-					});
-				var modid = _v1.a;
-				var mod = _v1.b;
-				var newin = A3(
+				var constm = {
+					docid: docid,
+					json: $author$project$DativeTypes$encoder(curr),
+					kind: 'importsource',
+					pid: model.me,
+					time: model.time
+				};
+				var m = $author$project$Converter$constructModifier(constm);
+				var newto = A3(
 					$elm$core$Dict$insert,
-					$author$project$Menkayonta$identifierToString(modid),
-					mod,
+					$author$project$Menkayonta$identifierToString(m.id),
+					m.val,
 					model.to);
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{stage: $author$project$Converter$SpeakerS, to: newin}),
+						{stage: $author$project$Converter$SpeakerS, to: newto}),
 					$author$project$Converter$next('Completed OriginalS'));
 			case 'SpeakerS':
-				var _v2 = curr.speaker;
-				if (_v2.$ === 'Just') {
-					var speaker = _v2.a;
+				var _v1 = curr.speaker;
+				if (_v1.$ === 'Just') {
+					var speaker = _v1.a;
 					return $author$project$Converter$speakerStage(
 						{curr: curr, docid: docid, model: model, speaker: speaker});
 				} else {
@@ -6616,9 +6612,9 @@ var $author$project$Converter$resolveStage = F2(
 						$author$project$Converter$next('Skip SpeakerS'));
 				}
 			case 'ElicitorS':
-				var _v3 = curr.elicitor;
-				if (_v3.$ === 'Just') {
-					var elicitor = _v3.a;
+				var _v2 = curr.elicitor;
+				if (_v2.$ === 'Just') {
+					var elicitor = _v2.a;
 					return $author$project$Converter$elicitorStage(
 						{curr: curr, docid: docid, elicitor: elicitor, model: model});
 				} else {
@@ -6629,9 +6625,9 @@ var $author$project$Converter$resolveStage = F2(
 						$author$project$Converter$next('Skip ElicitorS'));
 				}
 			case 'EntererS':
-				var _v4 = curr.enterer;
-				if (_v4.$ === 'Just') {
-					var enterer = _v4.a;
+				var _v3 = curr.enterer;
+				if (_v3.$ === 'Just') {
+					var enterer = _v3.a;
 					return $author$project$Converter$entererStage(
 						{curr: curr, docid: docid, enterer: enterer, model: model});
 				} else {
@@ -6642,9 +6638,9 @@ var $author$project$Converter$resolveStage = F2(
 						$author$project$Converter$next('Skip EntererS'));
 				}
 			case 'ModifierS':
-				var _v5 = curr.modifier;
-				if (_v5.$ === 'Just') {
-					var modifier = _v5.a;
+				var _v4 = curr.modifier;
+				if (_v4.$ === 'Just') {
+					var modifier = _v4.a;
 					return $author$project$Converter$modifierStage(
 						{curr: curr, docid: docid, model: model, modifier: modifier});
 				} else {
@@ -6655,9 +6651,9 @@ var $author$project$Converter$resolveStage = F2(
 						$author$project$Converter$next('Skip ModifierS'));
 				}
 			case 'VerifierS':
-				var _v6 = curr.verifier;
-				if (_v6.$ === 'Just') {
-					var verifier = _v6.a;
+				var _v5 = curr.verifier;
+				if (_v5.$ === 'Just') {
+					var verifier = _v5.a;
 					return $author$project$Converter$verifierStage(
 						{curr: curr, docid: docid, model: model, verifier: verifier});
 				} else {
