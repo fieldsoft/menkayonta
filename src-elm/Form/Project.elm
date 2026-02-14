@@ -90,18 +90,23 @@ init model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
+        title : StringField
         title =
             model.title
 
+        url : StringField
         url =
             model.url
 
+        key : StringField
         key =
             model.url
 
+        toperr : String
         toperr =
             "Please correct form."
 
+        valid : Model -> Bool
         valid model_ =
             List.all identity
                 [ model_.title.valid
@@ -109,8 +114,10 @@ update msg model =
                 , model_.key.valid
                 ]
 
+        validate : Model -> Model
         validate model_ =
             let
+                valid_ : Bool
                 valid_ =
                     valid model_
             in
@@ -192,6 +199,7 @@ update msg model =
             case ( String.isEmpty str, Url.fromString str ) of
                 ( False, Nothing ) ->
                     let
+                        err : String
                         err =
                             String.join " "
                                 [ "A URL is not required,"

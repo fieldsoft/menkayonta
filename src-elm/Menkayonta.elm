@@ -22,7 +22,6 @@ module Menkayonta exposing
     , identifierToString
     , listDecoder
     , oneBuilder
-    , people
     , stringToIdentifier
     )
 
@@ -316,8 +315,6 @@ idParser =
             }
                 |> MyModificationId
 
-        ppid s =
-            MyDocId (PersonId s)
     in
     UP.oneOf
         [ UP.map MyDocId docId
@@ -420,6 +417,7 @@ docIdToSimpleString docid =
 descriptionIdToString : DescriptionId -> String
 descriptionIdToString descriptionid =
     let
+        path : List String
         path =
             docIdToList descriptionid.docid
                 ++ [ "description"
@@ -433,6 +431,7 @@ descriptionIdToString descriptionid =
 modificationIdToString : ModificationId -> String
 modificationIdToString modid =
     let
+        path : List String
         path =
             docIdToList modid.docid
                 ++ [ "modification"
@@ -448,6 +447,7 @@ modificationIdToString modid =
 tagIdToString : TagId -> String
 tagIdToString tagid =
     let
+        path : List String
         path =
             docIdToList tagid.docid
                 ++ [ "tag"
@@ -461,6 +461,7 @@ tagIdToString tagid =
 propertyIdToString : PropertyId -> String
 propertyIdToString propertyid =
     let
+        path : List String
         path =
             docIdToList propertyid.docid
                 ++ [ "property"
@@ -475,6 +476,7 @@ propertyIdToString propertyid =
 utilityIdToString : UtilityId -> String
 utilityIdToString utilityid =
     let
+        path : List String
         path =
             "utility"
                 :: utilityid.kind
@@ -504,6 +506,7 @@ decoder =
 decoder_ : String -> D.Decoder Value
 decoder_ idstr =
     let
+        id : Maybe Identifier
         id =
             stringToIdentifier idstr
     in
@@ -736,28 +739,8 @@ modificationEncoder modification =
         |> addRev modification.rev
 
 
-people : List Value -> List Person
-people vals =
-    let
-        maybePerson val =
-            case val of
-                MyPerson p ->
-                    Just p
-
-                _ ->
-                    Nothing
-    in
-    List.map maybePerson vals
-        |> ME.values
-
-
 
 {- Utility functions -}
-
-
-addIds : List String -> Maybe String -> List ( String, E.Value ) -> List E.Value
-addIds ids rev vs =
-    List.map (\id -> ( "_id", E.string id ) :: vs |> addRev rev) ids
 
 
 {-| The function addRev adds a field to a JSON Value, rather than
@@ -771,21 +754,6 @@ addRev rev fields =
         |> Maybe.map (\rev_ -> rev_ :: fields)
         |> Maybe.map E.object
         |> Maybe.withDefault (E.object fields)
-
-
-{-| The function addFrag ensures that there are no empty fragments following a '#'.
--}
-addFrag : List String -> List String -> String
-addFrag s1 s2 =
-    let
-        s1_ =
-            String.join "/" s1
-    in
-    if s1_ == "" then
-        String.join "/" s2
-
-    else
-        String.join "/" s2 ++ "#" ++ s1_
 
 
 {-| A helper function to use in folds.

@@ -63,6 +63,7 @@ initData =
 init : String -> List ( String, String ) -> ( Model, Cmd Msg )
 init filepath projectOptions =
     let
+        model : Model
         model =
             { initData
                 | filepath = filepath
@@ -84,29 +85,37 @@ init filepath projectOptions =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
+        kind : SelectField
         kind =
             model.kind
 
+        kindopts : List String
         kindopts =
             List.map Tuple.second kind.options
 
+        project : SelectField
         project =
             model.project
 
+        projopts : List String
         projopts =
             List.map Tuple.second project.options
 
+        toperr : String
         toperr =
             "Pleae correct form."
 
+        valid : Model -> Bool
         valid model_ =
             List.all identity
                 [ model_.kind.valid
                 , model_.project.valid
                 ]
 
+        validate : Model -> Model
         validate model_ =
             let
+                valid_ : Bool
                 valid_ =
                     valid model_
             in

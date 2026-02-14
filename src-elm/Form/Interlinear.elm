@@ -235,9 +235,11 @@ update msg model =
                     }
         breakMismatch s1 s2 =
             let
+                brx1 : List Int
                 brx1 =
                     breax s1
 
+                brx2 : List Int
                 brx2 =
                     breax s2
 
@@ -281,24 +283,31 @@ update msg model =
                 length1
                 length2
 
+        text : StringField
         text =
             model.text
 
+        annotations : Annotations
         annotations =
             model.annotations
 
+        translations : List Translation
         translations =
             model.translations
 
+        judgment : StringField
         judgment =
             annotations.judgment
 
+        breaks : StringField
         breaks =
             annotations.breaks
 
+        glosses : StringField
         glosses =
             annotations.glosses
 
+        phonemic : StringField
         phonemic =
             annotations.phonemic
 
@@ -331,6 +340,7 @@ update msg model =
                 , translationsValid d_.translations
                 ]
 
+        toperr : String
         toperr =
             "Correct errors before saving."
 
@@ -338,6 +348,7 @@ update msg model =
         validate : Model -> Model
         validate model_ =
             let
+                valid_ : Bool
                 valid_ =
                     valid model_
             in
@@ -418,9 +429,11 @@ update msg model =
 
         Breaks str ->
             let
+                newTokens : Int
                 newTokens =
                     tokens str
 
+                ok : Model
                 ok =
                     { model
                         | annotations =
@@ -444,6 +457,7 @@ update msg model =
 
             else
                 let
+                    err : String
                     err =
                         [ "The number of tokens is not equal."
                         , "The text has"
@@ -471,9 +485,11 @@ update msg model =
 
         Glosses str ->
             let
+                newTokens : Int
                 newTokens =
                     tokens str
 
+                ok : Model
                 ok =
                     { model
                         | annotations =
@@ -500,6 +516,7 @@ update msg model =
                 of
                     ( False, _ ) ->
                         let
+                            err : String
                             err =
                                 [ "The number of tokens is not equal."
                                 , "The text has"
@@ -527,6 +544,7 @@ update msg model =
 
                     ( True, Just mismatch ) ->
                         let
+                            err : String
                             err =
                                 [ "There are incorrect affix breaks."
                                 , "'" ++ mismatch.token1 ++ "' has"
@@ -557,9 +575,11 @@ update msg model =
 
         Phonemic str ->
             let
+                newTokens : Int
                 newTokens =
                     tokens str
 
+                ok : Model
                 ok =
                     { model
                         | annotations =
@@ -583,6 +603,7 @@ update msg model =
 
             else
                 let
+                    err : String
                     err =
                         [ "The number of tokens is not equal."
                         , "The text has"
@@ -630,9 +651,11 @@ update msg model =
                 Nothing ->
                     if str == "add" then
                         let
+                            counter : Int
                             counter =
                                 model.counter + 1
 
+                            trans : Translation
                             trans =
                                 { id = counter
                                 , deleted = False
@@ -652,6 +675,7 @@ update msg model =
                                     }
                                 }
 
+                            ntranslations : List Translation
                             ntranslations =
                                 translations
                                     |> List.reverse
@@ -669,11 +693,13 @@ update msg model =
                     case divided id of
                         Just ( prefix, translation, suffix ) ->
                             let
+                                ntranslation : Translation
                                 ntranslation =
                                     { translation
                                         | deleted = not translation.deleted
                                     }
 
+                                ntranslations : List Translation
                                 ntranslations =
                                     prefix ++ (ntranslation :: suffix)
                             in
@@ -690,9 +716,11 @@ update msg model =
             case divided id of
                 Just ( prefix, translation, suffix ) ->
                     let
+                        ttranslation : StringField
                         ttranslation =
                             translation.translation
 
+                        goodTranslation : Translation
                         goodTranslation =
                             { translation
                                 | translation =
@@ -704,6 +732,7 @@ update msg model =
                                     }
                             }
 
+                        err : String
                         err =
                             [ "The translation cannot be blank."
                             , "If you want to remove the translation,"
@@ -711,6 +740,7 @@ update msg model =
                             ]
                                 |> String.join " "
 
+                        badTranslation : Translation
                         badTranslation =
                             { translation
                                 | translation =
@@ -722,6 +752,7 @@ update msg model =
                                     }
                             }
 
+                        ntranslation : Translation
                         ntranslation =
                             if String.isEmpty (String.trim str) then
                                 badTranslation
@@ -729,6 +760,7 @@ update msg model =
                             else
                                 goodTranslation
 
+                        ntranslations : List Translation
                         ntranslations =
                             prefix ++ (ntranslation :: suffix)
                     in
@@ -744,9 +776,11 @@ update msg model =
             case divided id of
                 Just ( prefix, translation, suffix ) ->
                     let
+                        tjudgment : StringField
                         tjudgment =
                             translation.judgment
 
+                        ntranslation : Translation
                         ntranslation =
                             { translation
                                 | judgment =
@@ -758,6 +792,7 @@ update msg model =
                                     }
                             }
 
+                        ntranslations : List Translation
                         ntranslations =
                             prefix ++ (ntranslation :: suffix)
                     in
@@ -786,6 +821,7 @@ update msg model =
 
             else
                 let
+                    renew : String -> StringField
                     renew orig =
                         { blankString | value = orig, original = orig }
                 in

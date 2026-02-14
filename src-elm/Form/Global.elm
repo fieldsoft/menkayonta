@@ -93,23 +93,29 @@ init value =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
+        email : StringField
         email =
             model.email
 
+        name : StringField
         name =
             model.name
 
+        toperr : String
         toperr =
             "Please correct form."
 
+        valid : Model -> Bool
         valid model_ =
             List.all identity
                 [ model_.email.valid
                 , model_.name.valid
                 ]
 
+        validate : Model -> Model
         validate model_ =
             let
+                valid_ : Bool
                 valid_ =
                     valid model_
             in

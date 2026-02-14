@@ -199,6 +199,7 @@ type alias Flags =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
+        seeds : UUID.Seeds
         seeds =
             { seed1 = Random.initialSeed flags.seeds.seed1
             , seed2 = Random.initialSeed flags.seeds.seed2
@@ -206,12 +207,24 @@ init flags =
             , seed4 = Random.initialSeed flags.seeds.seed4
             }
 
-        ( gmodel, gmsg ) =
-            Form.Global.init E.null
+        g :
+            { model : Form.Global.Model
+            , cmd : Cmd Form.Global.Msg
+            }
+        g =
+            case Form.Global.init E.null of
+                ( gmodel, gcmd ) ->
+                    { model = gmodel, cmd = gcmd }
 
+        gv : Dict String Vista
         gv =
             Dict.get "global-settings" globalVistas
-                |> Maybe.map (\gs -> { gs | content = Content.GF gmodel })
+                |> Maybe.map
+                    (\gs ->
+                        { gs
+                            | content = Content.GF g.model
+                        }
+                    )
                 |> Maybe.map
                     (\gs -> Dict.insert "global-settings" gs globalVistas)
                 |> Maybe.withDefault globalVistas
@@ -227,7 +240,7 @@ init flags =
       }
     , Cmd.batch
         [ requestGlobalConfig ()
-        , Cmd.map GF gmsg
+        , Cmd.map GF g.cmd
         ]
     )
 
@@ -245,6 +258,7 @@ update msg model =
 
         Stamp envelopePart cmd time ->
             let
+                envelope : E.Value
                 envelope =
                     envelopePart time |> envelopeEncoder
             in
@@ -252,8 +266,10 @@ update msg model =
 
         UserClick clickMsg ->
             let
-                ( subModel, _ ) =
+                subModel : Tab.Model
+                subModel =
                     Tab.update Tab.Unlock model.tabs
+                        |> Tuple.first
             in
             ( { model | tabs = subModel }, sendMsg clickMsg )
 
@@ -264,11 +280,15 @@ update msg model =
 
         Tab subMsg ->
             let
-                ( subModel, subCmd ) =
-                    Tab.update subMsg model.tabs
+                t :
+                    { model : Tab.Model
+                    , cmd : Cmd Tab.Msg
+                    }
+                t =
+                    subUpdate Tab.update subMsg model.tabs
             in
-            ( { model | tabs = subModel }
-            , Cmd.map Tab subCmd
+            ( { model | tabs = t.model }
+            , Cmd.map Tab t.cmd
             )
 
         Received (ViewArea jsonValue) ->
@@ -285,12 +305,15 @@ update msg model =
 
         ITE id subMsg ->
             let
+                id_ : String
                 id_ =
                     "FORM::" ++ UUID.toString id
 
+                maybeVista : Maybe Vista
                 maybeVista =
                     Dict.get id_ model.tabs.vistas
 
+                maybeTab : Maybe Tab.Path
                 maybeTab =
                     getByVista id_ model.tabs.ventanas
             in
@@ -298,13 +321,14 @@ update msg model =
                 ( Nothing, _ ) ->
                     -- Something is wrong. Ignore the message.
                     ( model, Cmd.none )
-                        
+
                 ( _, Nothing ) ->
                     -- Something is wrong. Ignore the message.
                     ( model, Cmd.none )
 
                 ( Just vista_, Just tp ) ->
                     let
+                        oldModel : Form.Interlinear.Model
                         oldModel =
                             case vista_.content of
                                 Content.ITE model_ ->
@@ -313,18 +337,29 @@ update msg model =
                                 _ ->
                                     Form.Interlinear.initData id
 
-                        ( subModel, subCmd ) =
-                            Form.Interlinear.update subMsg oldModel
+                        i :
+                            { model : Form.Interlinear.Model
+                            , cmd : Cmd Form.Interlinear.Msg
+                            }
+                        i =
+                            subUpdate
+                                Form.Interlinear.update
+                                subMsg
+                                oldModel
 
+                        vista : Vista
                         vista =
-                            { vista_ | content = Content.ITE subModel }
+                            { vista_ | content = Content.ITE i.model }
 
+                        vistas : Dict String Vista
                         vistas =
                             Dict.insert id_ vista model.tabs.vistas
 
+                        tabs : Tab.Model
                         tabs =
                             model.tabs
 
+                        nmodel : Model
                         nmodel =
                             { model | tabs = { tabs | vistas = vistas } }
                     in
@@ -337,15 +372,16 @@ update msg model =
                             ( nmodel
                             , Cmd.batch
                                 [ sendMsg (Tab (Tab.Close tp))
-                                , Cmd.map (ITE id) subCmd
+                                , Cmd.map (ITE id) i.cmd
                                 ]
                             )
 
                         Form.Interlinear.Save ->
                             let
+                                envelopePart : Time.Posix -> Envelope
                                 envelopePart =
                                     prepInterlinearSave
-                                        subModel
+                                        i.model
                                         vista.project
                                         model.me
                             in
@@ -355,15 +391,16 @@ update msg model =
                                 , Task.perform
                                     (Stamp envelopePart send)
                                     Time.now
-                                , Cmd.map (ITE id) subCmd
+                                , Cmd.map (ITE id) i.cmd
                                 ]
                             )
 
                         _ ->
-                            ( nmodel, Cmd.map (ITE id) subCmd )
+                            ( nmodel, Cmd.map (ITE id) i.cmd )
 
         IM subMsg ->
             let
+                maybeTab : Maybe Tab.Path
                 maybeTab =
                     getByVista "import-options" model.tabs.ventanas
             in
@@ -373,6 +410,7 @@ update msg model =
 
                 Just tp ->
                     let
+                        oldModel : Form.Importer.Model
                         oldModel =
                             Dict.get "import-options" model.tabs.vistas
                                 |> Maybe.map .content
@@ -388,23 +426,31 @@ update msg model =
                                                 Form.Importer.initData
                                    )
 
-                        ( subModel, subCmd ) =
-                            Form.Importer.update subMsg oldModel
+                        i :
+                            { model : Form.Importer.Model
+                            , cmd : Cmd Form.Importer.Msg
+                            }
+                        i =
+                            subUpdate Form.Importer.update subMsg oldModel
 
+                        vista : Vista
                         vista =
                             { importOptionsVista
-                                | content = Content.IM subModel
+                                | content = Content.IM i.model
                             }
 
+                        vistas : Dict String Vista
                         vistas =
                             Dict.insert
                                 "import-options"
                                 vista
                                 model.tabs.vistas
 
+                        tabs : Tab.Model
                         tabs =
                             model.tabs
 
+                        nmodel : Model
                         nmodel =
                             { model | tabs = { tabs | vistas = vistas } }
                     in
@@ -417,22 +463,23 @@ update msg model =
                             ( nmodel
                             , Cmd.batch
                                 [ sendMsg (Tab (Tab.Close tp))
-                                , Cmd.map IM subCmd
+                                , Cmd.map IM i.cmd
                                 ]
                             )
 
                         Form.Importer.Import ->
                             let
+                                jsonValue : E.Value
                                 jsonValue =
                                     E.object
                                         [ ( "filepath"
-                                          , E.string subModel.filepath
+                                          , E.string i.model.filepath
                                           )
                                         , ( "kind"
-                                          , E.string subModel.kind.value
+                                          , E.string i.model.kind.value
                                           )
                                         , ( "project"
-                                          , E.string subModel.project.value
+                                          , E.string i.model.project.value
                                           )
                                         ]
                             in
@@ -440,15 +487,16 @@ update msg model =
                             , Cmd.batch
                                 [ sendMsg (Tab (Tab.Close tp))
                                 , importFile jsonValue
-                                , Cmd.map IM subCmd
+                                , Cmd.map IM i.cmd
                                 ]
                             )
 
                         _ ->
-                            ( nmodel, Cmd.map IM subCmd )
+                            ( nmodel, Cmd.map IM i.cmd )
 
         GF subMsg ->
             let
+                maybeTab : Maybe Tab.Path
                 maybeTab =
                     getByVista "global-settings" model.tabs.ventanas
             in
@@ -458,6 +506,7 @@ update msg model =
 
                 Just tp ->
                     let
+                        oldModel : Form.Global.Model
                         oldModel =
                             Dict.get "global-settings" model.tabs.vistas
                                 |> Maybe.map .content
@@ -470,23 +519,31 @@ update msg model =
                                                 Form.Global.initData
                                    )
 
-                        ( subModel, subCmd ) =
-                            Form.Global.update subMsg oldModel
+                        g :
+                            { model : Form.Global.Model
+                            , cmd : Cmd Form.Global.Msg
+                            }
+                        g =
+                            subUpdate Form.Global.update subMsg oldModel
 
+                        vista : Vista
                         vista =
                             { globalSettingsVista
-                                | content = Content.GF subModel
+                                | content = Content.GF g.model
                             }
 
+                        vistas : Dict String Vista
                         vistas =
                             Dict.insert
                                 "global-settings"
-                                    vista
-                                        model.tabs.vistas
+                                vista
+                                model.tabs.vistas
 
+                        tabs : Tab.Model
                         tabs =
                             model.tabs
 
+                        nmodel : Model
                         nmodel =
                             { model | tabs = { tabs | vistas = vistas } }
                     in
@@ -498,48 +555,52 @@ update msg model =
                         Form.Global.Cancel ->
                             ( nmodel
                             , Cmd.batch
-                                  [ sendMsg (Tab (Tab.Close tp))
-                                  , Cmd.map GF subCmd
-                                  ]
+                                [ sendMsg (Tab (Tab.Close tp))
+                                , Cmd.map GF g.cmd
+                                ]
                             )
 
                         Form.Global.Save ->
                             let
+                                jsonValue : E.Value
                                 jsonValue =
                                     E.object
                                         [ ( "email"
-                                          , E.string subModel.email.value
+                                          , E.string g.model.email.value
                                           )
                                         , ( "name"
-                                          , E.string subModel.name.value
+                                          , E.string g.model.name.value
                                           )
                                         ]
                             in
                             ( nmodel
                             , Cmd.batch
-                                  [ sendMsg (Tab (Tab.Close tp))
-                                  , updateGlobalSettings jsonValue
-                                  , Cmd.map GF subCmd
-                                  ]
+                                [ sendMsg (Tab (Tab.Close tp))
+                                , updateGlobalSettings jsonValue
+                                , Cmd.map GF g.cmd
+                                ]
                             )
 
                         _ ->
-                            ( nmodel, Cmd.map GF subCmd )
+                            ( nmodel, Cmd.map GF g.cmd )
 
         PR id subMsg ->
             let
+                vistaId : String
                 vistaId =
                     "FORM::" ++ UUID.toString id
 
+                maybeTab : Maybe Tab.Path
                 maybeTab =
                     getByVista vistaId model.tabs.ventanas
             in
             case maybeTab of
                 Nothing ->
                     ( model, Cmd.none )
-                        
+
                 Just tp ->
                     let
+                        oldVista : Vista
                         oldVista =
                             case Dict.get vistaId model.tabs.vistas of
                                 Nothing ->
@@ -554,6 +615,7 @@ update msg model =
                                 Just vista_ ->
                                     vista_
 
+                        oldModel : Form.Project.Model
                         oldModel =
                             case oldVista.content of
                                 Content.PR model_ ->
@@ -562,18 +624,26 @@ update msg model =
                                 _ ->
                                     Form.Project.initData id
 
-                        ( subModel, subCmd ) =
-                            Form.Project.update subMsg oldModel
+                        p :
+                            { model : Form.Project.Model
+                            , cmd : Cmd Form.Project.Msg
+                            }
+                        p =
+                            subUpdate Form.Project.update subMsg oldModel
 
+                        vista : Vista
                         vista =
-                            { oldVista | content = Content.PR subModel }
+                            { oldVista | content = Content.PR p.model }
 
+                        vistas : Dict String Vista
                         vistas =
                             Dict.insert vistaId vista model.tabs.vistas
 
+                        tabs : Tab.Model
                         tabs =
                             model.tabs
 
+                        nmodel : Model
                         nmodel =
                             { model | tabs = { tabs | vistas = vistas } }
                     in
@@ -585,42 +655,43 @@ update msg model =
                         Form.Project.Cancel ->
                             ( nmodel
                             , Cmd.batch
-                                  [ sendMsg (Tab (Tab.Close tp))
-                                  , Cmd.map (PR id) subCmd
-                                  ]
+                                [ sendMsg (Tab (Tab.Close tp))
+                                , Cmd.map (PR id) p.cmd
+                                ]
                             )
 
                         Form.Project.Save ->
                             let
+                                jsonValue : E.Value
                                 jsonValue =
                                     E.object
                                         [ ( "title"
-                                          , E.string subModel.title.value
+                                          , E.string p.model.title.value
                                           )
                                         , ( "identifier"
                                           , E.string
                                                 (UUID.toString
-                                                     subModel.identifier
+                                                    p.model.identifier
                                                 )
                                           )
                                         , ( "url"
-                                          , E.string subModel.url.value
+                                          , E.string p.model.url.value
                                           )
                                         , ( "key"
-                                          , E.string subModel.key.value
+                                          , E.string p.model.key.value
                                           )
                                         ]
                             in
                             ( nmodel
                             , Cmd.batch
-                                  [ sendMsg (Tab (Tab.Close tp))
-                                  , updateProject jsonValue
-                                  , Cmd.map (PR id) subCmd
-                                  ]
+                                [ sendMsg (Tab (Tab.Close tp))
+                                , updateProject jsonValue
+                                , Cmd.map (PR id) p.cmd
+                                ]
                             )
 
                         _ ->
-                            ( nmodel, Cmd.map (PR id) subCmd )
+                            ( nmodel, Cmd.map (PR id) p.cmd )
 
         SetWindowTitle title ->
             ( model, setWindowTitle title )
@@ -637,16 +708,18 @@ update msg model =
                         -- The email and name values may be blank.
                         person : M.Person
                         person =
-                           { id = gc_.email
-                           , rev = Nothing
-                           , version = 1
-                           , names = Dict.singleton 0 gc_.name
-                           }
+                            { id = gc_.email
+                            , rev = Nothing
+                            , version = 1
+                            , names = Dict.singleton 0 gc_.name
+                            }
 
+                        invalidPerson : Bool
                         invalidPerson =
-                            String.isEmpty gc_.name ||
-                                String.isEmpty gc_.email
-                                    
+                            String.isEmpty gc_.name
+                                || String.isEmpty gc_.email
+
+                        newmodel : Model
                         newmodel =
                             { model
                                 | gconfig = gc_
@@ -658,11 +731,13 @@ update msg model =
                                         Just person
                             }
 
+                        openForm : Cmd Msg
                         openForm =
                             sendMsg (ShowGlobalSettings gc)
 
                         -- When the data is incomplere, open the form
                         -- so the user can add their name and email.
+                        command : Cmd Msg
                         command =
                             if invalidPerson then
                                 openForm
@@ -674,6 +749,7 @@ update msg model =
 
         RequestInterlinearIndex id ->
             let
+                id_ : String
                 id_ =
                     UUID.toString id
             in
@@ -684,6 +760,7 @@ update msg model =
         -- This is not currently used
         RequestDocId project id ->
             let
+                envelope : E.Value
                 envelope =
                     envelopeEncoder
                         { command = "request-docid"
@@ -696,6 +773,7 @@ update msg model =
 
         RequestAllDocId project id ->
             let
+                envelope : E.Value
                 envelope =
                     envelopeEncoder
                         { command = "request-all-docid"
@@ -734,10 +812,12 @@ update msg model =
                                         _ ->
                                             ints
 
+                                content : Content
                                 content =
                                     InterlinearsContent <|
                                         List.foldl filterInter [] vals
 
+                                vista : Vista
                                 vista =
                                     { project =
                                         env.project
@@ -764,6 +844,7 @@ update msg model =
 
                 Ok env ->
                     let
+                        doc : Result.Result D.Error M.OneDoc
                         doc =
                             reduceDoc env
                     in
@@ -772,10 +853,12 @@ update msg model =
                             case doc_.doc of
                                 Just (M.MyInterlinear i) ->
                                     let
+                                        full : String
                                         full =
                                             String.join " "
                                                 [ "Gloss:", i.text ]
 
+                                        short : String
                                         short =
                                             if String.length i.text > 5 then
                                                 String.join ""
@@ -787,6 +870,7 @@ update msg model =
                                             else
                                                 full
 
+                                        vista : Vista
                                         vista =
                                             { project =
                                                 env.project
@@ -811,21 +895,30 @@ update msg model =
         -- Open or focus the Import Options form with a filename.
         EditImporter filepath ->
             let
+                projectOptions : List ( String, String )
                 projectOptions =
                     model.gconfig.projects
                         |> List.map
-                           (\x ->
+                            (\x ->
                                 ( x.title
                                 , UUID.toString x.identifier
                                 )
-                           )
+                            )
 
-                ( subModel, subCmd ) =
-                    Form.Importer.init filepath projectOptions
+                i :
+                    { model : Form.Importer.Model
+                    , cmd : Cmd Form.Importer.Msg
+                    }
+                i =
+                    case Form.Importer.init filepath projectOptions of
+                         ( imodel, icmd ) ->
+                             { model = imodel, cmd = icmd }
 
+                content : Content
                 content =
-                    Content.IM subModel
+                    Content.IM i.model
 
+                vista : Vista
                 vista =
                     { project = "global"
                     , kind = "import-options"
@@ -833,12 +926,15 @@ update msg model =
                     , content = content
                     }
 
+                vistas : Dict String Vista
                 vistas =
                     Dict.insert "import-options" vista model.tabs.vistas
 
+                tabs : Tab.Model
                 tabs =
                     model.tabs
 
+                newmodel : Model
                 newmodel =
                     { model
                         | tabs =
@@ -851,6 +947,7 @@ update msg model =
             case getByVista "import-options" model.tabs.ventanas of
                 Nothing ->
                     let
+                        ventana : Ventana
                         ventana =
                             { title = "Import Options"
                             , fullTitle = "Import Options"
@@ -861,7 +958,7 @@ update msg model =
                     ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.New ventana)
-                        , Cmd.map IM subCmd
+                        , Cmd.map IM i.cmd
                         ]
                     )
 
@@ -869,7 +966,7 @@ update msg model =
                     ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.Goto tp)
-                        , Cmd.map IM subCmd
+                        , Cmd.map IM i.cmd
                         ]
                     )
 
@@ -877,22 +974,32 @@ update msg model =
         -- configuration.
         ShowGlobalSettings value ->
             let
-                ( subModel, subCmd ) =
-                    Form.Global.init value
+                g :
+                    { model : Form.Global.Model
+                    , cmd : Cmd Form.Global.Msg
+                    }
+                g =
+                    case Form.Global.init value of
+                        ( gmodel, gcmd ) ->
+                            { model = gmodel, cmd = gcmd }
 
+                vista : Vista
                 vista =
                     { project = "global"
                     , kind = "global-settings"
                     , identifier = "global-settings"
-                    , content = Content.GF subModel
+                    , content = Content.GF g.model
                     }
 
+                vistas : Dict String Vista
                 vistas =
                     Dict.insert "global-settings" vista model.tabs.vistas
 
+                tabs : Tab.Model
                 tabs =
                     model.tabs
 
+                newmodel : Model
                 newmodel =
                     { model
                         | tabs =
@@ -905,6 +1012,7 @@ update msg model =
             case getByVista "global-settings" model.tabs.ventanas of
                 Nothing ->
                     let
+                        newVentana : Ventana
                         newVentana =
                             { title = "Settings"
                             , fullTitle = "Settings"
@@ -915,7 +1023,7 @@ update msg model =
                     ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.New newVentana)
-                        , Cmd.map GF subCmd
+                        , Cmd.map GF g.cmd
                         ]
                     )
 
@@ -923,43 +1031,66 @@ update msg model =
                     ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.Goto tp)
-                        , Cmd.map GF subCmd
+                        , Cmd.map GF g.cmd
                         ]
                     )
 
         NewProject ->
             let
-                ( uuid, seeds ) =
-                    UUID.step model.seeds
+                step :
+                    { uuid : UUID.UUID
+                    , seeds : UUID.Seeds
+                    }
+                step =
+                    case UUID.step model.seeds of
+                        ( uuid, seeds ) ->
+                            { uuid = uuid, seeds = seeds }
 
+                id : String
                 id =
-                    UUID.toString uuid
+                    UUID.toString step.uuid
 
+                vistaId : String
                 vistaId =
                     "FORM::" ++ id
 
-                ( subModel, subCmd ) =
-                    Form.Project.init (Form.Project.initData uuid)
+                p :
+                    { model : Form.Project.Model
+                    , cmd : Cmd Form.Project.Msg
+                    }
+                p =
+                    case Form.Project.init
+                        (Form.Project.initData step.uuid) of
+                        ( pmodel, pcmd ) ->
+                            { model = pmodel, cmd = pcmd }
 
+                vista : Vista
                 vista =
                     { project = "global"
                     , kind = "new-project"
                     , identifier = vistaId
-                    , content = Content.PR subModel
+                    , content = Content.PR p.model
                     }
 
+                vistas : Dict String Vista
                 vistas =
                     Dict.insert vistaId vista model.tabs.vistas
 
+                tabs : Tab.Model
                 tabs =
                     model.tabs
 
+                newmodel : Model
                 newmodel =
-                    { model | tabs = { tabs | vistas = vistas } }
+                    { model
+                        | tabs = { tabs | vistas = vistas }
+                        , seeds = step.seeds
+                    }
             in
             case getByVista vistaId model.tabs.ventanas of
                 Nothing ->
                     let
+                        ventana : Ventana
                         ventana =
                             { title = "New Project"
                             , fullTitle = "New Project"
@@ -970,7 +1101,7 @@ update msg model =
                     ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.New ventana)
-                        , Cmd.map (PR uuid) subCmd
+                        , Cmd.map (PR step.uuid) p.cmd
                         ]
                     )
 
@@ -978,21 +1109,25 @@ update msg model =
                     ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.Goto tp)
-                        , Cmd.map (PR uuid) subCmd
+                        , Cmd.map (PR step.uuid) p.cmd
                         ]
                     )
 
         EditProject project ->
             let
+                id : String
                 id =
                     UUID.toString project.identifier
 
+                vistaId : String
                 vistaId =
                     "FORM::" ++ id
 
+                tabtitle : String
                 tabtitle =
                     project.title.value ++ " Settings"
 
+                vista : Vista
                 vista =
                     { project = id
                     , kind = "edit-project"
@@ -1000,18 +1135,22 @@ update msg model =
                     , content = Content.PR project
                     }
 
+                vistas : Dict String Vista
                 vistas =
                     Dict.insert vistaId vista model.tabs.vistas
 
+                tabs : Tab.Model
                 tabs =
                     model.tabs
 
+                newmodel : Model
                 newmodel =
                     { model | tabs = { tabs | vistas = vistas } }
             in
             case getByVista vistaId model.tabs.ventanas of
                 Nothing ->
                     let
+                        ventana : Ventana
                         ventana =
                             { title = tabtitle
                             , fullTitle = tabtitle
@@ -1033,14 +1172,22 @@ update msg model =
 
         NewInterlinear project ->
             let
-                ( uuid, seeds ) =
-                    UUID.step model.seeds
+                step :
+                    { uuid : UUID.UUID
+                    , seeds : UUID.Seeds
+                    }
+                step =
+                    case UUID.step model.seeds of
+                        ( uuid, seeds ) ->
+                            { uuid = uuid, seeds = seeds }
 
+                int : Form.Interlinear.Model
                 int =
-                    Form.Interlinear.initData uuid
+                    Form.Interlinear.initData step.uuid
 
+                id : String
                 id =
-                    "FORM::" ++ UUID.toString uuid
+                    "FORM::" ++ UUID.toString step.uuid
 
                 vista : Vista
                 vista =
@@ -1050,10 +1197,12 @@ update msg model =
                     , content = Content.ITE int
                     }
 
+                key : String
                 key =
                     getProjectKey (UUID.toString project) model
                         |> Maybe.withDefault ""
 
+                title : String
                 title =
                     getProjectTitle (UUID.toString project) model
                         |> Maybe.withDefault ""
@@ -1069,15 +1218,18 @@ update msg model =
                         }
                     }
 
+                tabs : Tab.Model
                 tabs =
                     model.tabs
 
+                vistas : Dict String Vista
                 vistas =
                     Dict.insert id vista model.tabs.vistas
 
+                newmodel : Model
                 newmodel =
                     { model
-                        | seeds = seeds
+                        | seeds = step.seeds
                         , tabs = { tabs | vistas = vistas }
                     }
             in
@@ -1087,6 +1239,7 @@ update msg model =
 
         EditInterlinear project int ->
             let
+                id : String
                 id =
                     "FORM::" ++ UUID.toString int.id
             in
@@ -1099,13 +1252,21 @@ update msg model =
 
                 Nothing ->
                     let
-                        ( subModule, subCmd ) =
-                            Form.Interlinear.init int
+                        i :
+                           { model : Form.Interlinear.Model
+                           , cmd : Cmd Form.Interlinear.Msg
+                           }
+                        i =
+                            case Form.Interlinear.init int of
+                                ( imodel, icmd ) ->
+                                    { model = imodel, cmd = icmd }
 
+                        full : String
                         full =
                             String.join " "
                                 [ "Edit: ", int.text ]
 
+                        short : String
                         short =
                             if String.length int.text > 5 then
                                 String.join ""
@@ -1122,7 +1283,7 @@ update msg model =
                             { identifier = id
                             , kind = "interlinear"
                             , project = UUID.toString project
-                            , content = Content.ITE subModule
+                            , content = Content.ITE i.model
                             }
 
                         ventana : Ventana
@@ -1136,12 +1297,15 @@ update msg model =
                                 }
                             }
 
+                        vistas : Dict String Vista
                         vistas =
                             Dict.insert id vista model.tabs.vistas
 
+                        tabs : Tab.Model
                         tabs =
                             model.tabs
 
+                        newmodel : Model
                         newmodel =
                             { model
                                 | tabs =
@@ -1154,14 +1318,25 @@ update msg model =
                     ( newmodel
                     , Cmd.batch
                         [ sendMsg (Tab <| Tab.New ventana)
-                        , Cmd.map (ITE int.id) subCmd
+                        , Cmd.map (ITE int.id) i.cmd
                         ]
                     )
 
 
+subUpdate :
+    (a -> b -> ( b, Cmd a ))
+    -> a
+    -> b
+    -> { model : b, cmd : Cmd a }
+subUpdate subupdate submsg submodel =
+    subupdate submsg submodel
+        |> (\x -> { model = Tuple.first x, cmd = Tuple.second x })
+
+           
 prepInterlinearSave : Form.Interlinear.Model -> String -> Maybe M.Person -> Time.Posix -> Envelope
 prepInterlinearSave int project me time =
     let
+        meId : String
         meId =
             case me of
                 Nothing ->
@@ -1241,17 +1416,21 @@ prepInterlinearSave int project me time =
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
 handleVista vista short full model =
     let
+        key : String
         key =
             getProjectKey vista.project model
                 |> Maybe.withDefault ""
 
+        title : String
         title =
             getProjectTitle vista.project model
                 |> Maybe.withDefault ""
 
+        vistas : Dict String Vista
         vistas =
             Dict.insert vista.identifier vista model.tabs.vistas
 
+        loading : Set String
         loading =
             if vista.kind /= "interlinear" then
                 Set.remove vista.project model.loading
@@ -1259,9 +1438,11 @@ handleVista vista short full model =
             else
                 model.loading
 
+        tabs : Tab.Model
         tabs =
             model.tabs
 
+        newmodel : Model
         newmodel =
             { model
                 | tabs = { tabs | vistas = vistas }
@@ -1271,14 +1452,15 @@ handleVista vista short full model =
     case getByVista vista.identifier model.tabs.ventanas of
         Nothing ->
             let
-                vt =
+                ventana : Ventana
+                ventana =
                     { title = key ++ ": " ++ short
                     , fullTitle = title ++ ": " ++ full
                     , vista = vista.identifier
                     , params = { defVParams | length = 20 }
                     }
             in
-            ( newmodel, sendMsg (Tab <| Tab.New vt) )
+            ( newmodel, sendMsg (Tab <| Tab.New ventana) )
 
         Just tp ->
             ( newmodel, sendMsg (Tab <| Tab.Focus tp) )
@@ -1338,6 +1520,7 @@ viewUnknownProgress attrs children =
 view : Model -> Html.Html Msg
 view model =
     let
+        tabtree : Dict Int (Dict Int (Set Int))
         tabtree =
             treeifyTabs <| Dict.keys model.tabs.ventanas
     in
@@ -1430,6 +1613,7 @@ viewRow model col _ row tabs =
 viewTabHeader : Model -> Tab.Path -> Html.Html Msg
 viewTabHeader model tp =
     let
+        ventana : Ventana
         ventana =
             Dict.get tp model.tabs.ventanas
                 |> Maybe.withDefault
@@ -1439,9 +1623,11 @@ viewTabHeader model tp =
                     , params = defVParams
                     }
 
+        focused : Bool
         focused =
             Just tp == model.tabs.focused
 
+        visible : Bool
         visible =
             visMember tp model.tabs.visVentanas
     in
@@ -1537,6 +1723,7 @@ viewLoadingProject model p =
 viewProject : Model -> ProjectInfo -> Html.Html Msg
 viewProject model p =
     let
+        pmodel : Form.Project.Model
         pmodel =
             Form.Project.fromProjectInfo p
     in
@@ -1594,14 +1781,17 @@ viewVista model tp vista =
 
         InterlinearsContent ints ->
             let
+                params : VentanaParams
                 params =
                     Dict.get tp model.tabs.ventanas
                         |> Maybe.map .params
                         |> Maybe.withDefault { defVParams | length = 20 }
 
+                ss : String
                 ss =
                     params.searchString
 
+                searched : List M.Interlinear
                 searched =
                     List.filter
                         (\i ->
@@ -1613,15 +1803,20 @@ viewVista model tp vista =
                         )
                         ints
 
+                intTotal : Int
                 intTotal =
                     List.length searched
 
+                -- For displaying
+                total : String
                 total =
                     intTotal |> String.fromInt
 
+                is : List M.Interlinear
                 is =
                     List.take params.length searched
 
+                len : String
                 len =
                     String.fromInt params.length
             in
@@ -1710,8 +1905,11 @@ viewInterlinearOneDoc vista od int =
                 [ M.InterlinearId int.id
                     |> M.MyDocId
                     |> M.identifierToString
-                    |> \x -> "ID: " ++ x
-                    |> Html.text
+                    |> (\x ->
+                            "ID: "
+                                ++ x
+                                |> Html.text
+                       )
                 ]
             ]
         , Html.h2 []
@@ -1779,6 +1977,7 @@ viewProperties props =
 viewProperty : M.Property -> Html.Html Msg
 viewProperty property =
     let
+        doctype : String
         doctype =
             case property.id.docid of
                 M.InterlinearId _ ->
@@ -1816,6 +2015,7 @@ viewModifications mods =
 viewModification : M.Modification -> Html.Html Msg
 viewModification modification =
     let
+        doctype : String
         doctype =
             case modification.id.docid of
                 M.InterlinearId _ ->
@@ -1841,6 +2041,7 @@ viewTags tags =
 viewTag : M.Tag -> Html.Html Msg
 viewTag tag =
     let
+        doctype : String
         doctype =
             case tag.id.docid of
                 M.InterlinearId _ ->
@@ -1861,6 +2062,7 @@ viewDescriptions descriptions =
 viewDescription : M.Description -> Html.Html Msg
 viewDescription description =
     let
+        doctype : String
         doctype =
             case description.id.docid of
                 M.InterlinearId _ ->
@@ -1908,10 +2110,12 @@ viewInterlinearIndexItem proj int =
 viewInterlinearItem : String -> M.Interlinear -> Html.Html Msg
 viewInterlinearItem proj int =
     let
+        srcLine : Html.Html Msg
         srcLine =
             Html.span [ Attr.class "gloss-source-text" ]
                 [ Html.text (int.ann.judgment ++ " " ++ int.text) ]
 
+        annLines : Html.Html Msg
         annLines =
             if int.ann.breaks /= "" then
                 viewAnn int.ann.breaks int.ann.glosses
@@ -1919,6 +2123,7 @@ viewInterlinearItem proj int =
             else
                 Html.text ""
 
+        transLine : M.Translation -> String
         transLine tr =
             String.join ""
                 [ tr.judgment
@@ -1928,6 +2133,7 @@ viewInterlinearItem proj int =
                 , "'"
                 ]
 
+        transLines : List (Html.Html Msg)
         transLines =
             List.map
                 (\t ->
@@ -1946,9 +2152,11 @@ viewInterlinearItem proj int =
 viewAnn : String -> String -> Html.Html Msg
 viewAnn brk gls =
     let
+        brk_ : List String
         brk_ =
             String.split " " brk
 
+        gls_ : List String
         gls_ =
             if String.isEmpty gls then
                 List.repeat (List.length brk_) "—"
@@ -1956,6 +2164,7 @@ viewAnn brk gls =
             else
                 String.split " " gls
 
+        aligned : List ( String, String )
         aligned =
             LE.zip brk_ gls_
     in
@@ -1971,30 +2180,14 @@ viewGlosses ( a, b ) =
         ]
 
 
-{-| I'm doing a one off here, instead of adding it to the Menkayonta
-module because I want to eventually be able to handle all Menkayonta
-Values in the UI.
--}
-interlinearDecoder : D.Decoder Interlinear
-interlinearDecoder =
-    let
-        checkval value_ =
-            case value_ of
-                M.MyInterlinear inter ->
-                    D.succeed inter
-
-                _ ->
-                    D.fail "Non-Interlinear Value"
-    in
-    M.decoder |> D.andThen checkval
-
-
 getProjectTitle : String -> Model -> Maybe String
 getProjectTitle projid model =
     let
+        projuuid : Maybe UUID.UUID
         projuuid =
             UUID.fromString projid |> Result.toMaybe
 
+        projects : List ProjectInfo
         projects =
             model.gconfig.projects
     in
@@ -2005,9 +2198,11 @@ getProjectTitle projid model =
 getProjectKey : String -> Model -> Maybe String
 getProjectKey projid model =
     let
+        projuuid : Maybe UUID.UUID
         projuuid =
             UUID.fromString projid |> Result.toMaybe
 
+        projects : List ProjectInfo
         projects =
             model.gconfig.projects
     in
@@ -2018,9 +2213,11 @@ getProjectKey projid model =
 reduceDoc : Envelope -> Result D.Error M.OneDoc
 reduceDoc env =
     let
+        content : Result D.Error (List M.Value)
         content =
             env.content |> D.decodeValue M.listDecoder
 
+        initial : M.OneDoc
         initial =
             M.OneDoc Nothing [] [] [] []
     in

@@ -79,15 +79,18 @@ type alias FieldDescription msg =
 displayField : FieldDescription msg -> Html.Html msg
 displayField fd =
     let
+        id : Int
         id =
             Maybe.withDefault -1 fd.id
 
+        name : String
         name =
             [ fd.formname
             , fd.name
             ]
                 |> String.join "-"
 
+        helper : String
         helper =
             [ name
             , String.fromInt id
@@ -148,15 +151,18 @@ isInValidAttr valid =
 displaySelectField : FieldDescription msg -> Html.Html msg
 displaySelectField fd =
     let
+        id : Int
         id =
             Maybe.withDefault -1 fd.id
 
+        name : String
         name =
             [ fd.formname
             , fd.name
             ]
                 |> String.join "-"
 
+        helper : String
         helper =
             [ name
             , String.fromInt id

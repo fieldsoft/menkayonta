@@ -9,11 +9,11 @@ import Json.Encode.Extra as EE
 import Maybe.Extra as ME
 import Menkayonta as M exposing (Identifier(..))
 import Platform
+import Platform.Cmd as Cmd
 import Random
+import Task
 import Time
 import UUID exposing (UUID)
-import Task
-import Platform.Cmd as Cmd
 
 
 port receivedDativeForms : (E.Value -> msg) -> Sub msg
@@ -127,6 +127,7 @@ main =
 init : Flags -> ( Model, Cmd Msg )
 init flags =
     let
+        seeds : UUID.Seeds
         seeds =
             { seed1 = Random.initialSeed flags.seed1
             , seed2 = Random.initialSeed flags.seed2
@@ -134,9 +135,11 @@ init flags =
             , seed4 = Random.initialSeed flags.seed4
             }
 
+        validMe : Maybe Email
         validMe =
             Email.fromString flags.me
 
+        project : Result UUID.Error UUID.UUID
         project =
             UUID.fromString flags.project
     in
@@ -151,13 +154,16 @@ init flags =
               , me = flags.me
               , people = Dict.empty
               }
-            , reportInfo "Converter Initialized" 
+            , reportInfo "Converter Initialized"
             )
 
         ( Just _, Err _ ) ->
             let
-                ( fakeuuid, _ ) =
-                    UUID.step seeds
+                fakeuuid : UUID.UUID
+                fakeuuid =
+                    case UUID.step seeds of
+                        ( uuid, _ ) ->
+                            uuid
             in
             ( { seeds = seeds
               , project = fakeuuid
@@ -186,8 +192,11 @@ init flags =
 
         ( Nothing, Err _ ) ->
             let
-                ( fakeuuid, _ ) =
-                    UUID.step seeds
+                fakeuuid : UUID.UUID
+                fakeuuid =
+                    case UUID.step seeds of
+                        ( uuid, _ ) ->
+                            uuid
             in
             ( { seeds = seeds
               , project = fakeuuid
@@ -209,6 +218,7 @@ update msg model =
             case D.decodeValue jobDecoder job of
                 Err e ->
                     let
+                        error : String
                         error =
                             D.errorToString e
                     in
@@ -220,6 +230,7 @@ update msg model =
                     case D.decodeValue (D.list DT.decoder) j.payload of
                         Err e_ ->
                             let
+                                error : String
                                 error =
                                     D.errorToString e_
                             in
@@ -236,6 +247,7 @@ update msg model =
                 -- finished.
                 [] ->
                     let
+                        job : Job
                         job =
                             { project =
                                 model.project
@@ -245,13 +257,15 @@ update msg model =
                                     |> E.list identity
                             }
 
+                        jval : E.Value
                         jval =
                             jobEncoder job
                     in
                     ( { model | stage = OriginalS }
-                    , Cmd.batch [ sendBulkDocs jval
-                                , reportInfo "Completed Processing"
-                                ]
+                    , Cmd.batch
+                        [ sendBulkDocs jval
+                        , reportInfo "Completed Processing"
+                        ]
                     )
 
                 -- Take the head of the list and process the current
@@ -263,6 +277,7 @@ update msg model =
 resolveStage : DT.DativeForm -> Model -> ( Model, Cmd Msg )
 resolveStage curr model =
     let
+        docid : M.DocId
         docid =
             M.InterlinearId curr.uuid
     in
@@ -274,19 +289,24 @@ resolveStage curr model =
         -- OriginalS is fairly simple.
         OriginalS ->
             let
-                ( modid, mod ) =
-                    constructModifier
-                        { kind = "importsource"
-                        , time = model.time
-                        , docid = docid
-                        , pid = model.me
-                        , json = DT.encoder curr
-                        }
+                constm : ConstructM
+                constm =
+                    { kind = "importsource"
+                    , time = model.time
+                    , docid = docid
+                    , pid = model.me
+                    , json = DT.encoder curr
+                    }
 
-                newin =
-                    Dict.insert (M.identifierToString modid) mod model.to
+                m : IdVal
+                m =
+                    constructModifier constm
+
+                newto : Dict String M.Value
+                newto =
+                    Dict.insert (M.identifierToString m.id) m.val model.to
             in
-            ( { model | to = newin, stage = SpeakerS }
+            ( { model | to = newto, stage = SpeakerS }
             , next "Completed OriginalS"
             )
 
@@ -349,7 +369,7 @@ resolveStage curr model =
                 Nothing ->
                     -- If there wasn't a modifier, move on to the next
                     -- item.
-                   ( { model | stage = VerifierS }, next "Skip ModifierS" )
+                    ( { model | stage = VerifierS }, next "Skip ModifierS" )
 
         VerifierS ->
             case curr.verifier of
@@ -368,6 +388,7 @@ resolveStage curr model =
 
         UtilityS ->
             let
+                utilityVal : DativeUtilityValue
                 utilityVal =
                     { version =
                         1
@@ -381,6 +402,7 @@ resolveStage curr model =
                         curr.break_gloss_category
                     }
 
+                empty : DativeUtilityValue
                 empty =
                     DativeUtilityValue 1 Nothing Nothing Nothing Nothing
             in
@@ -403,6 +425,7 @@ resolveStage curr model =
 interlinearStage : DT.DativeForm -> Model -> ( Model, Cmd Msg )
 interlinearStage curr model =
     let
+        interlinear : M.Interlinear
         interlinear =
             { id = curr.uuid
             , rev = Nothing
@@ -427,48 +450,59 @@ interlinearStage curr model =
                     |> Dict.fromList
             }
 
+        interlineardoc : M.Value
         interlineardoc =
             M.MyInterlinear interlinear
 
+        docid : M.DocId
         docid =
             curr.uuid |> M.InterlinearId
 
+        stringid : String
         stringid =
             docid |> M.MyDocId |> M.identifierToString
 
+        nptrans : Maybe IdVal
         nptrans =
             constNonBlankDesc "narrow phonetic transription"
                 curr.narrow_phonetic_transcription
                 docid
 
+        syntax : Maybe IdVal
         syntax =
             constNonBlankProp "syntax" curr.syntax docid
 
+        semantics : Maybe IdVal
         semantics =
             constNonBlankProp "semantics" curr.semantics docid
 
+        status : Maybe IdVal
         status =
             constNonBlankProp "status" curr.status docid
 
+        syntactic_category : Maybe IdVal
         syntactic_category =
             maybeConstProp "syntactic category"
                 (curr.syntactic_category |> Maybe.map .name)
                 docid
 
+        source : Maybe IdVal
         source =
             maybeConstProp "source" curr.source docid
 
+        tags : List IdVal
         tags =
             List.map (\t -> constructTag t.name docid) curr.tags
 
+        newto : Dict String M.Value
         newto =
             Dict.insert stringid interlineardoc model.to
                 |> (\indict ->
                         List.foldl
-                            (\( id, val ) indict_ ->
+                            (\t indict_ ->
                                 Dict.insert
-                                    (M.identifierToString id)
-                                    val
+                                    (M.identifierToString t.id)
+                                    t.val
                                     indict_
                             )
                             indict
@@ -482,9 +516,9 @@ interlinearStage curr model =
                 |> when source
     in
     ( { model
-          | stage = OriginalS
-          , to = newto
-          , from = tail model.from
+        | stage = OriginalS
+        , to = newto
+        , from = tail model.from
       }
     , next "Completed InterlinearS"
     )
@@ -498,6 +532,7 @@ utilityStage :
     -> ( Model, Cmd Msg )
 utilityStage { docid, utilityVal, model } =
     let
+        utility : M.Utility
         utility =
             { id =
                 { kind = "dative"
@@ -509,15 +544,17 @@ utilityStage { docid, utilityVal, model } =
             , value = utilityVal
             }
 
+        stringid : String
         stringid =
             M.identifierToString (M.MyUtilityId utility.id)
 
+        newto : Dict String M.Value
         newto =
             Dict.insert stringid (M.MyUtility utility) model.to
     in
     ( { model
-          | to = newto
-          , stage = InterlinearS
+        | to = newto
+        , stage = InterlinearS
       }
     , next "Completed UtilityS"
     )
@@ -532,25 +569,32 @@ verifierStage :
     -> ( Model, Cmd Msg )
 verifierStage { docid, curr, verifier, model } =
     let
-        ( stringid, newperson ) =
+        p : StringIdPerson
+        p =
             perhapsMakePerson verifier model
 
+        people : Dict Int M.Person
         people =
-            Dict.insert verifier.id newperson model.people
+            Dict.insert verifier.id p.person model.people
 
         -- The original software did not record a date for this
         -- modification type. I am defaulting the last modification.
+        modDate_ : Maybe IdVal
         modDate_ =
-            modDate "verified" (Just curr.datetime_modified) docid newperson.id
+            modDate "verified"
+                (Just curr.datetime_modified)
+                docid
+                p.person.id
 
+        newto : Dict String M.Value
         newto =
-            Dict.insert stringid (M.MyPerson newperson) model.to
+            Dict.insert p.stringId (M.MyPerson p.person) model.to
                 |> when modDate_
     in
     ( { model
-          | people = people
-          , to = newto
-          , stage = UtilityS
+        | people = people
+        , to = newto
+        , stage = UtilityS
       }
     , next "Completed VerifierS"
     )
@@ -565,25 +609,32 @@ modifierStage :
     -> ( Model, Cmd Msg )
 modifierStage { docid, curr, modifier, model } =
     let
-        ( stringid, newperson ) =
+        p : StringIdPerson
+        p =
             perhapsMakePerson modifier model
 
+        people : Dict Int M.Person
         people =
-            Dict.insert modifier.id newperson model.people
+            Dict.insert modifier.id p.person model.people
 
         -- Add a modification event for the elcitation
         -- date, if it exists.
+        modDate_ : Maybe IdVal
         modDate_ =
-            modDate "updated" (Just curr.datetime_modified) docid newperson.id
+            modDate "updated"
+                (Just curr.datetime_modified)
+                docid
+                p.person.id
 
+        newto : Dict String M.Value
         newto =
-            Dict.insert stringid (M.MyPerson newperson) model.to
+            Dict.insert p.stringId (M.MyPerson p.person) model.to
                 |> when modDate_
     in
     ( { model
-          | people = people
-          , to = newto
-          , stage = VerifierS
+        | people = people
+        , to = newto
+        , stage = VerifierS
       }
     , next "Completed ModiferS"
     )
@@ -598,25 +649,29 @@ entererStage :
     -> ( Model, Cmd Msg )
 entererStage { docid, curr, enterer, model } =
     let
-        ( stringid, newperson ) =
+        p : StringIdPerson
+        p =
             perhapsMakePerson enterer model
 
+        people : Dict Int M.Person
         people =
-            Dict.insert enterer.id newperson model.people
+            Dict.insert enterer.id p.person model.people
 
         -- Add a modification event for the elcitation
         -- date, if it exists.
+        modDate_ : Maybe IdVal
         modDate_ =
-            modDate "entered" (Just curr.datetime_entered) docid newperson.id
+            modDate "entered" (Just curr.datetime_entered) docid p.person.id
 
+        newto : Dict String M.Value
         newto =
-            Dict.insert stringid (M.MyPerson newperson) model.to
+            Dict.insert p.stringId (M.MyPerson p.person) model.to
                 |> when modDate_
     in
     ( { model
-          | people = people
-          , to = newto
-          , stage = ModifierS
+        | people = people
+        , to = newto
+        , stage = ModifierS
       }
     , next "Completed EntererS"
     )
@@ -631,22 +686,27 @@ elicitorStage :
     -> ( Model, Cmd Msg )
 elicitorStage { docid, curr, elicitor, model } =
     let
-        ( stringid, newperson ) =
+        p : StringIdPerson
+        p =
             perhapsMakePerson elicitor model
 
+        people : Dict Int M.Person
         people =
-            Dict.insert elicitor.id newperson model.people
+            Dict.insert elicitor.id p.person model.people
 
         -- Associate speaker comment information with
         -- the interlinear document.
+        comment_ : Maybe IdVal
         comment_ =
             constNonBlankDesc "comment" curr.comments docid
 
         -- Add a modification event for the elcitation
         -- date, if it exists.
+        modDate_ : Maybe IdVal
         modDate_ =
-            modDate "elicitation" curr.date_elicited docid newperson.id
+            modDate "elicitation" curr.date_elicited docid p.person.id
 
+        elicitationMethod : Maybe IdVal
         elicitationMethod =
             maybeConstProp "elicitation method"
                 (curr.elicitation_method
@@ -654,16 +714,17 @@ elicitorStage { docid, curr, elicitor, model } =
                 )
                 docid
 
+        newto : Dict String M.Value
         newto =
-            Dict.insert stringid (M.MyPerson newperson) model.to
+            Dict.insert p.stringId (M.MyPerson p.person) model.to
                 |> when comment_
                 |> when modDate_
                 |> when elicitationMethod
     in
     ( { model
-          | people = people
-          , to = newto
-          , stage = EntererS
+        | people = people
+        , to = newto
+        , stage = EntererS
       }
     , next "Completed ElicitorS"
     )
@@ -678,12 +739,13 @@ speakerStage :
     -> ( Model, Cmd Msg )
 speakerStage { docid, curr, speaker, model } =
     let
-        ( stringid, newperson ) =
+        p : StringIdPerson
+        p =
             case Dict.get -speaker.id model.people of
                 Just person ->
-                    ( personIdString person.id
-                    , person
-                    )
+                    { stringId = personIdString person.id
+                    , person = person
+                    }
 
                 Nothing ->
                     constructPerson
@@ -694,41 +756,47 @@ speakerStage { docid, curr, speaker, model } =
 
         -- Add speakers with negative numbers to avoid
         -- collisions with legacy person type.
+        people : Dict Int M.Person
         people =
-            Dict.insert -speaker.id newperson model.people
+            Dict.insert -speaker.id p.person model.people
 
+        personid : M.DocId
         personid =
-            M.PersonId newperson.id
+            M.PersonId p.person.id
 
         -- Associate dialect information included with
         -- the dative speaker record with the
         -- interlinear document.
+        docDialect : Maybe IdVal
         docDialect =
             maybeConstProp "dialect" speaker.dialect docid
 
         -- Associate dialect information included with
         -- the dative speaker record with the
         -- speaker document.
+        speakerDialect : Maybe IdVal
         speakerDialect =
             maybeConstProp "dialect" speaker.dialect personid
 
         -- Associate speaker comment information with
         -- the interlinear document.
+        speakerComment : Maybe IdVal
         speakerComment =
             constNonBlankDesc "speaker comment" curr.speaker_comments docid
 
         -- Sequentially insert new records to the
         -- output "to" dictionary.
+        newto : Dict String M.Value
         newto =
-            Dict.insert stringid (M.MyPerson newperson) model.to
+            Dict.insert p.stringId (M.MyPerson p.person) model.to
                 |> when speakerDialect
                 |> when docDialect
                 |> when speakerComment
     in
     ( { model
-          | to = newto
-          , people = people
-          , stage = ElicitorS
+        | to = newto
+        , people = people
+        , stage = ElicitorS
       }
     , next "Completed SpeakerS"
     )
@@ -754,14 +822,14 @@ jobEncoder job =
         ]
 
 
-when : Maybe ( M.Identifier, M.Value ) -> Dict String M.Value -> Dict String M.Value
+when : Maybe IdVal -> Dict String M.Value -> Dict String M.Value
 when input default =
     ME.unwrap default
-        (\( x, y ) -> Dict.insert (M.identifierToString x) y default)
+        (\x -> Dict.insert (M.identifierToString x.id) x.val default)
         input
 
 
-constructTag : String -> M.DocId -> ( M.Identifier, M.Value )
+constructTag : String -> M.DocId -> IdVal
 constructTag kind docid =
     { id =
         { kind = kind
@@ -771,10 +839,10 @@ constructTag kind docid =
     , rev = Nothing
     , version = 1
     }
-        |> (\x -> ( M.MyTagId x.id, M.MyTag x ))
+        |> (\x -> { id = M.MyTagId x.id, val = M.MyTag x })
 
 
-constructProperty : String -> String -> M.DocId -> ( M.Identifier, M.Value )
+constructProperty : String -> String -> M.DocId -> IdVal
 constructProperty kind str docid =
     { id =
         { kind = kind
@@ -785,15 +853,19 @@ constructProperty kind str docid =
     , rev = Nothing
     , version = 1
     }
-        |> (\x -> ( M.MyPropertyId x.id, M.MyProperty x ))
+        |> (\x ->
+                { id = M.MyPropertyId x.id
+                , val = M.MyProperty x
+                }
+           )
 
 
-maybeConstProp : String -> Maybe String -> M.DocId -> Maybe ( M.Identifier, M.Value )
+maybeConstProp : String -> Maybe String -> M.DocId -> Maybe IdVal
 maybeConstProp kind str docid =
     str |> Maybe.map (\x -> constructProperty kind x docid)
 
 
-constNonBlankProp : String -> String -> M.DocId -> Maybe ( M.Identifier, M.Value )
+constNonBlankProp : String -> String -> M.DocId -> Maybe IdVal
 constNonBlankProp kind str docid =
     if String.length str == 0 then
         Nothing
@@ -802,7 +874,7 @@ constNonBlankProp kind str docid =
         Just <| constructProperty kind str docid
 
 
-constructDescription : String -> String -> M.DocId -> ( M.Identifier, M.Value )
+constructDescription : String -> String -> M.DocId -> IdVal
 constructDescription kind value docid =
     { id =
         { kind = kind
@@ -813,10 +885,14 @@ constructDescription kind value docid =
     , version = 1
     , value = value
     }
-        |> (\x -> ( M.MyDescriptionId x.id, M.MyDescription x ))
+        |> (\x ->
+                { id = M.MyDescriptionId x.id
+                , val = M.MyDescription x
+                }
+           )
 
 
-constNonBlankDesc : String -> String -> M.DocId -> Maybe ( M.Identifier, M.Value )
+constNonBlankDesc : String -> String -> M.DocId -> Maybe IdVal
 constNonBlankDesc kind c docid =
     if String.length c > 0 then
         constructDescription kind c docid |> Just
@@ -835,13 +911,13 @@ personIdString str =
 
 {-| The person will only be constructed if they haven't been already.
 -}
-perhapsMakePerson : DT.DativePerson -> Model -> ( String, M.Person )
+perhapsMakePerson : DT.DativePerson -> Model -> StringIdPerson
 perhapsMakePerson dperson model =
     case Dict.get dperson.id model.people of
         Just person ->
-            ( personIdString person.id
-            , person
-            )
+            { stringId = personIdString person.id
+            , person = person
+            }
 
         Nothing ->
             constructPerson
@@ -851,24 +927,36 @@ perhapsMakePerson dperson model =
                 }
 
 
-constructPerson : { first : String, last : String, id : Int} -> ( String, M.Person )
+type alias StringIdPerson =
+    { stringId : String
+    , person : M.Person
+    }
+
+
+constructPerson : { first : String, last : String, id : Int } -> StringIdPerson
 constructPerson pdata =
     let
+        first_name : String
         first_name =
             pdata.first |> String.trim
 
+        last_name : String
         last_name =
             pdata.last |> String.trim
 
+        name : String
         name =
             String.join " " [ first_name, last_name ]
 
+        email : String
         email =
             first_name ++ "." ++ last_name ++ "@example.com"
-                
+
+        stringid : String
         stringid =
             personIdString email
 
+        newperson : M.Person
         newperson =
             { id = email
             , rev = Nothing
@@ -876,10 +964,12 @@ constructPerson pdata =
             , names = Dict.singleton pdata.id name
             }
     in
-    ( stringid, newperson )
+    { stringId = stringid
+    , person = newperson
+    }
 
 
-modDate : String -> Maybe Time.Posix -> M.DocId -> String -> Maybe ( M.Identifier, M.Value )
+modDate : String -> Maybe Time.Posix -> M.DocId -> String -> Maybe IdVal
 modDate kind time docid pid =
     time
         |> Maybe.map
@@ -894,14 +984,22 @@ modDate kind time docid pid =
             )
 
 
-constructModifier :
+type alias ConstructM =
     { kind : String
     , time : Time.Posix
     , docid : M.DocId
     , pid : String
     , json : E.Value
     }
-    -> ( M.Identifier, M.Value )
+
+
+type alias IdVal =
+    { id : M.Identifier
+    , val : M.Value
+    }
+
+
+constructModifier : ConstructM -> IdVal
 constructModifier { kind, time, docid, pid, json } =
     { id =
         { kind = kind
@@ -916,7 +1014,11 @@ constructModifier { kind, time, docid, pid, json } =
     , docversion = 0
     , value = json
     }
-        |> (\mod -> ( M.MyModificationId mod.id, M.MyModification mod ))
+        |> (\mod ->
+                { id = M.MyModificationId mod.id
+                , val = M.MyModification mod
+                }
+           )
 
 
 dativeUtilEncoder : DativeUtilityValue -> E.Value
@@ -952,8 +1054,7 @@ tail list =
 
 next : String -> Cmd Msg
 next msg =
-    Cmd.batch [ Task.perform identity <| Task.succeed Next
-              , reportInfo msg
-              ]
-
-        
+    Cmd.batch
+        [ Task.perform identity <| Task.succeed Next
+        , reportInfo msg
+        ]

@@ -11,10 +11,10 @@ module Tab exposing
     , Vista
     , Vistas
     , columnCount
-    , multipleRows
     , defVParams
     , getByVista
     , initData
+    , multipleRows
     , pathToString
     , tabpath
     , treeifyTabs
@@ -180,15 +180,19 @@ update msg model =
             case Dict.get tp model.ventanas of
                 Just ventana ->
                     let
+                        params : VentanaParams
                         params =
                             ventana.params
 
+                        np : VentanaParams
                         np =
                             { params | searchString = str }
 
+                        nv : Ventana
                         nv =
                             { ventana | params = np }
 
+                        nvs : Dict Path Ventana
                         nvs =
                             Dict.insert tp nv model.ventanas
                     in
@@ -201,21 +205,26 @@ update msg model =
 
         Change Length tp str ->
             let
+                num : Int
                 num =
                     Maybe.withDefault 0 (String.toInt str)
             in
             case Dict.get tp model.ventanas of
                 Just ventana ->
                     let
+                        params : VentanaParams
                         params =
                             ventana.params
 
+                        np : VentanaParams
                         np =
                             { params | length = num }
 
+                        nv : Ventana
                         nv =
                             { ventana | params = np }
 
+                        nvs : Dict Path Ventana
                         nvs =
                             Dict.insert tp nv model.ventanas
                     in
@@ -228,15 +237,18 @@ update msg model =
 
         New ventana ->
             let
+                c : Int
                 c =
                     model.counter
             in
             case model.focused of
                 Nothing ->
                     let
+                        tp : Path
                         tp =
                             tabpath c c c
 
+                        newmodel : Model
                         newmodel =
                             { model
                                 | counter = c + 1
@@ -248,18 +260,17 @@ update msg model =
 
                 Just focused ->
                     let
-                        ( column, ( row, _ ) ) =
-                            focused
-                                
+                        tp : Path
                         tp =
-                            tabpath column row c
+                            tabpath (tcolumn focused) (trow focused) c
 
+                        newmodel : Model
                         newmodel =
                             { model
                                 | counter =
-                                  c + 1
+                                    c + 1
                                 , ventanas =
-                                  Dict.insert tp ventana model.ventanas
+                                    Dict.insert tp ventana model.ventanas
                             }
                     in
                     ( focusWhenUnlocked tp newmodel, Cmd.none )
@@ -283,16 +294,19 @@ update msg model =
 
         Clone ->
             let
+                ventana : Maybe Ventana
                 ventana =
                     model.focused
                         |> Maybe.andThen
                             (\tp -> Dict.get tp model.ventanas)
 
+                idPatternMatch : Ventana -> Bool
                 idPatternMatch ventana_ =
                     List.any
                         (\x -> String.startsWith x ventana_.vista)
                         dontClone
 
+                noClone : Ventana -> Bool
                 noClone ventana_ =
                     idPatternMatch ventana_
                         || List.member ventana_.vista model.globalVistas
@@ -323,18 +337,23 @@ update msg model =
                new tab.
             -}
             let
+                vs : Dict Path Ventana
                 vs =
                     model.ventanas
 
+                c : Int
                 c =
                     model.counter
 
+                keys : List Path
                 keys =
                     Dict.keys vs
 
+                cols : List Int
                 cols =
                     tcolumns keys
 
+                newmodel : Model
                 newmodel =
                     if Dict.isEmpty vs || Dict.size vs == 1 then
                         model
@@ -344,13 +363,17 @@ update msg model =
                             Just fp ->
                                 let
                                     -- rows of the current column
+                                    rows : List Int
                                     rows =
                                         trows (tcolumn fp) keys
 
+                                    needsCreation : Bool
                                     needsCreation =
-                                        isCreationNecessary dir fp ( cols
-                                                                   , rows
-                                                                   )
+                                        isCreationNecessary dir
+                                            fp
+                                            ( cols
+                                            , rows
+                                            )
                                 in
                                 {- Does the position of the tab's
                                    column or row require that a new
@@ -359,9 +382,11 @@ update msg model =
                                 -}
                                 if needsCreation then
                                     let
+                                        newtp : Path
                                         newtp =
                                             newTabPath dir fp c
 
+                                        moved : Model
                                         moved =
                                             reassign fp newtp model
                                     in
@@ -369,8 +394,14 @@ update msg model =
 
                                 else
                                     let
+                                        new : Path
                                         new =
-                                            insertTabPath dir fp ( cols, rows ) keys
+                                            insertTabPath dir
+                                                fp
+                                                ( cols
+                                                , rows
+                                                )
+                                                keys
                                     in
                                     reassign fp new model
 
@@ -385,14 +416,21 @@ for Move Direction. Each provides Direction specific code for some
 aspect of the Move operation. This is for the case when movement
 places the focused tab in a preexisting row with tabs.
 -}
-insertTabPath : Direction -> Path -> ( List Int, List Int ) -> List Path -> Path
+insertTabPath :
+    Direction
+    -> Path
+    -> ( List Int, List Int )
+    -> List Path
+    -> Path
 insertTabPath dir tp ( cols, rows ) keys =
     case dir of
         Right ->
             let
+                col : Int
                 col =
                     getNext (tcolumn tp) cols
 
+                newrows : List Int
                 newrows =
                     trows col keys
             in
@@ -402,9 +440,11 @@ insertTabPath dir tp ( cols, rows ) keys =
 
         Left ->
             let
+                col : Int
                 col =
                     getNext (tcolumn tp) (List.reverse cols)
 
+                newrows : List Int
                 newrows =
                     trows col keys
             in
@@ -414,6 +454,7 @@ insertTabPath dir tp ( cols, rows ) keys =
 
         Down ->
             let
+                row : Int
                 row =
                     getNext (trow tp) rows
             in
@@ -421,6 +462,7 @@ insertTabPath dir tp ( cols, rows ) keys =
 
         Up ->
             let
+                row : Int
                 row =
                     getNext (trow tp) (List.reverse rows)
             in
@@ -472,11 +514,9 @@ isCreationNecessary dir tp ( cols, rows ) =
 sharesRow : Path -> List Path -> List Path
 sharesRow tp tabs =
     let
+        tabs_ : List Path
         tabs_ =
             LE.remove tp tabs
-
-        ( column, ( row, tab ) ) =
-            tp
     in
     List.filter (sameRow tp) tabs_
 
@@ -496,18 +536,22 @@ nearest : Path -> List Path -> Maybe Path
 nearest tp tabs =
     let
         -- ensure the path is not in the list
+        tabs_ : List Path
         tabs_ =
             LE.remove tp tabs
 
         -- a function to convert a path to a vector
+        toV3 : Path -> V3.Vec3
         toV3 ( column, ( row, tab ) ) =
             V3.vec3 (toFloat column) (toFloat row) (toFloat tab)
 
         -- the provided path as a vector
+        vp : V3.Vec3
         vp =
             toV3 tp
 
         -- a function to find the tab that is least distant
+        nearest_ : List Path -> Maybe Path
         nearest_ tps =
             List.map (\t -> ( V3.distance (toV3 t) vp, t )) tps
                 |> List.minimum
@@ -528,43 +572,48 @@ previous tab in the history, or the nearest tab, otherwise.
 closeTab : Bool -> Path -> Model -> Model
 closeTab closevista tp model =
     let
-        ( column, ( row, tab ) ) =
-            tp
-
         -- Was the tab a visible tab?
+        wasVisible : Bool
         wasVisible =
-            Just tab == Dict.get ( column, row ) model.visVentanas
+            Just (ttab tp)
+                == Dict.get ( tcolumn tp, trow tp ) model.visVentanas
 
         -- Was the tab focused?
+        wasFocused : Bool
         wasFocused =
             model.focused == Just tp
 
         -- ventans without closed tab
+        ventanas : Dict Path Ventana
         ventanas =
             Dict.remove tp model.ventanas
 
         -- The history with the closed tab excluded.
+        newHistory : List Path
         newHistory =
             List.filter
                 (\t -> t /= tp)
                 (refreshHistory model.focusHistory (Dict.keys ventanas))
 
         -- The closest tab to the closed tab.
+        near : Maybe Path
         near =
             nearest tp (Dict.keys ventanas)
 
         -- The remaining visible ventanas if the current one has been
         -- removed.
+        notClosed : Dict ( Int, Int ) Int
         notClosed =
             visRemove tp model.visVentanas
 
         -- visVentanas were the nearest element that shares a row with
         -- the element to be closed is set to visible.
+        rowvis : Dict ( Int, Int ) Int
         rowvis =
             case near of
                 Just ( c, ( r, t ) ) ->
-                    if c == column && r == row then
-                        visInsert (c,(r,t)) notClosed
+                    if c == tcolumn tp && r == trow tp then
+                        visInsert ( c, ( r, t ) ) notClosed
 
                     else
                         notClosed
@@ -573,7 +622,11 @@ closeTab closevista tp model =
                     notClosed
 
         -- Calculate new values for these variables.
-        ( visible, focused, history ) =
+        newvars :
+            { visible : Dict ( Int, Int ) Int
+            , focused : Maybe Path
+            }
+        newvars =
             if wasVisible then
                 if wasFocused then
                     case newHistory of
@@ -582,57 +635,71 @@ closeTab closevista tp model =
                             -- item to the visVentanas dict, so we
                             -- only want to ensure that there is
                             -- something visible in the row.
-                            ( rowvis, Just f, h )
+                            { visible = rowvis
+                            , focused = Just f
+                            }
 
                         [] ->
-                            ( rowvis, near, [] )
+                            { visible = rowvis
+                            , focused = near
+                            }
 
                 else
-                    ( rowvis, model.focused, newHistory )
+                    { visible = rowvis
+                    , focused = model.focused
+                    }
 
             else
-                ( notClosed, model.focused, newHistory )
+                { visible = notClosed
+                , focused = model.focused
+                }
 
+        gvistas : List String
         gvistas =
             model.globalVistas
 
-        vista =
+        vistaId : String
+        vistaId =
             Dict.get tp model.ventanas
                 |> Maybe.map .vista
                 |> Maybe.withDefault "fake"
 
+        multiref : Bool
         multiref =
-            getAllByVista vista model.ventanas
+            getAllByVista vistaId model.ventanas
                 |> List.length
-                |> \x -> 1 < x
+                |> (\x -> 1 < x)
 
+        nonglobal : Bool
         nonglobal =
-            not <| List.member vista gvistas
+            not <| List.member vistaId gvistas
 
         -- When the tab's vista isn't global, meaning always
         -- available, and there are not multiple references to the
         -- vista, and the function was called with the closevista
         -- option set to true, remove the vista.
+        vistas : Dict String Vista
         vistas =
             if nonglobal && not multiref && closevista then
-                Dict.remove vista model.vistas
+                Dict.remove vistaId model.vistas
 
             else
                 model.vistas
     in
-    case focused of
+    case newvars.focused of
         Nothing ->
             -- The final window was closed.
-            initData ( Dict.filter
-                           (\v _ -> List.member v model.globalVistas )
-                           model.vistas
-                     )
+            initData
+                (Dict.filter
+                    (\v _ -> List.member v model.globalVistas)
+                    model.vistas
+                )
 
         Just focusedTab ->
             focus focusedTab
                 { model
                     | ventanas = ventanas
-                    , visVentanas = visible
+                    , visVentanas = newvars.visible
                     , vistas = vistas
                 }
 
@@ -649,16 +716,17 @@ will be focused. This may change in the future.
 reassign : Path -> Path -> Model -> Model
 reassign old new model =
     let
+        ventanas : Dict Path Ventana
         ventanas =
             Dict.get old model.ventanas
                 |> Maybe.map (\v -> Dict.insert new v model.ventanas)
                 |> Maybe.withDefault model.ventanas
 
+        model_ : Model
         model_ =
             focus new { model | ventanas = ventanas }
     in
     closeTab False old model_
-                             
 
 
 {-| Attempts to find the integer after the current one in a list and
@@ -680,43 +748,53 @@ treeifyTabs : List Path -> Dict Int (Dict Int (Set Int))
 treeifyTabs tps =
     List.foldl
         (\tp tr ->
+            -- Get the rows for the current path column
             case Dict.get (tcolumn tp) tr of
+                -- When there is now row, set up a new one with the
+                -- current path.
                 Nothing ->
                     let
+                        newtabs : Set Int
                         newtabs =
                             Set.singleton (ttab tp)
 
+                        newrows : Dict Int (Set Int)
                         newrows =
                             Dict.singleton (trow tp) newtabs
                     in
                     Dict.insert (tcolumn tp) newrows tr
 
+                -- If there are rows, put the path in the correct row.
                 Just rows ->
+                    -- Has the row for the current path been
+                    -- initialized?
                     case Dict.get (trow tp) rows of
+                        -- The row has not been initialized. Creat it
+                        -- and add the current path.
                         Nothing ->
                             let
+                                newtabs : Set Int
                                 newtabs =
                                     Set.singleton (ttab tp)
 
+                                newrows : Dict Int (Set Int)
                                 newrows =
                                     Dict.insert (trow tp) newtabs rows
                             in
                             Dict.insert (tcolumn tp) newrows tr
 
+                        -- The row has been initialized. Insert the tab.
                         Just tabs ->
-                            if not (Set.member (ttab tp) tabs) then
-                                let
-                                    newtabs =
-                                        Set.insert (ttab tp) tabs
+                            let
+                                newtabs : Set Int
+                                newtabs =
+                                    Set.insert (ttab tp) tabs
 
-                                    newrows =
-                                        Dict.insert (trow tp) newtabs rows
-                                in
-                                Dict.insert (tcolumn tp) newrows tr
-
-                            else
-                                -- Unexpected
-                                tr
+                                newrows : Dict Int (Set Int)
+                                newrows =
+                                    Dict.insert (trow tp) newtabs rows
+                            in
+                            Dict.insert (tcolumn tp) newrows tr
         )
         Dict.empty
         tps
@@ -785,11 +863,18 @@ visInsert tp vv =
 -}
 visRemove : Path -> VisVentanas -> VisVentanas
 visRemove tp vis =
-    let
-        ( c, ( r, i ) ) =
-            tp
-    in
-    Dict.filter (\( c1, r1 ) i1 -> not (c1 == c && r1 == r && i1 == i)) vis
+    Dict.filter
+        (\( c1, r1 ) t1 ->
+            not
+                (c1
+                    == tcolumn tp
+                    && r1
+                    == trow tp
+                    && t1
+                    == ttab tp
+                )
+        )
+        vis
 
 
 visToList : VisVentanas -> List Path
@@ -818,7 +903,10 @@ getVistaVentana tp model =
             )
 
 
-getContentVistaVentana : Path -> Model -> Maybe ( Content, ( Vista, Ventana ) )
+getContentVistaVentana :
+    Path
+    -> Model
+    -> Maybe ( Content, ( Vista, Ventana ) )
 getContentVistaVentana tp model =
     getVistaVentana tp model
         |> Maybe.map (\( vis, ven ) -> ( vis.content, ( vis, ven ) ))
@@ -856,13 +944,18 @@ refreshHistory history tabs =
 focus : Path -> Model -> Model
 focus tp model =
     let
+        tabs : List Path
         tabs =
             Dict.keys model.ventanas
 
+        requiresAdd : Path -> Bool
         requiresAdd previous_ =
-            Just tp /= model.focused &&
-                Just previous_ /= List.head model.focusHistory
+            Just tp
+                /= model.focused
+                && Just previous_
+                /= List.head model.focusHistory
 
+        history : List Path
         history =
             case model.focused of
                 Nothing ->
@@ -871,8 +964,8 @@ focus tp model =
                 Just previous ->
                     if requiresAdd previous then
                         refreshHistory
-                        (previous :: model.focusHistory)
-                        tabs
+                            (previous :: model.focusHistory)
+                            tabs
 
                     else
                         refreshHistory model.focusHistory tabs
@@ -899,18 +992,18 @@ columnCount : List Path -> Int
 columnCount tabs =
     let
         accCol : Path -> Set Int -> Set Int
-        accCol (c, _) acc =
+        accCol ( c, _ ) acc =
             Set.insert c acc
     in
     List.foldl accCol Set.empty tabs
         |> Set.size
 
-           
+
 multipleRows : List Path -> Bool
 multipleRows tabs =
     let
         accRow : Path -> Dict Int (Set Int) -> Dict Int (Set Int)
-        accRow (c, (r, _)) acc =
+        accRow ( c, ( r, _ ) ) acc =
             case Dict.get c acc of
                 Nothing ->
                     Dict.insert c (Set.insert r Set.empty) acc
