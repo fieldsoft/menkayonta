@@ -5596,7 +5596,7 @@ var $author$project$Converter$constructDescription = F3(
 	});
 var $author$project$Converter$constNonBlankDesc = F3(
 	function (kind, c, docid) {
-		return ($elm$core$String$length(c) > 0) ? $elm$core$Maybe$Just(
+		return (!$elm$core$String$isEmpty(c)) ? $elm$core$Maybe$Just(
 			A3($author$project$Converter$constructDescription, kind, c, docid)) : $elm$core$Maybe$Nothing;
 	});
 var $elm$core$Dict$Black = {$: 'Black'};
@@ -6319,7 +6319,7 @@ var $author$project$Menkayonta$MyInterlinear = function (a) {
 };
 var $author$project$Converter$constNonBlankProp = F3(
 	function (kind, str, docid) {
-		return (!$elm$core$String$length(str)) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(
+		return $elm$core$String$isEmpty(str) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(
 			A3($author$project$Converter$constructProperty, kind, str, docid));
 	});
 var $author$project$Menkayonta$MyTag = function (a) {
@@ -6729,11 +6729,8 @@ var $author$project$Converter$update = F2(
 				var job = {
 					payload: A2(
 						$elm$json$Json$Encode$list,
-						$elm$core$Basics$identity,
-						A2(
-							$elm$core$List$map,
-							$author$project$Menkayonta$encoder,
-							$elm$core$Dict$values(model.to))),
+						$author$project$Menkayonta$encoder,
+						$elm$core$Dict$values(model.to)),
 					project: model.project
 				};
 				var jval = $author$project$Converter$jobEncoder(job);
