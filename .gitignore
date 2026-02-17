@@ -32,3 +32,4 @@ out/
 .devel/
 .testing/
 tests/jest-storage
+conv.js
