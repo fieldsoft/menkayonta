@@ -1,4 +1,4 @@
-@import "pico.orange.min.css";
+@import url("pico.orange.min.css");
 
 :root {
     --pico-spacing: 0.5rem;
@@ -52,8 +52,8 @@ main {
 }
 
 .multiple-rows .tab-row {
-    resize: vertical;
     overflow-y: scroll;
+    resize: vertical;
 }
 
 /* The tab navigation area */
@@ -63,25 +63,25 @@ button.focused {
 }
 
 .tab-header {
-    justify-content: flex-start;
-    flex-wrap: wrap;
     position: sticky;
     top: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     background-color: var(--pico-card-background-color);
 }
 
 .tab-nav {
-    padding-left: 1rem;
     padding-right: 0;
-    border-top-right-radius: 0px;
-    border-bottom-right-radius: 0px;
+    padding-left: 1rem;
     border-right-style: none;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
 .close-button {
-    border-top-left-radius: 0px;
-    border-bottom-left-radius: 0px;
     border-left-style: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 
 .close-button.focused {
@@ -121,12 +121,12 @@ ul.all-glosses li {
 }
 
 .tag {
-    background-color: var(--pico-contrast-background);
-    color: var(--pico-contrast-inverse);
-    margin: 0.25rem;
-    padding: 0.1rem;
-    border-radius: 4px;
     display: inline-block;
+    padding: 0.1rem;
+    margin: 0.25rem;
+    color: var(--pico-contrast-inverse);
+    background-color: var(--pico-contrast-background);
+    border-radius: 4px;
 }
 
 div.hidden {
@@ -138,8 +138,8 @@ div.hidden {
 }
 
 .aligned-glosses {
-    text-indent: -1em;
     padding-left: 1.5em;
+    text-indent: -1em;
 }
 
 .gloss-column {
