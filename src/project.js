@@ -253,11 +253,6 @@ const handleMainMessage = (m) => {
       break
     }
 
-    case 'request-trans-index': {
-      handleRequestTranslations()
-      break
-    }
-
     case 'request-interlinear-index': {
       handleRequestInterlinears()
       break

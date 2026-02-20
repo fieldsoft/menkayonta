@@ -4,7 +4,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
   globalIgnores(
-    ['elm-stuff/**/*', 'src/renderer/elm.js', 'src/conv.js'],
+    ['elm-stuff/**/*', '**/elm.js', 'src/conv.js'],
     'Ignore Elm Output',
   ),
   {

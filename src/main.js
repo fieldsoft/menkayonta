@@ -10,7 +10,6 @@ const path = require('node:path')
 const fs = require('node:fs/promises')
 const os = require('node:os')
 const { cwd } = require('node:process')
-const { v4 } = require('uuid')
 
 const production = process.env.NODE_ENV === 'production' || app.isPackaged
 
