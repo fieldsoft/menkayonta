@@ -5,6 +5,7 @@ import Config exposing (GlobalConfig, ProjectInfo)
 import Content exposing (Content(..))
 import Dict exposing (Dict)
 import Display.InterlinearListing
+import Display.Composite
 import Form.Global
 import Form.Importer
 import Form.Interlinear
@@ -799,7 +800,7 @@ update msg model =
 
                                 content : Content
                                 content =
-                                    InterlinearsContent <|
+                                    ITS <|
                                         List.foldl filterInter [] vals
 
                                 vista : Vista
@@ -829,7 +830,7 @@ update msg model =
 
                 Ok env ->
                     let
-                        doc : Result.Result D.Error M.OneDoc
+                        doc : Result.Result D.Error M.Composite
                         doc =
                             reduceDoc env
                     in
@@ -1276,8 +1277,6 @@ update msg model =
                                 , "Edit: "
                                 , int.text
                                 ]
-
-                                keyed 
 
                         short : String
                         short =
@@ -1765,10 +1764,26 @@ viewVista model tp vista =
         Content.PR pmodel ->
             Form.Project.view pmodel |> Html.map (PR pmodel.identifier)
 
-        Content.ITV oneDoc ->
-            viewOneDoc vista oneDoc
+        Content.ITV composite ->
+            let
+                editEvent : M.Interlinear -> Msg
+                editEvent int =
+                    case UUID.fromString vista.project of
+                        Err _ ->
+                            None
 
-        InterlinearsContent ints ->
+                        Ok uuid ->
+                            EditInterlinear uuid int
+                                
+                params : Display.Composite.Params Msg
+                params =
+                    { composite = composite
+                    , editEvent = editEvent
+                    }
+            in
+            Display.Composite.view params
+
+        Content.ITS ints ->
             let
                 params : VentanaParams
                 params =
@@ -1874,180 +1889,6 @@ viewVista model tp vista =
                 ]
 
 
-viewOneDoc : Vista -> M.OneDoc -> Html.Html Msg
-viewOneDoc vista od =
-    case od.doc of
-        Just (M.MyInterlinear int) ->
-            Html.div []
-                [ Html.nav []
-                    [ Html.ul []
-                        [ Html.li []
-                            [ Html.a
-                                [ Attr.href "#"
-                                , Event.onClick <|
-                                    case UUID.fromString vista.project of
-                                        Err _ ->
-                                            None
-
-                                        Ok uuid ->
-                                            EditInterlinear uuid int
-                                ]
-                                [ Html.text "Edit" ]
-                            ]
-                        ]
-                    ]
-                , viewInterlinearOneDoc od int
-                ]
-
-        _ ->
-            Html.div [] [ Html.text "doc not supported" ]
-
-
-viewInterlinearOneDoc : M.OneDoc -> M.Interlinear -> Html.Html Msg
-viewInterlinearOneDoc od int =
-    Html.div [ Attr.class "docview" ]
-        [ Html.h2 []
-            [ Html.text "Interlinear Gloss" ]
-        , Html.article []
-            [ Display.InterlinearListing.viewInterlinear int
-            , Html.footer []
-                [ M.InterlinearId int.id
-                    |> M.MyDocId
-                    |> M.identifierToString
-                    |> (\x ->
-                            "ID: "
-                                ++ x
-                                |> Html.text
-                       )
-                ]
-            ]
-        , Html.h2 []
-            [ Html.text "Metadata" ]
-        , Html.div [ Attr.class "metaview" ]
-            [ if not (List.isEmpty od.tags) then
-                Html.article []
-                    [ Html.header []
-                        [ Html.h3 []
-                            [ Html.text "Tags" ]
-                        ]
-                    , viewTags od.tags
-                    ]
-
-              else
-                Html.text ""
-            , if not (List.isEmpty od.properties) then
-                Html.article []
-                    [ Html.header []
-                        [ Html.h3 []
-                            [ Html.text "Properties" ]
-                        ]
-                    , viewProperties od.properties
-                    ]
-
-              else
-                Html.text ""
-            , if not (List.isEmpty od.descriptions) then
-                Html.article []
-                    [ Html.header []
-                        [ Html.h3 []
-                            [ Html.text "Descriptions" ]
-                        ]
-                    , viewDescriptions od.descriptions
-                    ]
-
-              else
-                Html.text ""
-            , Html.article [ Attr.id "modification-view" ]
-                [ Html.header []
-                    [ Html.h3 []
-                        [ Html.text "Modifications" ]
-                    ]
-                , viewModifications od.modifications
-                ]
-            ]
-        ]
-
-
-viewProperties : List M.Property -> Html.Html Msg
-viewProperties props =
-    Html.table [ Attr.class "striped" ]
-        [ Html.thead []
-            [ Html.tr []
-                [ Html.th [ Attr.attribute "scope" "col" ]
-                    [ Html.text "Attribute" ]
-                , Html.th [ Attr.attribute "scope" "col" ]
-                    [ Html.text "Value" ]
-                ]
-            ]
-        , Html.tbody [] <| List.map viewProperty props
-        ]
-
-
-viewProperty : M.Property -> Html.Html Msg
-viewProperty property =
-    Html.tr []
-        [ Html.td []
-            [ Html.text property.id.kind ]
-        , Html.td []
-            [ Html.text property.id.value ]
-        ]
-
-
-viewModifications : List M.Modification -> Html.Html Msg
-viewModifications mods =
-    Html.table [ Attr.class "striped" ]
-        [ Html.thead []
-            [ Html.tr []
-                [ Html.th [ Attr.attribute "scope" "col" ]
-                    [ Html.text "Event" ]
-                , Html.th [ Attr.attribute "scope" "col" ]
-                    [ Html.text "Time" ]
-                ]
-            ]
-        , Html.tbody [] <|
-            List.map viewModification <|
-                List.reverse <|
-                    List.sortBy (\m -> Time.posixToMillis m.id.time) mods
-        ]
-
-
-viewModification : M.Modification -> Html.Html Msg
-viewModification modification =
-    Html.tr []
-        [ Html.td []
-            [ Html.text modification.id.kind ]
-        , Html.td []
-            [ Html.text <| Iso8601.fromTime modification.id.time ]
-        ]
-
-
-viewTags : List M.Tag -> Html.Html Msg
-viewTags tags =
-    Html.div [] <|
-        List.map viewTag tags
-
-
-viewTag : M.Tag -> Html.Html Msg
-viewTag tag =
-    Html.span [ Attr.class "tag" ] [ Html.text tag.id.kind ]
-
-
-viewDescriptions : List M.Description -> Html.Html Msg
-viewDescriptions descriptions =
-    Html.div [] <|
-        List.map viewDescription descriptions
-
-
-viewDescription : M.Description -> Html.Html Msg
-viewDescription description =
-    Html.details []
-        [ Html.summary []
-            [ Html.text description.id.kind ]
-        , Html.p []
-            [ Html.text description.value ]
-        ]
-
-
 getProjectTitle : String -> Model -> Maybe String
 getProjectTitle projid model =
     let
@@ -2078,7 +1919,7 @@ getProjectKey projid model =
         |> Maybe.map .key
 
 
-reduceDoc : Envelope -> Result D.Error M.OneDoc
+reduceDoc : Envelope -> Result D.Error M.Composite
 reduceDoc env =
     let
         content : Result D.Error (List M.Value)
@@ -2088,11 +1929,11 @@ reduceDoc env =
     case content of
         Ok content_ ->
             let
-                initial : M.OneDoc
+                initial : M.Composite
                 initial =
-                    M.OneDoc Nothing [] [] [] []
+                    M.Composite Nothing [] [] [] []
             in
-            Ok <| List.foldl M.oneBuilder initial content_
+            Ok <| List.foldl M.compositeBuilder initial content_
 
         Err e ->
             Err e

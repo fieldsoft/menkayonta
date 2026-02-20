@@ -7,7 +7,7 @@ module Menkayonta exposing
     , Interlinear
     , Modification
     , ModificationId
-    , OneDoc
+    , Composite
     , Person
     , Property
     , PropertyId
@@ -20,7 +20,7 @@ module Menkayonta exposing
     , encoder
     , identifierToString
     , listDecoder
-    , oneBuilder
+    , compositeBuilder
     , stringToIdentifier
     )
 
@@ -72,7 +72,7 @@ type DocId
 useful to have a single document with the core data and all
 metadata.
 -}
-type alias OneDoc =
+type alias Composite =
     { doc : Maybe Value
     , tags : List Tag
     , properties : List Property
@@ -729,8 +729,8 @@ addRev rev fields =
 
 {-| A helper function to use in folds.
 -}
-oneBuilder : Value -> OneDoc -> OneDoc
-oneBuilder v od =
+compositeBuilder : Value -> Composite -> Composite
+compositeBuilder v od =
     case v of
         MyTag t ->
             { od | tags = t :: od.tags }
