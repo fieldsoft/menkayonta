@@ -157,35 +157,37 @@ update msg model =
             let
                 key : StringField
                 key =
-                    model.url
+                    model.key
             in
-            if String.length str /= 1 then
-                ( validate
-                    { model
-                        | key =
-                            { key
-                                | value = str
-                                , valid = False
-                                , error = "Keys are a single character."
-                                , changed = True
-                            }
-                    }
-                , Cmd.none
-                )
+            case String.uncons str of
+                Just ( _, "" ) -> 
+                    ( validate
+                          { model
+                              | key =
+                                { key
+                                    | value = str
+                                    , valid = True
+                                    , error = ""
+                                    , changed = True
+                                }
+                          }
+                    , Cmd.none
+                    )
 
-            else
-                ( validate
-                    { model
-                        | key =
-                            { key
-                                | value = str
-                                , valid = True
-                                , error = ""
-                                , changed = True
-                            }
-                    }
-                , Cmd.none
-                )
+                _ ->
+                    ( validate
+                          { model
+                              | key =
+                                { key
+                                    | value = str
+                                    , valid = False
+                                    , error =
+                                        "Keys are a single character."
+                                    , changed = True
+                                }
+                          }
+                    , Cmd.none
+                    )
 
         Url str ->
             let
