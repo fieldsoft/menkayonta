@@ -1258,16 +1258,32 @@ update msg model =
                             in
                             { model = imodel, cmd = icmd }
 
+                        key : String
+                        key =
+                            getProjectKey (UUID.toString project) model
+                                |> Maybe.withDefault ""
+
+                        title : String
+                        title =
+                            getProjectTitle (UUID.toString project) model
+                                |> Maybe.withDefault ""
+
                         full : String
                         full =
-                            String.join " "
-                                [ "Edit: ", int.text ]
+                            String.concat
+                                [ title
+                                , ": "
+                                , "Edit: "
+                                , int.text
+                                ]
 
                         short : String
                         short =
                             if String.length int.text > 5 then
                                 String.concat
-                                    [ "Edit: "
+                                    [ key
+                                    , ": "
+                                    , "Edit: "
                                     , String.left 7 int.text
                                     , "..."
                                     ]
