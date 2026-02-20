@@ -1277,6 +1277,8 @@ update msg model =
                                 , int.text
                                 ]
 
+                                keyed 
+
                         short : String
                         short =
                             if String.length int.text > 5 then
@@ -1289,7 +1291,12 @@ update msg model =
                                     ]
 
                             else
-                                full
+                                String.concat
+                                    [ key
+                                    , ": "
+                                    , "Edit: "
+                                    , int.text
+                                    ]
 
                         vista : Vista
                         vista =
