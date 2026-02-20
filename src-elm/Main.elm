@@ -4,6 +4,7 @@ import Browser
 import Config exposing (GlobalConfig, ProjectInfo)
 import Content exposing (Content(..))
 import Dict exposing (Dict)
+import Display.InterlinearListing
 import Form.Global
 import Form.Importer
 import Form.Interlinear
@@ -1528,7 +1529,7 @@ view model =
                 []
                 [ if Set.isEmpty model.loading then
                     Html.h1 []
-                        [ Html.text "Welcome to Your Menkayonta" ]
+                        [ Html.text "Welcome!" ]
 
                   else
                     viewUnknownProgress [] []
@@ -1761,7 +1762,9 @@ viewVista model tp vista =
                     List.filter
                         (\i ->
                             String.contains ss i.text
+                                || String.contains ss i.ann.phonemic
                                 || String.contains ss i.ann.glosses
+                                || String.contains ss i.ann.breaks
                                 || List.any
                                     (\t -> String.contains ss t.translation)
                                     (Dict.values i.translations)
@@ -1779,6 +1782,24 @@ viewVista model tp vista =
                 len : String
                 len =
                     String.fromInt params.length
+
+                viewEvent : UUID.UUID -> Msg
+                viewEvent  identifier =
+                    [ "interlinear/", UUID.toString identifier ]
+                        |> String.concat
+                        |> RequestAllDocId vista.project
+                        |> UserClick
+
+                editEvent : M.Interlinear -> Msg
+                editEvent interlinear =
+                    UserClick (EditInterlinear interlinear.id interlinear)
+
+                displayParams : Display.InterlinearListing.Params Msg
+                displayParams =
+                    { interlinears = is
+                    , viewEvent = viewEvent
+                    , editEvent = editEvent
+                    }
             in
             Html.div []
                 [ Html.div [ Attr.class "filters" ]
@@ -1826,8 +1847,7 @@ viewVista model tp vista =
                             []
                         ]
                     ]
-                , Html.ul [ Attr.class "all-glosses" ]
-                    (List.map (viewInterlinearIndexItem vista.project) is)
+                , Display.InterlinearListing.view displayParams
                 ]
 
 
@@ -1866,7 +1886,7 @@ viewInterlinearOneDoc od int =
         [ Html.h2 []
             [ Html.text "Interlinear Gloss" ]
         , Html.article []
-            [ viewInterlinearItem int
+            [ Display.InterlinearListing.viewInterlinear int
             , Html.footer []
                 [ M.InterlinearId int.id
                     |> M.MyDocId
@@ -2002,107 +2022,6 @@ viewDescription description =
             [ Html.text description.id.kind ]
         , Html.p []
             [ Html.text description.value ]
-        ]
-
-
-viewInterlinearIndexItem : String -> M.Interlinear -> Html.Html Msg
-viewInterlinearIndexItem proj int =
-    Html.li []
-        [ viewInterlinearItem int
-        , Html.div [ Attr.class "gloss-controls" ]
-            [ Html.a
-                [ Attr.href "#"
-                , Attr.class "nav-link"
-                , Event.onClick <|
-                    UserClick <|
-                        RequestAllDocId proj <|
-                            String.concat
-                                [ "interlinear/"
-                                , UUID.toString int.id
-                                ]
-                ]
-                [ Html.text "View" ]
-            , Html.a
-                [ Attr.href "#"
-                , Attr.class "nav-link"
-                , Event.onClick <|
-                    UserClick (EditInterlinear int.id int)
-                ]
-                [ Html.text "Edit" ]
-            ]
-        ]
-
-
-viewInterlinearItem : M.Interlinear -> Html.Html Msg
-viewInterlinearItem int =
-    let
-        srcLine : Html.Html Msg
-        srcLine =
-            Html.span [ Attr.class "gloss-source-text" ]
-                [ Html.text (int.ann.judgment ++ " " ++ int.text) ]
-
-        annLines : Html.Html Msg
-        annLines =
-            if int.ann.breaks /= "" then
-                viewAnn int.ann.breaks int.ann.glosses
-
-            else
-                Html.text ""
-
-        transLine : M.Translation -> String
-        transLine tr =
-            String.concat
-                [ tr.judgment
-                , " "
-                , "'"
-                , tr.translation
-                , "'"
-                ]
-
-        transLines : List (Html.Html Msg)
-        transLines =
-            List.map
-                (\t ->
-                    Html.p []
-                        [ Html.text (transLine t) ]
-                )
-                (Dict.values int.translations)
-    in
-    Html.article []
-        [ Html.header [] [ srcLine ]
-        , annLines
-        , Html.footer [] transLines
-        ]
-
-
-viewAnn : String -> String -> Html.Html Msg
-viewAnn brk gls =
-    let
-        brk_ : List String
-        brk_ =
-            String.split " " brk
-
-        gls_ : List String
-        gls_ =
-            if String.isEmpty gls then
-                List.repeat (List.length brk_) "—"
-
-            else
-                String.split " " gls
-
-        aligned : List ( String, String )
-        aligned =
-            LE.zip brk_ gls_
-    in
-    List.map viewGlosses aligned
-        |> Html.p [ Attr.class "aligned-glosses" ]
-
-
-viewGlosses : ( String, String ) -> Html.Html Msg
-viewGlosses ( a, b ) =
-    Html.div [ Attr.class "gloss-column" ]
-        [ Html.div [] [ Html.text a ]
-        , Html.div [] [ Html.text b ]
         ]
 
 
