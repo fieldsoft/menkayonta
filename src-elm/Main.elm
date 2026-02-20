@@ -1683,7 +1683,7 @@ viewLoadingProject model p =
                 "false"
             )
         ]
-        [ Html.text p.title ]
+        [ Html.text (p.title ++ ": " ++ p.key) ]
 
 
 viewProject : Model -> ProjectInfo -> Html.Html Msg
