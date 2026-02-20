@@ -15,7 +15,7 @@
   "author": "Noah Diewald",
   "type": "commonjs",
   "scripts": {
-    "lint": "eslint",
+    "lint": "eslint && elm-review && stylelint src/renderer/index.css",
     "test": "NODE_ENV=testing elm-test && NODE_OPTIONS='--localstorage-file=./tests/jest-storage' jest",
     "prestart": "elm make src-elm/Converter.elm --output src/conv.js",
     "start": "NODE_ENV=development run-pty run-pty-dev.json",
