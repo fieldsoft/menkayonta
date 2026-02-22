@@ -1856,7 +1856,7 @@ viewVista model tp vista =
                             None
 
                         Ok uuid ->
-                            Request uuid (Reversal mstr)
+                            UserClick (Request uuid (Reversal mstr))
 
                 params : Display.Composite.Params Msg
                 params =
