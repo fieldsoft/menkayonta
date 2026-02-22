@@ -226,7 +226,7 @@ const handleRequestComposite = async (docid) => {
       }, [])
 
       process.parentPort.postMessage({
-        command: 'received-all-doc',
+        command: 'received-composite',
         address: docid,
         content: onlyDocs,
         project: gvs.identifier,

@@ -63,7 +63,7 @@ type Msg
     | MultiMsg (List Msg)
     | None
     | PR ProjectId Form.Project.Msg
-    | ReceivedAllDoc E.Value
+    | ReceivedComposite E.Value
     | ReceivedGlobalConfig E.Value
     | ReceivedInterlinearIndex E.Value
     | ReceivedInterlinearReversals E.Value
@@ -894,7 +894,7 @@ update msg model =
                                 env.address
                                 model
 
-        ReceivedAllDoc envelope ->
+        ReceivedComposite envelope ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -1553,7 +1553,7 @@ subscriptions model =
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedInterlinearIndex ReceivedInterlinearIndex
         , receivedInterlinearReversals ReceivedInterlinearReversals
-        , receivedAllDoc ReceivedAllDoc
+        , receivedComposite ReceivedComposite
         , receivedViewArea (\dimensions -> ViewArea dimensions |> Received)
         , newProject (\_ -> NewProject)
         , importOptions EditImporter
@@ -2068,7 +2068,7 @@ port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
 port receivedInterlinearReversals : (E.Value -> msg) -> Sub msg
 
 
-port receivedAllDoc : (E.Value -> msg) -> Sub msg
+port receivedComposite : (E.Value -> msg) -> Sub msg
 
 
 {-| Received information about client area size.

@@ -59,8 +59,8 @@ window.electronAPI.onReceivedDoc((data) => {
   app.ports.receivedDoc.send(data)
 })
 
-window.electronAPI.onReceivedAllDoc((data) => {
-  app.ports.receivedAllDoc.send(data)
+window.electronAPI.onReceivedComposite((data) => {
+  app.ports.receivedComposite.send(data)
 })
 
 app.ports.updateProject.subscribe(async (projectInfo) => {

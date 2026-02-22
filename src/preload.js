@@ -29,8 +29,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ),
   onReceivedPersonIndex: (callback) =>
     ipcRenderer.on('received-person-index', (_event, data) => callback(data)),
-  onReceivedAllDoc: (callback) =>
-    ipcRenderer.on('received-all-doc', (_event, data) => callback(data)),
+  onReceivedComposite: (callback) =>
+    ipcRenderer.on('received-composite', (_event, data) => callback(data)),
   onReceivedDoc: (callback) =>
     ipcRenderer.on('received-doc', (_event, data) => callback(data)),
   requestGlobalConfig: () => ipcRenderer.invoke('request-gconfig'),

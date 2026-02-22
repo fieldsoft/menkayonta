@@ -85,7 +85,7 @@ const handleProjectMessage = (m) => {
     case 'received-interlinear-index':
       gvs.webContents.send(m.command, m)
       break
-    case 'received-all-doc':
+    case 'received-composite':
       gvs.webContents.send(m.command, m)
       break
     case 'received-doc':
