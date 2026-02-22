@@ -877,12 +877,49 @@ update msg model =
                                     ITS <|
                                         List.foldl filterInter [] vals
 
-                                title : String
-                                title =
+                                full : String
+                                full =
                                     env.address
                                         |> Url.percentDecode
                                         |> Maybe.withDefault env.address
 
+
+                                kindOrValue : Maybe String
+                                kindOrValue =
+                                    case String.split "/" env.address of
+                                        [ "tag", x ] ->
+                                            Just x
+
+                                        [ "description", x ] ->
+                                            Just x
+
+                                        [ "property", x, y ] ->
+                                            Just y
+
+                                        [ "modification", x, _ ] ->
+                                            Just x
+
+                                        _ ->
+                                            Nothing
+                                    
+                                shortString : String
+                                shortString =
+                                    kindOrValue
+                                        |> Maybe.andThen Url.percentDecode
+                                        |> Maybe.withDefault env.address
+
+                                short : String -> String
+                                short str =
+                                    if String.length str > 7 then
+                                        String.concat
+                                            [ "Glosses: "
+                                            , String.left 7 str
+                                            , "..."
+                                            ]
+
+                                    else
+                                        str
+                                           
                                 vista : Vista
                                 vista =
                                     { project =
@@ -891,7 +928,7 @@ update msg model =
                                         "interlinear-reversals"
                                     , identifier =
                                         String.concat
-                                            [ title
+                                            [ full
                                             , "::"
                                             , UUID.toString env.project
                                             ]
@@ -901,8 +938,8 @@ update msg model =
                             in
                             handleVista
                                 vista
-                                title
-                                title
+                                (short shortString)
+                                full
                                 model
 
         Received (IComposite envelope) ->
@@ -930,7 +967,7 @@ update msg model =
 
                                         short : String
                                         short =
-                                            if String.length i.text > 5 then
+                                            if String.length i.text > 7 then
                                                 String.concat
                                                     [ "Gloss: "
                                                     , String.left 7 i.text
