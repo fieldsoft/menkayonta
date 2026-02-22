@@ -4,8 +4,8 @@ import Browser
 import Config exposing (GlobalConfig, ProjectInfo)
 import Content exposing (Content(..))
 import Dict exposing (Dict)
-import Display.InterlinearListing
 import Display.Composite
+import Display.InterlinearListing
 import Form.Global
 import Form.Importer
 import Form.Interlinear
@@ -13,7 +13,6 @@ import Form.Project
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
-import Iso8601
 import Json.Decode as D
 import Json.Encode as E
 import List.Extra as LE
@@ -53,6 +52,9 @@ type alias Model =
     }
 
 
+type alias ProjectId = UUID.UUID
+
+
 type Msg
     = GF Form.Global.Msg
     | IM Form.Importer.Msg
@@ -60,24 +62,28 @@ type Msg
     | EditImporter String
     | MultiMsg (List Msg)
     | None
-    | PR UUID.UUID Form.Project.Msg
+    | PR ProjectId Form.Project.Msg
     | ReceivedAllDoc E.Value
     | ReceivedGlobalConfig E.Value
     | ReceivedInterlinearIndex E.Value
+    | ReceivedInterlinearReversals E.Value
     | Received ReceiveType
-    | RequestAllDocId String String
-      -- | RequestDocId String String
-    | RequestInterlinearIndex UUID.UUID
-      -- | SetWindowTitle String
+    | Request ProjectId RequestKind
     | ShowGlobalSettings E.Value
-    | NewInterlinear UUID.UUID
-    | EditInterlinear UUID.UUID M.Interlinear
+    | NewInterlinear ProjectId
+    | EditInterlinear ProjectId M.Interlinear
     | NewProject
     | EditProject Form.Project.Model
     | Stamp (Time.Posix -> Envelope) (E.Value -> Cmd Msg) Time.Posix
     | Tab Tab.Msg
     | ToggleSidebar
     | UserClick Msg
+
+
+type RequestKind
+    = Reversal (Maybe String)
+    | InterlinearListing
+    | CompositeDoc String
 
 
 {-| Inject a message into `Cmd`
@@ -107,7 +113,7 @@ dimensionsDecoder =
 
 type alias Envelope =
     { command : String
-    , project : String
+    , project : ProjectId
     , address : String
     , content : E.Value
     }
@@ -117,7 +123,7 @@ envelopeDecoder : D.Decoder Envelope
 envelopeDecoder =
     D.map4 Envelope
         (D.field "command" D.string)
-        (D.field "project" D.string)
+        (D.field "project" UUID.jsonDecoder)
         (D.field "address" D.string)
         (D.field "content" D.value)
 
@@ -126,7 +132,7 @@ envelopeEncoder : Envelope -> E.Value
 envelopeEncoder env =
     E.object
         [ ( "command", E.string env.command )
-        , ( "project", E.string env.project )
+        , ( "project", UUID.toValue env.project )
         , ( "address", E.string env.address )
         , ( "content", env.content )
         ]
@@ -304,24 +310,30 @@ update msg model =
                 id_ =
                     "FORM::" ++ UUID.toString id
 
-                maybeVista : Maybe Vista
-                maybeVista =
-                    Dict.get id_ model.tabs.vistas
+                maybeData : Maybe (Vista, Tab.Path, ProjectId)
+                maybeData =
+                    case ( Dict.get id_ model.tabs.vistas
+                         , getByVista id_ model.tabs.ventanas ) of
+                        ( Nothing, _ ) ->
+                            Nothing
 
-                maybeTab : Maybe Tab.Path
-                maybeTab =
-                    getByVista id_ model.tabs.ventanas
+                        ( _, Nothing ) ->
+                            Nothing
+
+                        ( Just v, Just t ) ->
+                            case UUID.fromString v.project of
+                                Err _ ->
+                                    Nothing
+
+                                Ok uuid ->
+                                    Just (v, t, uuid)
             in
-            case ( maybeVista, maybeTab ) of
-                ( Nothing, _ ) ->
+            case maybeData of
+                Nothing ->
                     -- Something is wrong. Ignore the message.
                     ( model, Cmd.none )
 
-                ( _, Nothing ) ->
-                    -- Something is wrong. Ignore the message.
-                    ( model, Cmd.none )
-
-                ( Just vista_, Just tp ) ->
+                Just ( vista_, tp, project ) ->
                     let
                         oldModel : Form.Interlinear.Model
                         oldModel =
@@ -377,7 +389,7 @@ update msg model =
                                 envelopePart =
                                     prepInterlinearSave
                                         i.model
-                                        vista.project
+                                        project
                                         model.me
                             in
                             ( nmodel
@@ -734,41 +746,46 @@ update msg model =
                     in
                     ( newmodel, command )
 
-        RequestInterlinearIndex id ->
+        Request project InterlinearListing ->
             let
-                id_ : String
-                id_ =
-                    UUID.toString id
+                project_ : String
+                project_ =
+                    UUID.toString project
             in
-            ( { model | loading = Set.insert id_ model.loading }
-            , requestInterlinearIndex id_
+            ( { model | loading = Set.insert project_ model.loading }
+            , requestInterlinearIndex project_
             )
 
-        -- This is not currently used
-        -- RequestDocId project id ->
-        --     let
-        --         envelope : E.Value
-        --         envelope =
-        --             envelopeEncoder
-        --                 { command = "request-docid"
-        --                 , project = project
-        --                 , address = id
-        --                 , content = E.null
-        --                 }
-        --     in
-        --     ( model, send envelope )
-        RequestAllDocId project id ->
+        Request project (CompositeDoc id) ->
             let
                 envelope : E.Value
                 envelope =
                     envelopeEncoder
-                        { command = "request-all-docid"
+                        { command = "request-composite"
                         , project = project
                         , address = id
                         , content = E.null
                         }
             in
             ( model, send envelope )
+
+        Request project (Reversal query) ->
+            case query of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just query_ ->
+                    let
+                        envelope : E.Value
+                        envelope =
+                            envelopeEncoder
+                            { command = "request-reversal"
+                            , project = project
+                            , address = query_
+                            , content = E.null
+                            }
+                    in
+                    ( model, send envelope )
 
         ReceivedInterlinearIndex envelope ->
             case D.decodeValue envelopeDecoder envelope of
@@ -806,11 +823,12 @@ update msg model =
                                 vista : Vista
                                 vista =
                                     { project =
-                                        env.project
+                                        UUID.toString env.project
                                     , kind =
                                         "interlinear-index"
                                     , identifier =
-                                        "GLOSSES::" ++ env.project
+                                        "GLOSSES::" ++
+                                            (UUID.toString env.project)
                                     , content =
                                         content
                                     }
@@ -819,6 +837,61 @@ update msg model =
                                 vista
                                 "Glosses"
                                 "Glosses"
+                                model
+
+        ReceivedInterlinearReversals envelope ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    case D.decodeValue M.listDecoder env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok vals ->
+                            let
+                                filterInter :
+                                    M.Value
+                                    -> List M.Interlinear
+                                    -> List M.Interlinear
+                                filterInter val ints =
+                                    case val of
+                                        M.MyInterlinear int ->
+                                            int :: ints
+
+                                        _ ->
+                                            ints
+
+                                content : Content
+                                content =
+                                    ITS <|
+                                        List.foldl filterInter [] vals
+
+                                vista : Vista
+                                vista =
+                                    { project =
+                                        UUID.toString env.project
+                                    , kind =
+                                        "interlinear-reversals"
+                                    , identifier =
+                                        String.concat
+                                            [ env.address
+                                            , "::"
+                                            , (UUID.toString env.project)
+                                            ]
+                                    , content =
+                                        content
+                                    }
+                            in
+                            handleVista
+                                vista
+                                env.address
+                                env.address
                                 model
 
         ReceivedAllDoc envelope ->
@@ -859,7 +932,7 @@ update msg model =
                                         vista : Vista
                                         vista =
                                             { project =
-                                                env.project
+                                                UUID.toString env.project
                                             , kind =
                                                 "interlinear"
                                             , identifier =
@@ -1352,7 +1425,7 @@ subUpdate subupdate submsg submodel =
         |> (\x -> { model = Tuple.first x, cmd = Tuple.second x })
 
 
-prepInterlinearSave : Form.Interlinear.Model -> String -> Maybe M.Person -> Time.Posix -> Envelope
+prepInterlinearSave : Form.Interlinear.Model -> ProjectId -> Maybe M.Person -> Time.Posix -> Envelope
 prepInterlinearSave int project me time =
     let
         meId : String
@@ -1479,6 +1552,7 @@ subscriptions model =
     Sub.batch
         [ receivedGlobalConfig ReceivedGlobalConfig
         , receivedInterlinearIndex ReceivedInterlinearIndex
+        , receivedInterlinearReversals ReceivedInterlinearReversals
         , receivedAllDoc ReceivedAllDoc
         , receivedViewArea (\dimensions -> ViewArea dimensions |> Received)
         , newProject (\_ -> NewProject)
@@ -1731,7 +1805,7 @@ viewProject model p =
                 [ Html.a
                     [ Attr.href "#"
                     , Event.onClick <|
-                        UserClick (RequestInterlinearIndex p.identifier)
+                        UserClick (Request p.identifier InterlinearListing)
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Gloss Index" ]
@@ -1774,11 +1848,21 @@ viewVista model tp vista =
 
                         Ok uuid ->
                             EditInterlinear uuid int
-                                
+
+                listingEvent : Maybe String -> Msg
+                listingEvent mstr =
+                    case UUID.fromString vista.project of
+                        Err _ ->
+                            None
+
+                        Ok uuid ->
+                            Request uuid (Reversal mstr)
+
                 params : Display.Composite.Params Msg
                 params =
                     { composite = composite
                     , editEvent = editEvent
+                    , listingEvent = listingEvent
                     }
             in
             Display.Composite.view params
@@ -1822,11 +1906,17 @@ viewVista model tp vista =
                     String.fromInt params.length
 
                 viewEvent : UUID.UUID -> Msg
-                viewEvent  identifier =
-                    [ "interlinear/", UUID.toString identifier ]
-                        |> String.concat
-                        |> RequestAllDocId vista.project
-                        |> UserClick
+                viewEvent identifier =
+                    case UUID.fromString vista.project of
+                        Err _ ->
+                            None
+
+                        Ok uuid ->
+                            [ "interlinear/", UUID.toString identifier ]
+                                |> String.concat
+                                |> CompositeDoc
+                                |> Request uuid
+                                |> UserClick
 
                 editEvent : M.Interlinear -> Msg
                 editEvent interlinear =
@@ -1973,6 +2063,9 @@ port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
 
 
 port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
+
+
+port receivedInterlinearReversals : (E.Value -> msg) -> Sub msg
 
 
 port receivedAllDoc : (E.Value -> msg) -> Sub msg

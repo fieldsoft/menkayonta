@@ -51,6 +51,10 @@ window.electronAPI.onReceivedInterlinearIndex((data) => {
   app.ports.receivedInterlinearIndex.send(data)
 })
 
+window.electronAPI.onReceivedInterlinearReversals((data) => {
+  app.ports.receivedInterlinearReversals.send(data)
+})
+
 window.electronAPI.onReceivedDoc((data) => {
   app.ports.receivedDoc.send(data)
 })

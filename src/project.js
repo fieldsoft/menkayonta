@@ -117,6 +117,31 @@ const handleBulk = async (docs) => {
   }
 }
 
+const handleRequestReversal = async (queryString) => {
+  try {
+    const reversals = await gvs.db.query('menkayonta/meta_reversals', {
+      include_docs: true,
+      startkey: `${queryString}/interlinear/`,
+      endkey: `${queryString}/interlinear/\ufff0`,
+    })
+
+    const onlyDocs = reversals.rows.reduce((acc, row) => {
+      acc.push(row.doc)
+
+      return acc
+    }, [])
+
+    process.parentPort.postMessage({
+      command: 'received-interlinear-reversals',
+      content: onlyDocs,
+      project: gvs.identifier,
+      address: queryString,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleRequestInterlinears = async () => {
   try {
     const all = await gvs.db.allDocs({
@@ -186,7 +211,7 @@ const handleRequestDocId = async (docid) => {
   }
 }
 
-const handleRequestAllDocId = async (docid) => {
+const handleRequestComposite = async (docid) => {
   try {
     if (typeof docid === 'string') {
       const all = await gvs.db.allDocs({
@@ -217,7 +242,7 @@ const handleRequestAllDocId = async (docid) => {
 const handleUpdateDoc = async (data) => {
   info(data)
   await handleBulk(data.content)
-  handleRequestAllDocId(data.address)
+  handleRequestComposite(data.address)
 
   if (data.address.startsWith('interlinear')) {
     handleRequestInterlinears()
@@ -263,13 +288,18 @@ const handleMainMessage = (m) => {
       break
     }
 
+    case 'request-reversal': {
+      handleRequestReversal(m.data.address)
+      break
+    }
+
     case 'request-docid': {
       handleRequestDocId(m.data.docid)
       break
     }
 
-    case 'request-all-docid': {
-      handleRequestAllDocId(m.data.address)
+    case 'request-composite': {
+      handleRequestComposite(m.data.address)
       break
     }
     default: {

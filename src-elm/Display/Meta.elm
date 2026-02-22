@@ -1,11 +1,8 @@
 module Display.Meta exposing
-    ( description
+    ( Params
     , descriptions
-    , modification
     , modifications
     , properties
-    , property
-    , tag
     , tags
     )
 
@@ -13,8 +10,20 @@ import Html
 import Html.Attributes as Attr
 import Html.Events as Event
 import Iso8601
-import Menkayonta exposing (Description, Modification, Property, Tag)
+import Menkayonta
+    exposing
+        ( Description
+        , Identifier(..)
+        , Modification
+        , Property
+        , Tag
+        , identifierToReverse
+        )
 import Time
+
+
+type alias Params msg =
+    { listingEvent : Maybe String -> msg }
 
 
 properties : List Property -> Html.Html msg
@@ -70,15 +79,24 @@ modification mod =
         ]
 
 
-tags : List Tag -> Html.Html msg
-tags ts =
+tags : Params msg -> List Tag -> Html.Html msg
+tags params ts =
     Html.div [] <|
-        List.map tag ts
+        List.map (tag params) ts
 
 
-tag : Tag -> Html.Html msg
-tag t =
-    Html.span [ Attr.class "tag" ] [ Html.text t.id.kind ]
+tag : Params msg -> Tag -> Html.Html msg
+tag params t =
+    Html.a
+        [ Attr.href "#"
+        , Attr.class "tag"
+        , t.id
+            |> MyTagId
+            |> identifierToReverse
+            |> params.listingEvent
+            |> Event.onClick
+        ]
+        [ Html.text t.id.kind ]
 
 
 descriptions : List Description -> Html.Html msg

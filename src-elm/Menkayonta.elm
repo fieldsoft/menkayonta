@@ -18,6 +18,7 @@ module Menkayonta exposing
     , UtilityId
     , Value(..)
     , encoder
+    , identifierToReverse
     , identifierToString
     , listDecoder
     , compositeBuilder
@@ -455,6 +456,84 @@ utilityIdToString utilityid =
                 |> List.map Url.percentEncode
     in
     Url.Builder.custom Relative path [] utilityid.fragment
+
+
+{-| Provide a URL fragment that can be used to lookup documents by
+their metadata.
+-}
+identifierToReverse : Identifier -> Maybe String
+identifierToReverse ident =
+    case ident of
+        MyDocId _ ->
+            Nothing
+
+        MyTagId ident_ ->
+            Just <| tagIdToReverse ident_
+
+        MyPropertyId ident_ ->
+            Just <| propertyIdToReverse ident_
+
+        MyDescriptionId ident_ ->
+            Just <| descriptionIdToReverse ident_
+
+        MyModificationId ident_ ->
+            Just <| modificationIdToReverse ident_
+
+        MyUtilityId _ ->
+            Nothing
+
+
+descriptionIdToReverse : DescriptionId -> String
+descriptionIdToReverse descriptionid =
+    let
+        path : List String
+        path =
+            [ "description"
+            , descriptionid.kind
+            ]
+             |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] Nothing
+
+
+modificationIdToReverse : ModificationId -> String
+modificationIdToReverse modid =
+    let
+        path : List String
+        path =
+            [ "modification"
+            , modid.kind
+            ]
+             |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] Nothing
+
+
+tagIdToReverse : TagId -> String
+tagIdToReverse tagid =
+    let
+        path : List String
+        path =
+            [ "tag"
+            , tagid.kind
+            ]
+             |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] Nothing
+
+
+propertyIdToReverse : PropertyId -> String
+propertyIdToReverse propertyid =
+    let
+        path : List String
+        path =
+            [ "property"
+            , propertyid.kind
+            , propertyid.value
+            ]
+             |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] Nothing
 
 
 

@@ -6,52 +6,52 @@ const menkayonta_dd = {
   _id: design_id,
   version: design_version,
   views: {
-    flat_trans: {
-      map: function (doc) {
-        if (doc._id.startsWith('interlinear/') && doc._deleted !== true) {
-          if (doc.text && doc.translations.length > 0) {
-            doc.translations.forEach(function (trad) {
-              emit(doc.text, trad.transcription)
-            })
-          } else {
-            emit(doc.text, '')
-          }
-        }
-      }.toString(),
-    },
-    // The below does not currently work with the schema. It is left
-    // as a reference for a future implementation of a "reverse"
-    // identifier view.
     meta_reversals: {
-      map: function (doc) {
+      map: ((doc) => {
         if (doc._deleted !== true) {
-          if (
-            doc._id.startsWith('tag/') ||
-            doc._id.startsWith('description/')
-          ) {
-            const [path, ...frag] = doc._id.split('#')
-            const [t, tid, d, did] = path.split('/')
-            let idstring = [d, did, t, tid].join('/')
+          const [pathPart, ...frag] = doc._id.split('#')
+          const path = pathPart.split('/')
 
-            if (frag.length > 0) idstring = `${idstring}#${frag[0]}`
+          if (!(path.length > 3)) {
+            return false
+          } else {
+            const docid = [path[0], path[1]].join('/')
+            const value = { _id: docid }
+            const keyCalc = (keypath) => {
+              if (frag.length > 0) {
+                return [keypath, frag[0]].join('#')
+              } else {
+                return keypath
+              }
+            }
 
-            emit(idstring)
-          } else if (doc._id.startsWith('property')) {
-            const [path, ...frag] = doc._id.split('#')
-            const [t, tid1, tid2, d, did] = path.split('/')
-            let idstring = [d, did, t, tid1, tid2].join('/')
+            switch (path[2]) {
+              case 'tag':
+              case 'description': {
+                const keypath = [path[2], path[3], docid].join('/')
+                const key = keyCalc(keypath)
 
-            if (frag.length > 0) idstring = `${idstring}#${frag[0]}`
+                emit(key, value)
 
-            emit(idstring)
-          } else if (
-            doc._id.startsWith('interlinear') ||
-            doc._id.startsWith('person')
-          ) {
-            emit(doc._id)
+                return { id: doc._id, key: key, value: value }
+              }
+              case 'property': {
+                const keypath = [path[2], path[3], path[4], docid].join('/')
+                const key = keyCalc(keypath)
+
+                emit(key, value)
+
+                return { id: doc._id, key: key, value: value }
+              }
+              default: {
+                return false
+              }
+            }
           }
+        } else {
+          return false
         }
-      }.toString(),
+      }).toString(),
     },
   },
 }

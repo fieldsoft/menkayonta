@@ -91,6 +91,9 @@ const handleProjectMessage = (m) => {
     case 'received-doc':
       gvs.webContents.send(m.command, m)
       break
+    case 'received-interlinear-reversals':
+      gvs.webContents.send(m.command, m)
+      break
     default:
       console.log(`${m.identifier} command: ${m.command}`)
   }

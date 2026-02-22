@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('received-interlinear-index', (_event, data) =>
       callback(data),
     ),
+  onReceivedInterlinearReversals: (callback) =>
+    ipcRenderer.on('received-interlinear-reversals', (_event, data) =>
+      callback(data),
+    ),
   onReceivedPersonIndex: (callback) =>
     ipcRenderer.on('received-person-index', (_event, data) => callback(data)),
   onReceivedAllDoc: (callback) =>
