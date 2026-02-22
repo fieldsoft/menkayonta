@@ -37,6 +37,7 @@ import Tab
         )
 import Task
 import Time
+import Url
 import UUID
 
 
@@ -876,6 +877,12 @@ update msg model =
                                     ITS <|
                                         List.foldl filterInter [] vals
 
+                                title : String
+                                title =
+                                    env.address
+                                        |> Url.percentDecode
+                                        |> Maybe.withDefault env.address
+
                                 vista : Vista
                                 vista =
                                     { project =
@@ -884,7 +891,7 @@ update msg model =
                                         "interlinear-reversals"
                                     , identifier =
                                         String.concat
-                                            [ env.address
+                                            [ title
                                             , "::"
                                             , UUID.toString env.project
                                             ]
@@ -894,8 +901,8 @@ update msg model =
                             in
                             handleVista
                                 vista
-                                env.address
-                                env.address
+                                title
+                                title
                                 model
 
         Received (IComposite envelope) ->
