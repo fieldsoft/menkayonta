@@ -37,8 +37,8 @@ import Tab
         )
 import Task
 import Time
-import Url
 import UUID
+import Url
 
 
 type alias Model =
@@ -883,7 +883,6 @@ update msg model =
                                         |> Url.percentDecode
                                         |> Maybe.withDefault env.address
 
-
                                 kindOrValue : Maybe String
                                 kindOrValue =
                                     case String.split "/" env.address of
@@ -901,7 +900,7 @@ update msg model =
 
                                         _ ->
                                             Nothing
-                                    
+
                                 shortString : String
                                 shortString =
                                     kindOrValue
@@ -919,7 +918,7 @@ update msg model =
 
                                     else
                                         str
-                                           
+
                                 vista : Vista
                                 vista =
                                     { project =

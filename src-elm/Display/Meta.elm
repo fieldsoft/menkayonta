@@ -9,7 +9,6 @@ module Display.Meta exposing
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Iso8601
 import Menkayonta
     exposing
         ( Description
@@ -20,6 +19,7 @@ import Menkayonta
         , identifierToReverse
         )
 import Time
+import DateFormat as DF
 
 
 type alias Params msg =
@@ -59,7 +59,9 @@ modifications mods =
                 [ Html.th [ Attr.attribute "scope" "col" ]
                     [ Html.text "Event" ]
                 , Html.th [ Attr.attribute "scope" "col" ]
-                    [ Html.text "Time" ]
+                    [ Html.text "Time (UTC)" ]
+                , Html.th [ Attr.attribute "scope" "col" ]
+                    [ Html.text "Performed By" ]
                 ]
             ]
         , Html.tbody [] <|
@@ -71,11 +73,39 @@ modifications mods =
 
 modification : Modification -> Html.Html msg
 modification mod =
+    let
+        datetime : Time.Posix -> String
+        datetime time =
+            DF.format
+                [ DF.hourMilitaryFixed
+                , DF.text ":"
+                , DF.minuteFixed
+                , DF.text " "
+                , DF.monthNameAbbreviated
+                , DF.text " "
+                , DF.dayOfMonthSuffix
+                , DF.text ", "
+                , DF.yearNumber
+                ]
+                Time.utc
+                time
+
+        person : String
+        person =
+            case mod.id.person of
+                Menkayonta.PersonId str ->
+                    str
+
+                _ ->
+                    "unknown"
+    in
     Html.tr []
         [ Html.td []
             [ Html.text mod.id.kind ]
         , Html.td []
-            [ Html.text <| Iso8601.fromTime mod.id.time ]
+            [ Html.text <| datetime mod.id.time ]
+        , Html.td []
+            [ Html.text person ]
         ]
 
 
