@@ -52,7 +52,8 @@ type alias Model =
     }
 
 
-type alias ProjectId = UUID.UUID
+type alias ProjectId =
+    UUID.UUID
 
 
 type Msg
@@ -63,12 +64,8 @@ type Msg
     | MultiMsg (List Msg)
     | None
     | PR ProjectId Form.Project.Msg
-    | ReceivedComposite E.Value
-    | ReceivedGlobalConfig E.Value
-    | ReceivedInterlinearIndex E.Value
-    | ReceivedInterlinearReversals E.Value
     | Received ReceiveType
-    | Request ProjectId RequestKind
+    | Request ProjectId RequestType
     | ShowGlobalSettings E.Value
     | NewInterlinear ProjectId
     | EditInterlinear ProjectId M.Interlinear
@@ -80,10 +77,18 @@ type Msg
     | UserClick Msg
 
 
-type RequestKind
-    = Reversal (Maybe String)
-    | InterlinearListing
-    | CompositeDoc String
+type ReceiveType
+    = IViewArea E.Value
+    | IComposite E.Value
+    | IGlobalConfig E.Value
+    | IReversal E.Value
+    | IInterlinearListing E.Value
+
+
+type RequestType
+    = OReversal (Maybe String)
+    | OInterlinearListing
+    | OComposite String
 
 
 {-| Inject a message into `Cmd`
@@ -92,10 +97,6 @@ sendMsg : Msg -> Cmd Msg
 sendMsg msg =
     Task.succeed msg
         |> Task.perform identity
-
-
-type ReceiveType
-    = ViewArea E.Value
 
 
 type alias Dimensions =
@@ -292,28 +293,19 @@ update msg model =
             , Cmd.map Tab t.cmd
             )
 
-        Received (ViewArea jsonValue) ->
-            case D.decodeValue dimensionsDecoder jsonValue of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok dimensions ->
-                    ( { model | viewArea = dimensions }
-                    , Cmd.none
-                    )
-
         ITE id subMsg ->
             let
                 id_ : String
                 id_ =
                     "FORM::" ++ UUID.toString id
 
-                maybeData : Maybe (Vista, Tab.Path, ProjectId)
+                maybeData : Maybe ( Vista, Tab.Path, ProjectId )
                 maybeData =
-                    case ( Dict.get id_ model.tabs.vistas
-                         , getByVista id_ model.tabs.ventanas ) of
+                    case
+                        ( Dict.get id_ model.tabs.vistas
+                        , getByVista id_ model.tabs.ventanas
+                        )
+                    of
                         ( Nothing, _ ) ->
                             Nothing
 
@@ -326,7 +318,7 @@ update msg model =
                                     Nothing
 
                                 Ok uuid ->
-                                    Just (v, t, uuid)
+                                    Just ( v, t, uuid )
             in
             case maybeData of
                 Nothing ->
@@ -700,9 +692,21 @@ update msg model =
                         _ ->
                             ( nmodel, Cmd.map (PR id) p.cmd )
 
+        Received (IViewArea jsonValue) ->
+            case D.decodeValue dimensionsDecoder jsonValue of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok dimensions ->
+                    ( { model | viewArea = dimensions }
+                    , Cmd.none
+                    )
+
         -- SetWindowTitle title ->
         --     ( model, setWindowTitle title )
-        ReceivedGlobalConfig gc ->
+        Received (IGlobalConfig gc) ->
             case D.decodeValue Config.globalConfigDecoder gc of
                 Err err ->
                     ( { model | error = D.errorToString err }
@@ -746,7 +750,7 @@ update msg model =
                     in
                     ( newmodel, command )
 
-        Request project InterlinearListing ->
+        Request project OInterlinearListing ->
             let
                 project_ : String
                 project_ =
@@ -756,7 +760,7 @@ update msg model =
             , requestInterlinearIndex project_
             )
 
-        Request project (CompositeDoc id) ->
+        Request project (OComposite id) ->
             let
                 envelope : E.Value
                 envelope =
@@ -769,7 +773,7 @@ update msg model =
             in
             ( model, send envelope )
 
-        Request project (Reversal query) ->
+        Request project (OReversal query) ->
             case query of
                 Nothing ->
                     ( model, Cmd.none )
@@ -779,15 +783,15 @@ update msg model =
                         envelope : E.Value
                         envelope =
                             envelopeEncoder
-                            { command = "request-reversal"
-                            , project = project
-                            , address = query_
-                            , content = E.null
-                            }
+                                { command = "request-reversal"
+                                , project = project
+                                , address = query_
+                                , content = E.null
+                                }
                     in
                     ( model, send envelope )
 
-        ReceivedInterlinearIndex envelope ->
+        Received (IInterlinearListing envelope) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -827,8 +831,8 @@ update msg model =
                                     , kind =
                                         "interlinear-index"
                                     , identifier =
-                                        "GLOSSES::" ++
-                                            (UUID.toString env.project)
+                                        "GLOSSES::"
+                                            ++ UUID.toString env.project
                                     , content =
                                         content
                                     }
@@ -839,7 +843,7 @@ update msg model =
                                 "Glosses"
                                 model
 
-        ReceivedInterlinearReversals envelope ->
+        Received (IReversal envelope) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -882,7 +886,7 @@ update msg model =
                                         String.concat
                                             [ env.address
                                             , "::"
-                                            , (UUID.toString env.project)
+                                            , UUID.toString env.project
                                             ]
                                     , content =
                                         content
@@ -894,7 +898,7 @@ update msg model =
                                 env.address
                                 model
 
-        ReceivedComposite envelope ->
+        Received (IComposite envelope) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -1550,18 +1554,19 @@ handleVista vista short full model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ receivedGlobalConfig ReceivedGlobalConfig
-        , receivedInterlinearIndex ReceivedInterlinearIndex
-        , receivedInterlinearReversals ReceivedInterlinearReversals
-        , receivedComposite ReceivedComposite
-        , receivedViewArea (\dimensions -> ViewArea dimensions |> Received)
-        , newProject (\_ -> NewProject)
+        [ receivedGlobalConfig <| \x -> Received <| IGlobalConfig x
+        , receivedInterlinearIndex <|
+            \x -> Received <| IInterlinearListing x
+        , receivedInterlinearReversals <| \x -> Received <| IReversal x
+        , receivedComposite <| \x -> Received <| IComposite x
+        , receivedViewArea <| \x -> Received <| IViewArea x
+        , newProject <| \_ -> NewProject
         , importOptions EditImporter
         , globalSettings ShowGlobalSettings
-        , moveLeft_ (\_ -> Tab <| Tab.Move Left)
-        , moveRight_ (\_ -> Tab <| Tab.Move Right)
-        , moveUp_ (\_ -> Tab <| Tab.Move Up)
-        , moveDown_ (\_ -> Tab <| Tab.Move Down)
+        , moveLeft_ <| \_ -> Tab <| Tab.Move Left
+        , moveRight_ <| \_ -> Tab <| Tab.Move Right
+        , moveUp_ <| \_ -> Tab <| Tab.Move Up
+        , moveDown_ <| \_ -> Tab <| Tab.Move Down
         , closeTab_
             (\_ ->
                 case model.tabs.focused of
@@ -1805,7 +1810,8 @@ viewProject model p =
                 [ Html.a
                     [ Attr.href "#"
                     , Event.onClick <|
-                        UserClick (Request p.identifier InterlinearListing)
+                        UserClick <|
+                            Request p.identifier OInterlinearListing
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Gloss Index" ]
@@ -1856,7 +1862,7 @@ viewVista model tp vista =
                             None
 
                         Ok uuid ->
-                            UserClick (Request uuid (Reversal mstr))
+                            UserClick (Request uuid (OReversal mstr))
 
                 params : Display.Composite.Params Msg
                 params =
@@ -1914,7 +1920,7 @@ viewVista model tp vista =
                         Ok uuid ->
                             [ "interlinear/", UUID.toString identifier ]
                                 |> String.concat
-                                |> CompositeDoc
+                                |> OComposite
                                 |> Request uuid
                                 |> UserClick
 
