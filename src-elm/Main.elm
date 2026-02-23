@@ -1777,8 +1777,9 @@ viewTab model tp =
             , ( "hidden", not (visMember tp model.tabs.visVentanas) )
             , ( "tab-view", True )
             ]
+        , Event.onMouseEnter <| Tab <| Tab.Select tp
         ]
-        [ Html.div []
+        [ Html.div [ ]
             [ Dict.get tp model.tabs.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.tabs.vistas)
                 |> Maybe.map (viewVista model tp)
