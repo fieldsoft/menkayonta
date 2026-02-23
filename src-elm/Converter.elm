@@ -863,7 +863,9 @@ constructProperty kind str docid =
 
 maybeConstProp : String -> Maybe String -> M.DocId -> Maybe IdVal
 maybeConstProp kind str docid =
-    str |> Maybe.map (\x -> constructProperty kind x docid)
+    str
+        |> ME.filter (\s1 -> not <| String.isEmpty s1)
+        |> Maybe.map (\s2 -> constructProperty kind s2 docid)
 
 
 constNonBlankProp : String -> String -> M.DocId -> Maybe IdVal
