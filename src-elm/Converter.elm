@@ -113,6 +113,36 @@ type alias DativeUtilityValue =
     }
 
 
+{-| A type that is used to combine some important Person information
+during the conversion process.
+-}
+type alias StringIdPerson =
+    { stringId : String
+    , person : M.Person
+    , new : Bool
+    }
+
+
+{-| A type for collecting arguments to the modification construction
+functions.
+-}
+type alias ConstructM =
+    { kind : String
+    , time : Time.Posix
+    , docid : M.DocId
+    , pid : String
+    , json : E.Value
+    }
+
+
+{-| The id and value of an Menkayonta Value.
+-}
+type alias IdVal =
+    { id : M.Identifier
+    , val : M.Value
+    }
+
+
 main : Program Flags Model Msg
 main =
     Platform.worker
@@ -746,6 +776,7 @@ speakerStage { docid, curr, speaker, model } =
                 Just person ->
                     { stringId = personIdString person.id
                     , person = person
+                    , new = False
                     }
 
                 Nothing ->
@@ -779,6 +810,20 @@ speakerStage { docid, curr, speaker, model } =
         speakerDialect =
             maybeConstProp "dialect" speaker.dialect personid
 
+        -- Associate the role of speaker with the speaker.
+        speakerRole : Maybe IdVal
+        speakerRole =
+            if p.new then
+                maybeConstProp "role" (Just "speaker") personid
+
+            else
+                Nothing
+
+        -- Link the speaker to the document
+        speakerLink : Maybe IdVal
+        speakerLink =
+            maybeConstLink "speaker" "utterance" personid docid
+
         -- Associate speaker comment information with
         -- the interlinear document.
         speakerComment : Maybe IdVal
@@ -792,6 +837,8 @@ speakerStage { docid, curr, speaker, model } =
             Dict.insert p.stringId (M.MyPerson p.person) model.to
                 |> when speakerDialect
                 |> when docDialect
+                |> when speakerRole
+                |> when speakerLink
                 |> when speakerComment
     in
     ( { model
@@ -861,6 +908,26 @@ constructProperty kind str docid =
            )
 
 
+maybeConstLink : String -> String -> M.DocId -> M.DocId -> Maybe IdVal
+maybeConstLink to from toid fromid =
+    { id =
+        { to = to
+        , from = from
+        , toid = toid
+        , fromid = fromid
+        , fragment = Nothing
+        }
+    , rev = Nothing
+    , version = 1
+    }
+        |> (\x ->
+                { id = M.MyLinkId x.id
+                , val = M.MyLink x
+                }
+           )
+        |> Just
+
+
 maybeConstProp : String -> Maybe String -> M.DocId -> Maybe IdVal
 maybeConstProp kind str docid =
     str
@@ -920,6 +987,7 @@ perhapsMakePerson dperson model =
         Just person ->
             { stringId = personIdString person.id
             , person = person
+            , new = False
             }
 
         Nothing ->
@@ -928,12 +996,6 @@ perhapsMakePerson dperson model =
                 , last = dperson.last_name
                 , id = dperson.id
                 }
-
-
-type alias StringIdPerson =
-    { stringId : String
-    , person : M.Person
-    }
 
 
 constructPerson : { first : String, last : String, id : Int } -> StringIdPerson
@@ -969,6 +1031,7 @@ constructPerson pdata =
     in
     { stringId = stringid
     , person = newperson
+    , new = True
     }
 
 
@@ -985,21 +1048,6 @@ modDate kind time docid pid =
                     , json = E.null
                     }
             )
-
-
-type alias ConstructM =
-    { kind : String
-    , time : Time.Posix
-    , docid : M.DocId
-    , pid : String
-    , json : E.Value
-    }
-
-
-type alias IdVal =
-    { id : M.Identifier
-    , val : M.Value
-    }
 
 
 constructModifier : ConstructM -> IdVal
