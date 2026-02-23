@@ -1,25 +1,30 @@
 module Display.Meta exposing
     ( Params
     , descriptions
+    , links
     , modifications
     , properties
     , tags
     )
 
+import DateFormat as DF
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
 import Menkayonta
     exposing
         ( Description
+        , DocId
         , Identifier(..)
+        , LinkId
         , Modification
         , Property
         , Tag
         , identifierToReverse
+        , identifierToString
         )
 import Time
-import DateFormat as DF
+import Url
 
 
 type alias Params msg =
@@ -48,6 +53,53 @@ property prop =
             [ Html.text prop.id.kind ]
         , Html.td []
             [ Html.text prop.id.value ]
+        ]
+
+
+links : List LinkId -> List LinkId -> Html.Html msg
+links tolinks fromlinks =
+    let
+        tolink : LinkId -> Html.Html msg
+        tolink linkid =
+            link linkid.from linkid.fromid
+
+        fromlink : LinkId -> Html.Html msg
+        fromlink linkid =
+            link linkid.to linkid.toid
+    in
+    Html.table [ Attr.class "striped" ]
+        [ Html.thead []
+            [ Html.tr []
+                [ Html.th [ Attr.attribute "scope" "col" ]
+                    [ Html.text "Relationship" ]
+                , Html.th [ Attr.attribute "scope" "col" ]
+                    [ Html.text "Value" ]
+                ]
+            ]
+        , List.map tolink tolinks
+            |> List.append (List.map fromlink fromlinks)
+            |> Html.tbody []
+        ]
+
+
+link : String -> DocId -> Html.Html msg
+link relation identifier =
+    let
+        idstring : String
+        idstring =
+            identifier
+                |> MyDocId
+                |> identifierToString
+    in
+    Html.tr []
+        [ Html.td []
+            [ Html.text relation ]
+        , Html.td []
+            [ Html.text (idstring
+                             |> Url.percentDecode
+                             |> Maybe.withDefault idstring
+                        )
+            ]
         ]
 
 

@@ -4,6 +4,7 @@ import Display.InterlinearListing
 import Display.Meta
     exposing
         ( descriptions
+        , links
         , modifications
         , properties
         , tags
@@ -108,6 +109,23 @@ viewInterlinear params int =
                             [ Html.text "Descriptions" ]
                         ]
                     , descriptions params.composite.descriptions
+                    ]
+
+              else
+                Html.text ""
+            , if
+                not
+                    (List.isEmpty params.composite.tolinks
+                        && List.isEmpty params.composite.fromlinks
+                    )
+              then
+                Html.article []
+                    [ Html.header []
+                        [ Html.h3 []
+                            [ Html.text "Links" ]
+                        ]
+                    , links params.composite.tolinks
+                        params.composite.fromlinks
                     ]
 
               else
