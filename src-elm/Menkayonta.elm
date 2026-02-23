@@ -83,6 +83,8 @@ type alias Composite =
     , properties : List Property
     , descriptions : List Description
     , modifications : List Modification
+    , tolinks : List LinkId
+    , fromlinks : List LinkId
     }
 
 
@@ -898,22 +900,22 @@ addRev rev fields =
 {-| A helper function to use in folds.
 -}
 compositeBuilder : Value -> Composite -> Composite
-compositeBuilder v od =
+compositeBuilder v comp =
     case v of
         MyTag t ->
-            { od | tags = t :: od.tags }
+            { comp | tags = t :: comp.tags }
 
         MyProperty p ->
-            { od | properties = p :: od.properties }
+            { comp | properties = p :: comp.properties }
 
         MyDescription d ->
-            { od | descriptions = d :: od.descriptions }
+            { comp | descriptions = d :: comp.descriptions }
 
         MyModification m ->
-            { od | modifications = m :: od.modifications }
+            { comp | modifications = m :: comp.modifications }
 
         MyUtility _ ->
-            od
+            comp
 
         other ->
-            { od | doc = Just other }
+            { comp | doc = Just other }

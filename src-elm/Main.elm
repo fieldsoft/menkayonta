@@ -1779,7 +1779,7 @@ viewTab model tp =
             ]
         , Event.onMouseEnter <| Tab <| Tab.Select tp
         ]
-        [ Html.div [ ]
+        [ Html.div []
             [ Dict.get tp model.tabs.ventanas
                 |> Maybe.andThen (\v -> Dict.get v.vista model.tabs.vistas)
                 |> Maybe.map (viewVista model tp)
@@ -2062,18 +2062,67 @@ getProjectKey projid model =
 reduceDoc : Envelope -> Result D.Error M.Composite
 reduceDoc env =
     let
-        content : Result D.Error (List M.Value)
+        onlyIds : String -> List M.LinkId -> List M.LinkId
+        onlyIds link acc =
+            case M.stringToIdentifier link of
+                Just (M.MyLinkId linkid) ->
+                    linkid :: acc
+
+                _ ->
+                    acc
+
+        payload :
+            List M.Value
+            -> List String
+            -> List String
+            ->
+                { docs : List M.Value
+                , tolinks : List M.LinkId
+                , fromlinks : List M.LinkId
+                }
+        payload vals tos froms =
+            { docs = vals
+            , tolinks = List.foldl onlyIds [] tos
+            , fromlinks = List.foldl onlyIds [] froms
+            }
+
+        payloadDecoder :
+            D.Decoder
+                { docs : List M.Value
+                , tolinks : List M.LinkId
+                , fromlinks : List M.LinkId
+                }
+        payloadDecoder =
+            D.map3 payload
+                (D.field "docs" M.listDecoder)
+                (D.field "tolinks" <| D.list D.string)
+                (D.field "fromlinks" <| D.list D.string)
+
+        content :
+            Result
+                D.Error
+                { docs : List M.Value
+                , tolinks : List M.LinkId
+                , fromlinks : List M.LinkId
+                }
         content =
-            env.content |> D.decodeValue M.listDecoder
+            env.content |> D.decodeValue payloadDecoder
     in
     case content of
         Ok content_ ->
             let
                 initial : M.Composite
                 initial =
-                    M.Composite Nothing [] [] [] []
+                    { doc = Nothing
+                    , tags = []
+                    , properties = []
+                    , descriptions = []
+                    , modifications = []
+                    , tolinks = content_.tolinks
+                    , fromlinks = content_.fromlinks
+                    }
             in
-            Ok <| List.foldl M.compositeBuilder initial content_
+            Ok <| List.foldl M.compositeBuilder initial content_.docs
 
         Err e ->
             Err e
