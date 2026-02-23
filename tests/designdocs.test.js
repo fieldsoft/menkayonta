@@ -5,6 +5,57 @@ describe('the menkayonta design document', () => {
     expect(menkayonta_dd._id).toBe('_design/menkayonta')
   })
 
+  // patching emit
+  const emit = (k, v) => {
+    return null
+  }
+
+  describe('the link_from view', () => {
+    test('returns false if doc is deleted', () => {
+      const map = menkayonta_dd.views.link_from.map
+      const fun = eval(map)
+      const doc = { _deleted: true }
+
+      expect(fun(doc)).toBe(false)
+    })
+
+    test('returns valid object', () => {
+      const map = menkayonta_dd.views.link_from.map
+      const fun = eval(map)
+      const doc = { _id: 'link/2/3/4/5/6/7' }
+      const emitted = {
+        id: 'link/2/3/4/5/6/7',
+        key: '4/5',
+        value: { _id: '6/7' },
+      }
+
+      expect(fun(doc)).toStrictEqual(emitted)
+    })
+  })
+
+  describe('the link_to view', () => {
+    test('returns false if doc is deleted', () => {
+      const map = menkayonta_dd.views.link_to.map
+      const fun = eval(map)
+      const doc = { _deleted: true }
+
+      expect(fun(doc)).toBe(false)
+    })
+
+    test('returns valid object', () => {
+      const map = menkayonta_dd.views.link_to.map
+      const fun = eval(map)
+      const doc = { _id: 'link/2/3/4/5/6/7' }
+      const emitted = {
+        id: 'link/2/3/4/5/6/7',
+        key: '6/7',
+        value: { _id: '4/5' },
+      }
+
+      expect(fun(doc)).toStrictEqual(emitted)
+    })
+  })
+
   describe('the meta_reversals view', () => {
     test('returns false if doc is deleted', () => {
       const map = menkayonta_dd.views.meta_reversals.map
@@ -47,10 +98,6 @@ describe('the menkayonta design document', () => {
     })
 
     test('returns valid object if path is long enough', () => {
-      // patching emit
-      const emit = (k, v) => {
-        return null
-      }
       const map = menkayonta_dd.views.meta_reversals.map
       const fun = eval(map)
       const doc = { _id: 'path1/path2/tag/path3' }
