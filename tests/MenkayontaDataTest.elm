@@ -54,7 +54,30 @@ stringToIdTests =
                         |> stringToIdentifier
                     )
         , describe "without fragments"
-            [ test "Tag" <|
+            [ test "Link" <|
+                \_ ->
+                    Expect.equal
+                        ({ from = "speaker"
+                         , to = "utterance"
+                         , fromid = PersonId "e@w.com"
+                         , toid = intid
+                         , fragment = Nothing
+                         }
+                            |> MyLinkId
+                            |> Just
+                        )
+                        (String.join "/"
+                            [ "link"
+                            , "speaker"
+                            , "utterance"
+                            , "person"
+                            , "e@w.com"
+                            , "interlinear"
+                            , UUID.toString uuid
+                            ]
+                            |> stringToIdentifier
+                        )
+            , test "Tag" <|
                 \_ ->
                     Expect.equal
                         ({ kind = "tagname"
@@ -217,6 +240,28 @@ idToStringTests =
                     )
                     (PersonId "e@w.com"
                         |> MyDocId
+                        |> identifierToString
+                    )
+        , test "Link without fragment" <|
+            \_ ->
+                Expect.equal
+                    (String.join "/"
+                        [ "link"
+                        , "speaker"
+                        , "utterance"
+                        , "person"
+                        , Url.percentEncode "e@w.com"
+                        , "interlinear"
+                        , UUID.toString uuid
+                        ]
+                    )
+                    ({ from = "speaker"
+                     , to = "utterance"
+                     , fromid = PersonId "e@w.com"
+                     , toid = intid
+                     , fragment = Nothing
+                     }
+                        |> MyLinkId
                         |> identifierToString
                     )
         , test "Tag without fragment" <|

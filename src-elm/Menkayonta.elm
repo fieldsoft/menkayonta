@@ -1,13 +1,15 @@
 module Menkayonta exposing
     ( Annotations
+    , Composite
     , Description
     , DescriptionId
     , DocId(..)
     , Identifier(..)
     , Interlinear
+    , Link
+    , LinkId
     , Modification
     , ModificationId
-    , Composite
     , Person
     , Property
     , PropertyId
@@ -17,11 +19,11 @@ module Menkayonta exposing
     , Utility
     , UtilityId
     , Value(..)
+    , compositeBuilder
     , encoder
     , identifierToReverse
     , identifierToString
     , listDecoder
-    , compositeBuilder
     , stringToIdentifier
     )
 
@@ -42,12 +44,13 @@ application data in Menkayonta.
 -}
 type Value
     = MyPerson Person
+    | MyInterlinear Interlinear
     | MyTag Tag
     | MyProperty Property
     | MyUtility Utility
     | MyModification Modification
     | MyDescription Description
-    | MyInterlinear Interlinear
+    | MyLink Link
 
 
 {-| Identifers for data types are complex data types, themselves.
@@ -59,6 +62,7 @@ type Identifier
     | MyPropertyId PropertyId
     | MyUtilityId UtilityId
     | MyModificationId ModificationId
+    | MyLinkId LinkId
 
 
 {-| Most identifiers are identifiers for metadata. These are for
@@ -118,6 +122,22 @@ type alias Description =
     , rev : Maybe String
     , version : Int
     , value : String
+    }
+
+
+type alias LinkId =
+    { from : String
+    , to : String
+    , fromid : DocId
+    , toid : DocId
+    , fragment : Maybe String
+    }
+
+
+type alias Link =
+    { id : LinkId
+    , rev : Maybe String
+    , version : Int
     }
 
 
@@ -287,6 +307,22 @@ idParser =
             , fragment = fragment
             }
                 |> MyModificationId
+
+        linkId :
+            String
+            -> String
+            -> DocId
+            -> DocId
+            -> Maybe String
+            -> Identifier
+        linkId from to fromid toid fragment =
+            { from = urlDecode from
+            , to = urlDecode to
+            , fromid = fromid
+            , toid = toid
+            , fragment = fragment
+            }
+                |> MyLinkId
     in
     UP.oneOf
         [ UP.map MyDocId docId
@@ -323,6 +359,14 @@ idParser =
                 </> personId
                 </> UP.fragment identity
             )
+        , UP.map linkId
+            (UP.s "link"
+                </> UP.string
+                </> UP.string
+                </> docId
+                </> docId
+                </> UP.fragment identity
+            )
         ]
 
 
@@ -354,6 +398,9 @@ identifierToString ident =
 
         MyUtilityId ident_ ->
             utilityIdToString ident_
+
+        MyLinkId ident_ ->
+            linkIdToString ident_
 
 
 docIdToList : DocId -> List String
@@ -414,6 +461,23 @@ modificationIdToString modid =
                 |> List.map Url.percentEncode
     in
     Url.Builder.custom Relative path [] modid.fragment
+
+
+linkIdToString : LinkId -> String
+linkIdToString linkid =
+    let
+        path1 : List String
+        path1 =
+            [ "link", linkid.from, linkid.to ]
+                |> List.map Url.percentEncode
+
+        path : List String
+        path =
+            docIdToList linkid.toid
+                |> List.append (docIdToList linkid.fromid)
+                |> List.append path1
+    in
+    Url.Builder.custom Relative path [] linkid.fragment
 
 
 tagIdToString : TagId -> String
@@ -482,6 +546,9 @@ identifierToReverse ident =
         MyUtilityId _ ->
             Nothing
 
+        MyLinkId _ ->
+            Nothing
+
 
 descriptionIdToReverse : DescriptionId -> String
 descriptionIdToReverse descriptionid =
@@ -491,7 +558,7 @@ descriptionIdToReverse descriptionid =
             [ "description"
             , descriptionid.kind
             ]
-             |> List.map Url.percentEncode
+                |> List.map Url.percentEncode
     in
     Url.Builder.custom Relative path [] Nothing
 
@@ -504,7 +571,7 @@ modificationIdToReverse modid =
             [ "modification"
             , modid.kind
             ]
-             |> List.map Url.percentEncode
+                |> List.map Url.percentEncode
     in
     Url.Builder.custom Relative path [] Nothing
 
@@ -517,7 +584,7 @@ tagIdToReverse tagid =
             [ "tag"
             , tagid.kind
             ]
-             |> List.map Url.percentEncode
+                |> List.map Url.percentEncode
     in
     Url.Builder.custom Relative path [] Nothing
 
@@ -531,7 +598,7 @@ propertyIdToReverse propertyid =
             , propertyid.kind
             , propertyid.value
             ]
-             |> List.map Url.percentEncode
+                |> List.map Url.percentEncode
     in
     Url.Builder.custom Relative path [] Nothing
 
@@ -581,6 +648,9 @@ decoder_ idstr =
 
         Just (MyModificationId id_) ->
             D.map MyModification <| modificationDecoder_ id_
+
+        Just (MyLinkId id_) ->
+            D.map MyLink <| linkDecoder_ id_
 
         Nothing ->
             D.fail "Unrecognized Document Type"
@@ -647,6 +717,14 @@ propertyDecoder_ id =
         (D.field "version" D.int)
 
 
+linkDecoder_ : LinkId -> D.Decoder Link
+linkDecoder_ id =
+    D.map3 Link
+        (D.succeed id)
+        (D.field "_rev" <| D.nullable D.string)
+        (D.field "version" D.int)
+
+
 modificationDecoder_ : ModificationId -> D.Decoder Modification
 modificationDecoder_ id =
     D.map6 Modification
@@ -696,6 +774,9 @@ encoder value =
 
         MyDescription description ->
             descriptionEncoder description
+
+        MyLink link ->
+            linkEncoder link
 
 
 {-| People may be updated. The revision on encoding is not always
@@ -776,6 +857,14 @@ descriptionEncoder description =
     , ( "value", E.string description.value )
     ]
         |> addRev description.rev
+
+
+linkEncoder : Link -> E.Value
+linkEncoder link =
+    [ ( "_id", E.string (linkIdToString link.id) )
+    , ( "version", E.int link.version )
+    ]
+        |> addRev link.rev
 
 
 modificationEncoder : Modification -> E.Value
