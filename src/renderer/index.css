@@ -94,11 +94,11 @@ button.focused {
     padding: 1rem;
 }
 
-ul.all-glosses {
+ul.index-listing {
     padding-left: 0;
 }
 
-ul.all-glosses li {
+ul.index-listing li {
     list-style-type: none;
 }
 

@@ -18,7 +18,7 @@ type alias Params msg =
 
 view : Params msg -> Html.Html msg
 view params =
-    Html.ul [ Attr.class "all-glosses" ]
+    Html.ul [ Attr.class "index-listing" ]
         (List.map
             (viewItem params.viewEvent params.editEvent)
             params.interlinears
