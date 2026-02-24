@@ -39,16 +39,12 @@ app.ports.requestGlobalConfig.subscribe(async () => {
   app.ports.receivedGlobalConfig.send(gconfig)
 })
 
-app.ports.requestInterlinearIndex.subscribe((identifier) => {
-  window.electronAPI.requestInterlinearIndex(identifier)
+window.electronAPI.onReceivedPersonListing((data) => {
+  app.ports.receivedPersonListing.send(data)
 })
 
-window.electronAPI.onReceivedPersonIndex((data) => {
-  app.ports.receivedPersonIndex.send(data)
-})
-
-window.electronAPI.onReceivedInterlinearIndex((data) => {
-  app.ports.receivedInterlinearIndex.send(data)
+window.electronAPI.onReceivedInterlinearListing((data) => {
+  app.ports.receivedInterlinearListing.send(data)
 })
 
 window.electronAPI.onReceivedInterlinearReversals((data) => {

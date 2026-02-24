@@ -79,10 +79,10 @@ const handleProjectMessage = (m) => {
     case 'error':
       m.error.message = `Child ${m.identifier}: ${m.error.message}`
       throw m.error
-    case 'received-person-index':
+    case 'received-person-listing':
       gvs.webContents.send(m.command, m)
       break
-    case 'received-interlinear-index':
+    case 'received-interlinear-listing':
       gvs.webContents.send(m.command, m)
       break
     case 'received-composite':
@@ -419,14 +419,6 @@ const updateProject = async (_event, projectInfo) => {
 
     // Start up the project if it was enabled.
     manageProjectProcesses()
-
-    // const payload = {
-    //   command: 'bulk-write',
-    //   identifier: projectInfo.identifier,
-    //   bulkDocs: seed,
-    // }
-
-    // gvs.active[projectInfo.identifier].postMessage(payload)
   }
 
   return gvs.globalConf
@@ -530,24 +522,8 @@ const importFile = async (_event, importOptions) => {
   }
 }
 
-const requestTransIndex = (_event, identifier) => {
-  gvs.active[identifier].postMessage({
-    command: 'request-trans-index',
-  })
-}
-
-const requestInterlinearIndex = (_event, identifier) => {
-  gvs.active[identifier].postMessage({
-    command: 'request-interlinear-index',
-  })
-}
-
-const requestPersonIndex = (_event, identifier) => {
-  gvs.active[identifier].postMessage({
-    command: 'request-person-index',
-  })
-}
-
+// This handles passing a command, which uses the Envelope type and
+// send port command in Elm, to the pouchdb project.
 const command = (_event, envelope) => {
   gvs.active[envelope.project].postMessage(envelope)
 }
@@ -557,9 +533,6 @@ const init = async () => {
     await app.whenReady()
 
     ipcMain.handle('request-gconfig', openGlobalConf)
-    ipcMain.handle('request-trans-index', requestTransIndex)
-    ipcMain.handle('request-interlinear-index', requestInterlinearIndex)
-    ipcMain.handle('request-person-index', requestPersonIndex)
     ipcMain.handle('update-project', updateProject)
     ipcMain.handle('import-file', importFile)
     ipcMain.handle('update-global-settings', updateGlobalSettings)

@@ -6,6 +6,7 @@ import Email exposing (Email)
 import Json.Decode as D
 import Json.Encode as E
 import Json.Encode.Extra as EE
+import MD5
 import Maybe.Extra as ME
 import Menkayonta as M
 import Random
@@ -1015,7 +1016,21 @@ constructPerson pdata =
 
         email : String
         email =
-            first_name ++ "." ++ last_name ++ "@example.com"
+            let
+                initial : String
+                initial =
+                    first_name ++ "." ++ last_name
+
+                domain : String
+                domain =
+                    "@example.com"
+            in
+            case Email.fromString (initial ++ domain) of
+                Nothing ->
+                    MD5.hex initial ++ domain
+
+                Just emailObj ->
+                    Email.toString emailObj
 
         stringid : String
         stringid =

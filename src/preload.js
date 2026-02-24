@@ -19,25 +19,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ),
   onToggleSidebar: (callback) =>
     ipcRenderer.on('toggle-sidebar', (_event) => callback()),
-  onReceivedInterlinearIndex: (callback) =>
-    ipcRenderer.on('received-interlinear-index', (_event, data) =>
+  onReceivedInterlinearListing: (callback) =>
+    ipcRenderer.on('received-interlinear-listing', (_event, data) =>
       callback(data),
     ),
   onReceivedInterlinearReversals: (callback) =>
     ipcRenderer.on('received-interlinear-reversals', (_event, data) =>
       callback(data),
     ),
-  onReceivedPersonIndex: (callback) =>
-    ipcRenderer.on('received-person-index', (_event, data) => callback(data)),
+  onReceivedPersonListing: (callback) =>
+    ipcRenderer.on('received-person-listing', (_event, data) => callback(data)),
   onReceivedComposite: (callback) =>
     ipcRenderer.on('received-composite', (_event, data) => callback(data)),
   onReceivedDoc: (callback) =>
     ipcRenderer.on('received-doc', (_event, data) => callback(data)),
   requestGlobalConfig: () => ipcRenderer.invoke('request-gconfig'),
-  requestProjectIndex: (identifier) =>
-    ipcRenderer.invoke('request-trans-index', identifier),
-  requestInterlinearIndex: (identifier) =>
-    ipcRenderer.invoke('request-interlinear-index', identifier),
   updateProject: (projectInfo) =>
     ipcRenderer.invoke('update-project', projectInfo),
   importFile: (importOptions) =>

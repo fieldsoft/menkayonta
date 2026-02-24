@@ -4,7 +4,7 @@ import Form.Global
 import Form.Importer
 import Form.Interlinear
 import Form.Project
-import Menkayonta exposing (Interlinear, Composite)
+import Menkayonta exposing (Interlinear, Person, Composite)
 
 
 {-| The `Content` type describes all of the viewable information
@@ -18,12 +18,13 @@ there is no ambiguity.
 
 The abbreviations are as follows: 'IT', interlinear gloss; 'GF',
 global confituration; 'PR', project specific configuration; 'IM', the
-file import form.
+file import form; and 'PL', a person object.
 -}
 type Content
     = ITS (List Interlinear)
     | ITV Composite
     | ITE Form.Interlinear.Model
+    | PLS (List Person)
     | GF Form.Global.Model
     | PR Form.Project.Model
     | IM Form.Importer.Model

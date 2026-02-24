@@ -4,8 +4,10 @@ import Browser
 import Config exposing (GlobalConfig, ProjectInfo)
 import Content exposing (Content(..))
 import Dict exposing (Dict)
+import Dict.Extra as DE
 import Display.Composite
 import Display.InterlinearListing
+import Display.PersonListing
 import Form.Global
 import Form.Importer
 import Form.Interlinear
@@ -70,6 +72,7 @@ type Msg
     | ShowGlobalSettings E.Value
     | NewInterlinear ProjectId
     | EditInterlinear ProjectId M.Interlinear
+    | EditPerson ProjectId M.Person
     | NewProject
     | EditProject Form.Project.Model
     | Stamp (Time.Posix -> Envelope) (E.Value -> Cmd Msg) Time.Posix
@@ -84,12 +87,14 @@ type ReceiveType
     | IGlobalConfig E.Value
     | IReversal E.Value
     | IInterlinearListing E.Value
+    | IPersonListing E.Value
 
 
 type RequestType
     = OReversal (Maybe String)
     | OInterlinearListing
     | OComposite String
+    | OPersonListing
 
 
 {-| Inject a message into `Cmd`
@@ -753,12 +758,21 @@ update msg model =
 
         Request project OInterlinearListing ->
             let
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                    { command = "request-interlinear-listing"
+                    , project = project
+                    , address = "person"
+                    , content = E.null
+                    }
+
                 project_ : String
                 project_ =
                     UUID.toString project
             in
             ( { model | loading = Set.insert project_ model.loading }
-            , requestInterlinearIndex project_
+            , send envelope
             )
 
         Request project (OComposite id) ->
@@ -774,6 +788,19 @@ update msg model =
             in
             ( model, send envelope )
 
+        Request project OPersonListing ->
+            let
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                    { command = "request-person-listing"
+                    , project = project
+                    , address = "person"
+                    , content = E.null
+                    }
+            in
+            ( model, send envelope )
+                
         Request project (OReversal query) ->
             case query of
                 Nothing ->
@@ -830,7 +857,7 @@ update msg model =
                                     { project =
                                         UUID.toString env.project
                                     , kind =
-                                        "interlinear-index"
+                                        "interlinear-listing"
                                     , identifier =
                                         "GLOSSES::"
                                             ++ UUID.toString env.project
@@ -842,6 +869,58 @@ update msg model =
                                 vista
                                 "Glosses"
                                 "Glosses"
+                                model
+
+        Received (IPersonListing envelope) ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    case D.decodeValue M.listDecoder env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok vals ->
+                            let
+                                filterPerson :
+                                    M.Value
+                                    -> List M.Person
+                                    -> List M.Person
+                                filterPerson val people =
+                                    case val of
+                                        M.MyPerson person ->
+                                            person :: people
+
+                                        _ ->
+                                            people
+
+                                content : Content
+                                content =
+                                    PLS <|
+                                        List.foldl filterPerson [] vals
+
+                                vista : Vista
+                                vista =
+                                    { project =
+                                        UUID.toString env.project
+                                    , kind =
+                                        "person-listing"
+                                    , identifier =
+                                        "PEOPLE::"
+                                            ++ UUID.toString env.project
+                                    , content =
+                                        content
+                                    }
+                            in
+                            handleVista
+                                vista
+                                "People"
+                                "People"
                                 model
 
         Received (IReversal envelope) ->
@@ -1353,6 +1432,9 @@ update msg model =
             , sendMsg (Tab <| Tab.New ventana)
             )
 
+        EditPerson project person ->
+            ( model, Cmd.none )
+                
         EditInterlinear project int ->
             let
                 id : String
@@ -1598,8 +1680,10 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ receivedGlobalConfig <| \x -> Received <| IGlobalConfig x
-        , receivedInterlinearIndex <|
+        , receivedInterlinearListing <|
             \x -> Received <| IInterlinearListing x
+        , receivedPersonListing <|
+            \x -> Received <| IPersonListing x
         , receivedInterlinearReversals <| \x -> Received <| IReversal x
         , receivedComposite <| \x -> Received <| IComposite x
         , receivedViewArea <| \x -> Received <| IViewArea x
@@ -1864,6 +1948,16 @@ viewProject model p =
                 [ Html.a
                     [ Attr.href "#"
                     , Event.onClick <|
+                        UserClick <|
+                            Request p.identifier OPersonListing
+                    , Attr.class "secondary"
+                    ]
+                    [ Html.text "Person Index" ]
+                ]
+            , Html.li []
+                [ Html.a
+                    [ Attr.href "#"
+                    , Event.onClick <|
                         UserClick (NewInterlinear p.identifier)
                     , Attr.class "secondary"
                     ]
@@ -1970,7 +2064,14 @@ viewVista model tp vista =
 
                 editEvent : M.Interlinear -> Msg
                 editEvent interlinear =
-                    UserClick (EditInterlinear interlinear.id interlinear)
+                    case UUID.fromString vista.project of
+                        Err _ ->
+                            None
+
+                        Ok uuid ->
+                            interlinear
+                                |> EditInterlinear uuid
+                                |> UserClick
 
                 displayParams : Display.InterlinearListing.Params Msg
                 displayParams =
@@ -2026,6 +2127,123 @@ viewVista model tp vista =
                         ]
                     ]
                 , Display.InterlinearListing.view displayParams
+                ]
+
+        Content.PLS people ->
+            let
+                params : VentanaParams
+                params =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.withDefault { defVParams | length = 20 }
+
+                ss : String
+                ss =
+                    params.searchString
+
+                searched : List M.Person
+                searched =
+                    List.filter
+                        (\p ->
+                            String.contains ss p.id
+                                || DE.any
+                                    (\_ n ->
+                                         String.contains ss n
+                                    )
+                                    p.names
+                        )
+                        people
+
+                intTotal : Int
+                intTotal =
+                    List.length searched
+
+                ps : List M.Person
+                ps =
+                    List.take params.length searched
+
+                len : String
+                len =
+                    String.fromInt params.length
+
+                viewEvent : String -> Msg
+                viewEvent identifier =
+                    case UUID.fromString vista.project of
+                        Err _ ->
+                            None
+
+                        Ok uuid ->
+                            [ "person/", identifier ]
+                                |> String.concat
+                                |> OComposite
+                                |> Request uuid
+                                |> UserClick
+
+                editEvent : M.Person -> Msg
+                editEvent person =
+                    case UUID.fromString vista.project of
+                        Err _ ->
+                            None
+
+                        Ok uuid ->
+                            person
+                                |> EditPerson uuid
+                                |> UserClick
+
+                displayParams : Display.PersonListing.Params Msg
+                displayParams =
+                    { people = ps
+                    , viewEvent = viewEvent
+                    , editEvent = editEvent
+                    }
+            in
+            Html.div []
+                [ Html.div [ Attr.class "filters" ]
+                    [ Html.label []
+                        [ Html.text <|
+                            if params.length <= intTotal then
+                                let
+                                    -- For displaying
+                                    total : String
+                                    total =
+                                        intTotal |> String.fromInt
+                                in
+                                "Show (" ++ len ++ " of " ++ total ++ ")"
+
+                            else
+                                "Showing all items."
+                        , Html.input
+                            ([ Attr.type_ "text"
+                             , Attr.placeholder len
+                             , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Length tp s
+                                        |> Tab
+                                )
+                             ]
+                                ++ (if params.length > 0 then
+                                        [ Attr.value len ]
+
+                                    else
+                                        []
+                                   )
+                            )
+                            []
+                        , Html.input
+                            [ Attr.type_ "text"
+                            , Attr.value ss
+                            , Attr.placeholder "Search"
+                            , Attr.attribute "aria-label" "Search"
+                            , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Search tp s
+                                        |> Tab
+                                )
+                            ]
+                            []
+                        ]
+                    ]
+                , Display.PersonListing.view displayParams
                 ]
 
 
@@ -2135,16 +2353,10 @@ reduceDoc env =
 port send : E.Value -> Cmd msg
 
 
-{-| The window title changes depending on the focused tab. This sends
-the signal to the backend to do so.
--}
-
-
-
--- port setWindowTitle : String -> Cmd msg
-
-
-port requestInterlinearIndex : String -> Cmd msg
+-- {-| The window title changes depending on the focused tab. This sends
+-- the signal to the backend to do so.
+-- -}
+--port setWindowTitle : String -> Cmd msg
 
 
 {-| The global configuration lists projects and whether they are
@@ -2161,7 +2373,10 @@ port indicates that the global configuration was received.
 port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
 
 
-port receivedInterlinearIndex : (E.Value -> msg) -> Sub msg
+port receivedInterlinearListing : (E.Value -> msg) -> Sub msg
+
+
+port receivedPersonListing : (E.Value -> msg) -> Sub msg
 
 
 port receivedInterlinearReversals : (E.Value -> msg) -> Sub msg

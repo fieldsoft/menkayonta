@@ -159,7 +159,7 @@ const handleRequestInterlinears = async () => {
     }, [])
 
     process.parentPort.postMessage({
-      command: 'received-interlinear-index',
+      command: 'received-interlinear-listing',
       content: onlyDocs,
       project: gvs.identifier,
       address: 'interlinear',
@@ -178,7 +178,7 @@ const handleRequestPeople = async () => {
     })
 
     const onlyDocs = all.rows.reduce((acc, row) => {
-      if (row.key.length === 43) {
+      if (row.key.split('/').length === 2) {
         acc.push(row.doc)
       }
 
@@ -186,7 +186,7 @@ const handleRequestPeople = async () => {
     }, [])
 
     process.parentPort.postMessage({
-      command: 'received-person-index',
+      command: 'received-person-listing',
       content: onlyDocs,
       project: gvs.identifier,
       address: 'person',
@@ -289,23 +289,18 @@ const handleMainMessage = (m) => {
       break
     }
 
-    // TODO: There are multiple formats sent to bulk-write. This
-    // needs to be fixed.
     case 'bulk-write': {
-      if (m.data.content) {
-        handleBulk(m.data.content)
-      } else if (m.data.bulkDocs) {
-        handleBulk(m.data.bulkDocs)
-      } else if (m.bulkDocs) {
-        handleBulk(m.bulkDocs)
-      } else {
-        error(Error(`Malformed bulk docs object: ${JSON.stringify(m)}`))
-      }
+      handleBulk(m.data.content)
       break
     }
 
-    case 'request-interlinear-index': {
+    case 'request-interlinear-listing': {
       handleRequestInterlinears()
+      break
+    }
+
+    case 'request-person-listing': {
+      handleRequestPeople()
       break
     }
 
