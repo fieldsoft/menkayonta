@@ -98,7 +98,7 @@ ul.index-listing {
     padding-left: 0;
 }
 
-ul.index-listing li {
+ul.index-listing > li {
     list-style-type: none;
 }
 
