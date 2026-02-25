@@ -83,8 +83,7 @@ type alias Composite =
     , properties : List Property
     , descriptions : List Description
     , modifications : List Modification
-    , tolinks : List LinkId
-    , fromlinks : List LinkId
+    , links : List Link
     }
 
 
@@ -128,8 +127,7 @@ type alias Description =
 
 
 type alias LinkId =
-    { from : String
-    , to : String
+    { kind : String
     , fromid : DocId
     , toid : DocId
     , fragment : Maybe String
@@ -212,6 +210,12 @@ type alias Utility =
     , version : Int
     , value : E.Value
     }
+
+
+stringToIdentifier : String -> Maybe Identifier
+stringToIdentifier s =
+    Url.fromString ("http://example.com/" ++ s)
+        |> Maybe.andThen (UP.parse idParser)
 
 
 idParser : UP.Parser (Identifier -> a) a
@@ -311,15 +315,13 @@ idParser =
                 |> MyModificationId
 
         linkId :
-            String
+            DocId
             -> String
-            -> DocId
             -> DocId
             -> Maybe String
             -> Identifier
-        linkId from to fromid toid fragment =
-            { from = urlDecode from
-            , to = urlDecode to
+        linkId fromid kind toid fragment =
+            { kind = urlDecode kind
             , fromid = fromid
             , toid = toid
             , fragment = fragment
@@ -362,20 +364,13 @@ idParser =
                 </> UP.fragment identity
             )
         , UP.map linkId
-            (UP.s "link"
+            (docId
+                </> UP.s "link"
                 </> UP.string
-                </> UP.string
-                </> docId
                 </> docId
                 </> UP.fragment identity
             )
         ]
-
-
-stringToIdentifier : String -> Maybe Identifier
-stringToIdentifier s =
-    Url.fromString ("http://example.com/" ++ s)
-        |> Maybe.andThen (UP.parse idParser)
 
 
 {-| Convert and Identifier to a String.
@@ -440,11 +435,9 @@ descriptionIdToString descriptionid =
     let
         path : List String
         path =
-            docIdToList descriptionid.docid
-                ++ [ "description"
-                   , descriptionid.kind
-                   ]
+            [ "description", descriptionid.kind ]
                 |> List.map Url.percentEncode
+                |> List.append (docIdToList descriptionid.docid)
     in
     Url.Builder.custom Relative path [] descriptionid.fragment
 
@@ -454,13 +447,13 @@ modificationIdToString modid =
     let
         path : List String
         path =
-            docIdToList modid.docid
-                ++ [ "modification"
-                   , modid.kind
-                   , Time.posixToMillis modid.time |> String.fromInt
-                   , docIdToSimpleString modid.person
-                   ]
+            [ "modification"
+            , modid.kind
+            , Time.posixToMillis modid.time |> String.fromInt
+            , docIdToSimpleString modid.person
+            ]
                 |> List.map Url.percentEncode
+                |> List.append (docIdToList modid.docid)
     in
     Url.Builder.custom Relative path [] modid.fragment
 
@@ -468,16 +461,14 @@ modificationIdToString modid =
 linkIdToString : LinkId -> String
 linkIdToString linkid =
     let
-        path1 : List String
-        path1 =
-            [ "link", linkid.from, linkid.to ]
-                |> List.map Url.percentEncode
-
         path : List String
         path =
             docIdToList linkid.toid
+                |> List.append
+                    ([ "link", linkid.kind ]
+                        |> List.map Url.percentEncode
+                    )
                 |> List.append (docIdToList linkid.fromid)
-                |> List.append path1
     in
     Url.Builder.custom Relative path [] linkid.fragment
 
@@ -487,11 +478,9 @@ tagIdToString tagid =
     let
         path : List String
         path =
-            docIdToList tagid.docid
-                ++ [ "tag"
-                   , tagid.kind
-                   ]
+            [ "tag", tagid.kind ]
                 |> List.map Url.percentEncode
+                |> List.append (docIdToList tagid.docid)
     in
     Url.Builder.custom Relative path [] tagid.fragment
 
@@ -501,12 +490,9 @@ propertyIdToString propertyid =
     let
         path : List String
         path =
-            docIdToList propertyid.docid
-                ++ [ "property"
-                   , propertyid.kind
-                   , propertyid.value
-                   ]
+            [ "property", propertyid.kind, propertyid.value ]
                 |> List.map Url.percentEncode
+                |> List.append (docIdToList propertyid.docid)
     in
     Url.Builder.custom Relative path [] propertyid.fragment
 
@@ -545,10 +531,10 @@ identifierToReverse ident =
         MyModificationId ident_ ->
             Just <| modificationIdToReverse ident_
 
-        MyUtilityId _ ->
-            Nothing
+        MyLinkId ident_ ->
+            Just <| linkIdToReverse ident_
 
-        MyLinkId _ ->
+        MyUtilityId _ ->
             Nothing
 
 
@@ -559,6 +545,19 @@ descriptionIdToReverse descriptionid =
         path =
             [ "description"
             , descriptionid.kind
+            ]
+                |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] Nothing
+
+
+linkIdToReverse : LinkId -> String
+linkIdToReverse linkid =
+    let
+        path : List String
+        path =
+            [ "link"
+            , linkid.kind
             ]
                 |> List.map Url.percentEncode
     in
@@ -913,6 +912,9 @@ compositeBuilder v comp =
 
         MyModification m ->
             { comp | modifications = m :: comp.modifications }
+
+        MyLink l ->
+            { comp | links = l :: comp.links }
 
         MyUtility _ ->
             comp

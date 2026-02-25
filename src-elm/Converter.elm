@@ -823,7 +823,7 @@ speakerStage { docid, curr, speaker, model } =
         -- Link the speaker to the document
         speakerLink : Maybe IdVal
         speakerLink =
-            maybeConstLink "speaker" "utterance" personid docid
+            maybeConstLink "speaker" docid personid
 
         -- Associate speaker comment information with
         -- the interlinear document.
@@ -909,11 +909,10 @@ constructProperty kind str docid =
            )
 
 
-maybeConstLink : String -> String -> M.DocId -> M.DocId -> Maybe IdVal
-maybeConstLink to from toid fromid =
+maybeConstLink : String -> M.DocId -> M.DocId -> Maybe IdVal
+maybeConstLink kind fromid toid =
     { id =
-        { to = to
-        , from = from
+        { kind = kind
         , toid = toid
         , fromid = fromid
         , fragment = Nothing

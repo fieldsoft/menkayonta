@@ -113,19 +113,13 @@ viewInterlinear params int =
 
               else
                 Html.text ""
-            , if
-                not
-                    (List.isEmpty params.composite.tolinks
-                        && List.isEmpty params.composite.fromlinks
-                    )
-              then
+            , if not (List.isEmpty params.composite.links) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
                             [ Html.text "Links" ]
                         ]
-                    , links params.composite.tolinks
-                        params.composite.fromlinks
+                    , links params.composite.links
                     ]
 
               else

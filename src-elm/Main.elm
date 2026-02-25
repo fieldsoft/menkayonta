@@ -2296,51 +2296,9 @@ getProjectKey projid model =
 reduceDoc : Envelope -> Result D.Error M.Composite
 reduceDoc env =
     let
-        onlyIds : String -> List M.LinkId -> List M.LinkId
-        onlyIds link acc =
-            case M.stringToIdentifier link of
-                Just (M.MyLinkId linkid) ->
-                    linkid :: acc
-
-                _ ->
-                    acc
-
-        payload :
-            List M.Value
-            -> List String
-            -> List String
-            ->
-                { docs : List M.Value
-                , tolinks : List M.LinkId
-                , fromlinks : List M.LinkId
-                }
-        payload vals tos froms =
-            { docs = vals
-            , tolinks = List.foldl onlyIds [] tos
-            , fromlinks = List.foldl onlyIds [] froms
-            }
-
-        payloadDecoder :
-            D.Decoder
-                { docs : List M.Value
-                , tolinks : List M.LinkId
-                , fromlinks : List M.LinkId
-                }
-        payloadDecoder =
-            D.map3 payload
-                (D.field "docs" M.listDecoder)
-                (D.field "tolinks" <| D.list D.string)
-                (D.field "fromlinks" <| D.list D.string)
-
-        content :
-            Result
-                D.Error
-                { docs : List M.Value
-                , tolinks : List M.LinkId
-                , fromlinks : List M.LinkId
-                }
+        content : Result D.Error (List M.Value)
         content =
-            env.content |> D.decodeValue payloadDecoder
+            env.content |> D.decodeValue M.listDecoder
     in
     case content of
         Ok content_ ->
@@ -2352,11 +2310,10 @@ reduceDoc env =
                     , properties = []
                     , descriptions = []
                     , modifications = []
-                    , tolinks = content_.tolinks
-                    , fromlinks = content_.fromlinks
+                    , links = []
                     }
             in
-            Ok <| List.foldl M.compositeBuilder initial content_.docs
+            Ok <| List.foldl M.compositeBuilder initial content_
 
         Err e ->
             Err e

@@ -51,7 +51,7 @@ const readJsonFile = (filepath) => {
   try {
     const json = fs.readFileSync(filepath, 'utf-8')
 
-    return JSON.parse(json)
+    return JSON.parse(json.normalize('NFC'))
   } catch (e) {
     error(e)
 

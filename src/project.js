@@ -220,41 +220,15 @@ const handleRequestComposite = async (docid) => {
         endkey: `${docid}\ufff0`,
       })
 
-      const tolinks = await gvs.db.query('menkayonta/link_to', {
-        startkey: docid,
-        endkey: `${docid}\ufff0`,
-      })
-
-      const toids = tolinks.rows.reduce((acc, row) => {
-        acc.push(row.id)
-        return acc
-      }, [])
-
-      const fromlinks = await gvs.db.query('menkayonta/link_from', {
-        startkey: docid,
-        endkey: `${docid}\ufff0`,
-      })
-
-      const fromids = fromlinks.rows.reduce((acc, row) => {
-        acc.push(row.id)
-        return acc
-      }, [])
-
       const onlyDocs = all.rows.reduce((acc, row) => {
         acc.push(row.doc)
         return acc
       }, [])
 
-      const content = {
-        docs: onlyDocs,
-        tolinks: toids,
-        fromlinks: fromids,
-      }
-
       process.parentPort.postMessage({
         command: 'received-composite',
         address: docid,
-        content: content,
+        content: onlyDocs,
         project: gvs.identifier,
       })
     } else {
@@ -278,6 +252,11 @@ const handleUpdateDoc = async (data) => {
 }
 
 const handleMainMessage = (m) => {
+  // Ensure correct normalization for anything going into the DB.
+  if (typeof m.data.command === 'string') {
+    m.data.command.normalize('NFC')
+  }
+
   switch (m.data.command) {
     case 'init': {
       handleInit(m.data)

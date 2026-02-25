@@ -16,7 +16,7 @@ import Menkayonta
         ( Description
         , DocId
         , Identifier(..)
-        , LinkId
+        , Link
         , Modification
         , Property
         , Tag
@@ -56,17 +56,8 @@ property prop =
         ]
 
 
-links : List LinkId -> List LinkId -> Html.Html msg
-links tolinks fromlinks =
-    let
-        tolink : LinkId -> Html.Html msg
-        tolink linkid =
-            link linkid.from linkid.fromid
-
-        fromlink : LinkId -> Html.Html msg
-        fromlink linkid =
-            link linkid.to linkid.toid
-    in
+links : List Link -> Html.Html msg
+links ls =
     Html.table [ Attr.class "striped" ]
         [ Html.thead []
             [ Html.tr []
@@ -76,29 +67,29 @@ links tolinks fromlinks =
                     [ Html.text "Value" ]
                 ]
             ]
-        , List.map tolink tolinks
-            |> List.append (List.map fromlink fromlinks)
+        , List.map link ls
             |> Html.tbody []
         ]
 
 
-link : String -> DocId -> Html.Html msg
-link relation identifier =
+link : Link -> Html.Html msg
+link l =
     let
         idstring : String
         idstring =
-            identifier
+            l.id.toid
                 |> MyDocId
                 |> identifierToString
     in
     Html.tr []
         [ Html.td []
-            [ Html.text relation ]
+            [ Html.text l.id.kind ]
         , Html.td []
-            [ Html.text (idstring
-                             |> Url.percentDecode
-                             |> Maybe.withDefault idstring
-                        )
+            [ Html.text
+                (idstring
+                    |> Url.percentDecode
+                    |> Maybe.withDefault idstring
+                )
             ]
         ]
 
