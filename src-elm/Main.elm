@@ -39,6 +39,7 @@ import Tab
         )
 import Task
 import Time
+import Unicode
 import UUID
 import Url
 
@@ -2366,7 +2367,7 @@ search query strings =
     let
         strings_ : List ( String, String )
         strings_ =
-            if String.any Char.isUpper query then
+            if String.any Unicode.isUpper query then
                 strings
 
             else
