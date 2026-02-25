@@ -65,8 +65,6 @@ const handleMainMessage = (m) => {
       const parsedJson = readJsonFile(m.data.filepath)
 
       if (m.data.kind === 'Dative Form Json') {
-        info('Got!!')
-
         app.ports.receivedDativeForms.send({
           project: m.data.project,
           payload: parsedJson,

@@ -4,7 +4,6 @@ import Browser
 import Config exposing (GlobalConfig, ProjectInfo)
 import Content exposing (Content(..))
 import Dict exposing (Dict)
-import Dict.Extra as DE
 import Display.Composite
 import Display.InterlinearListing
 import Display.PersonListing
@@ -972,7 +971,7 @@ update msg model =
                                         [ "description", x ] ->
                                             Just x
 
-                                        [ "property", x, y ] ->
+                                        [ "property", _, y ] ->
                                             Just y
 
                                         [ "modification", x, _ ] ->
@@ -2029,8 +2028,8 @@ viewVista model tp vista =
                     let
                         strings : M.Interlinear -> List ( String, String )
                         strings int =
-                            List.foldl
-                                (\t acc ->
+                            Dict.foldl
+                                (\_ t acc ->
                                     ( "translations.judgment"
                                     , t.judgment
                                     )
@@ -2040,7 +2039,7 @@ viewVista model tp vista =
                                         :: acc
                                 )
                                 []
-                                (Dict.values int.translations)
+                                int.translations
                                 |> List.append
                                     [ ( "text", int.text )
                                     , ( "judgment", int.ann.judgment )
@@ -2160,9 +2159,11 @@ viewVista model tp vista =
                     let
                         strings : M.Person -> List ( String, String )
                         strings person =
-                            List.foldl (\n acc -> ( "name", n ) :: acc)
+                            Dict.foldl (\_  n acc ->
+                                            ( "name", n ) :: acc
+                                       )
                                 []
-                                (Dict.values person.names)
+                                (person.names)
                                 |> List.append
                                     [ ( "id", person.id ) ]
                     in

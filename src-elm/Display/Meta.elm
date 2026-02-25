@@ -14,7 +14,6 @@ import Html.Events as Event
 import Menkayonta
     exposing
         ( Description
-        , DocId
         , Identifier(..)
         , Link
         , Modification

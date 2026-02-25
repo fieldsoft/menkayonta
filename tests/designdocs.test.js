@@ -6,9 +6,11 @@ describe('the menkayonta design document', () => {
   })
 
   // patching emit
-  const emit = (k, v) => {
+  const emit = (_k, _v) => {
     return null
   }
+
+  emit(null, null)
 
   describe('the meta_reversals view', () => {
     test('returns false if doc is deleted', () => {

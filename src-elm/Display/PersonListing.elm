@@ -4,7 +4,6 @@ import Html
 import Html.Attributes as Attr
 import Html.Events as Event
 import Menkayonta exposing (Person)
-import List.Extra as LE
 import Dict
 import Url exposing (percentDecode)
 
