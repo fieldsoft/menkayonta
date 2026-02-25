@@ -761,11 +761,11 @@ update msg model =
                 envelope : E.Value
                 envelope =
                     envelopeEncoder
-                    { command = "request-interlinear-listing"
-                    , project = project
-                    , address = "person"
-                    , content = E.null
-                    }
+                        { command = "request-interlinear-listing"
+                        , project = project
+                        , address = "person"
+                        , content = E.null
+                        }
 
                 project_ : String
                 project_ =
@@ -793,14 +793,14 @@ update msg model =
                 envelope : E.Value
                 envelope =
                     envelopeEncoder
-                    { command = "request-person-listing"
-                    , project = project
-                    , address = "person"
-                    , content = E.null
-                    }
+                        { command = "request-person-listing"
+                        , project = project
+                        , address = "person"
+                        , content = E.null
+                        }
             in
             ( model, send envelope )
-                
+
         Request project (OReversal query) ->
             case query of
                 Nothing ->
@@ -1434,7 +1434,7 @@ update msg model =
 
         EditPerson project person ->
             ( model, Cmd.none )
-                
+
         EditInterlinear project int ->
             let
                 id : String
@@ -2025,17 +2025,30 @@ viewVista model tp vista =
 
                 searched : List M.Interlinear
                 searched =
-                    List.filter
-                        (\i ->
-                            String.contains ss i.text
-                                || String.contains ss i.ann.phonemic
-                                || String.contains ss i.ann.glosses
-                                || String.contains ss i.ann.breaks
-                                || List.any
-                                    (\t -> String.contains ss t.translation)
-                                    (Dict.values i.translations)
-                        )
-                        ints
+                    let
+                        strings : M.Interlinear -> List ( String, String )
+                        strings int =
+                            List.foldl
+                                (\t acc ->
+                                    ( "translations.judgment"
+                                    , t.judgment
+                                    )
+                                        :: ( "translation"
+                                           , t.translation
+                                           )
+                                        :: acc
+                                )
+                                []
+                                (Dict.values int.translations)
+                                |> List.append
+                                    [ ( "text", int.text )
+                                    , ( "judgment", int.ann.judgment )
+                                    , ( "phonemic", int.ann.phonemic )
+                                    , ( "glosses", int.ann.glosses )
+                                    , ( "breaks", int.ann.breaks )
+                                    ]
+                    in
+                    List.filter (\i -> search ss (strings i)) ints
 
                 intTotal : Int
                 intTotal =
@@ -2143,15 +2156,17 @@ viewVista model tp vista =
 
                 searched : List M.Person
                 searched =
+                    let
+                        strings : M.Person -> List ( String, String )
+                        strings person =
+                            List.foldl (\n acc -> ( "name", n ) :: acc)
+                                []
+                                (Dict.values person.names)
+                                |> List.append
+                                    [ ( "id", person.id ) ]
+                    in
                     List.filter
-                        (\p ->
-                            String.contains ss p.id
-                                || DE.any
-                                    (\_ n ->
-                                         String.contains ss n
-                                    )
-                                    p.names
-                        )
+                        (\p -> search ss (strings p))
                         people
 
                 intTotal : Int
@@ -2346,11 +2361,26 @@ reduceDoc env =
             Err e
 
 
+search : String -> List ( String, String ) -> Bool
+search query strings =
+    let
+        strings_ : List ( String, String )
+        strings_ =
+            if String.any Char.isUpper query then
+                strings
+
+            else
+                List.map (\( x, y ) -> ( x, String.toLower y )) strings
+    in
+    List.any (\( _, y ) -> String.contains query y) strings_
+
+
 
 {- PORTS -}
 
 
 port send : E.Value -> Cmd msg
+
 
 
 -- {-| The window title changes depending on the focused tab. This sends
