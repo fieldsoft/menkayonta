@@ -1,0 +1,69 @@
+
+[{
+    "id": 7233,
+    "UUID": "e06144f0-cb03-4f51-9907-8c96eb880182",
+    "transcription": "xxx xxxx  xxx",
+    "phonetic_transcription": "",
+    "narrow_phonetic_transcription": "",
+    "morpheme_break": "",
+    "morpheme_gloss": "",
+    "comments": "",
+    "speaker_comments": "",
+    "grammaticality": "*",
+    "date_elicited": "2025-10-14",
+    "datetime_entered": "2025-10-24T17:06:55.234157",
+    "datetime_modified": "2025-10-24T17:06:55.234157",
+    "syntactic_category_string": null,
+    "morpheme_break_ids": null,
+    "morpheme_gloss_ids": null,
+    "break_gloss_category": null,
+    "syntax": "",
+    "semantics": "",
+    "status": "tested",
+    "elicitor": {
+      "id": 26,
+      "first_name": "xxx",
+      "last_name": "xxx",
+      "role": "contributor"
+    },
+    "enterer": {
+      "id": 26,
+      "first_name": "xxx",
+      "last_name": "xxxx",
+      "role": "contributor"
+    },
+    "modifier": {
+      "id": 26,
+      "first_name": "xxx",
+      "last_name": "xxx",
+      "role": "contributor"
+    },
+    "verifier": null,
+    "speaker": {
+      "id": 4,
+      "first_name": "Noáa\u0301h",
+      "last_name": "Diewald",
+      "dialect": "Ahkwesahsne"
+    },
+    "elicitation_method": null,
+    "syntactic_category": null,
+    "source": null,
+    "translations": [
+      {
+        "id": 9125,
+        "transcription": "Could he write it?",
+        "grammaticality": ""
+      }
+    ],
+    "tags": [
+      {
+        "id": 196,
+        "name": "xxx"
+      }
+    ],
+    "files": []
+  }
+]
+
+
+

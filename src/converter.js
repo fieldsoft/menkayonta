@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
+const { readJsonFile } = require(`${__dirname}/converterHelpers.js`)
 
 // Get a high-quality random seed to make a client UUID. We use 4
 // 32-bit integers
@@ -45,18 +46,6 @@ try {
   })
 } catch (e) {
   error(e)
-}
-
-const readJsonFile = (filepath) => {
-  try {
-    const json = fs.readFileSync(filepath, 'utf-8')
-
-    return JSON.parse(json.normalize('NFC'))
-  } catch (e) {
-    error(e)
-
-    return null
-  }
 }
 
 const handleMainMessage = (m) => {
