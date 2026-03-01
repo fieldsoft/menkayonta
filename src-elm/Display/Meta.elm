@@ -1,5 +1,5 @@
 module Display.Meta exposing
-    ( Params
+    ( Msg
     , descriptions
     , links
     , modifications
@@ -22,15 +22,17 @@ import Menkayonta
         , identifierToReverse
         , identifierToString
         )
+import Msg exposing (RequestType(..))
 import Time
+import UUID
 import Url
 
 
-type alias Params msg =
-    { listingEvent : Maybe String -> msg }
+type alias Msg =
+    Msg.Msg
+      
 
-
-properties : List Property -> Html.Html msg
+properties : List Property -> Html.Html Msg
 properties props =
     Html.table [ Attr.class "striped" ]
         [ Html.thead []
@@ -45,7 +47,7 @@ properties props =
         ]
 
 
-property : Property -> Html.Html msg
+property : Property -> Html.Html Msg
 property prop =
     Html.tr []
         [ Html.td []
@@ -55,7 +57,7 @@ property prop =
         ]
 
 
-links : List Link -> Html.Html msg
+links : List Link -> Html.Html Msg
 links ls =
     Html.table [ Attr.class "striped" ]
         [ Html.thead []
@@ -71,7 +73,7 @@ links ls =
         ]
 
 
-link : Link -> Html.Html msg
+link : Link -> Html.Html Msg
 link l =
     let
         idstring : String
@@ -93,7 +95,7 @@ link l =
         ]
 
 
-modifications : List Modification -> Html.Html msg
+modifications : List Modification -> Html.Html Msg
 modifications mods =
     Html.table [ Attr.class "striped" ]
         [ Html.thead []
@@ -113,7 +115,7 @@ modifications mods =
         ]
 
 
-modification : Modification -> Html.Html msg
+modification : Modification -> Html.Html Msg
 modification mod =
     let
         datetime : Time.Posix -> String
@@ -151,33 +153,35 @@ modification mod =
         ]
 
 
-tags : Params msg -> List Tag -> Html.Html msg
-tags params ts =
+tags : UUID.UUID -> List Tag -> Html.Html Msg
+tags project ts =
     Html.div [] <|
-        List.map (tag params) ts
+        List.map (tag project) ts
 
 
-tag : Params msg -> Tag -> Html.Html msg
-tag params t =
+tag : UUID.UUID -> Tag -> Html.Html Msg
+tag project t =
     Html.a
         [ Attr.href "#"
         , Attr.class "tag"
         , t.id
             |> MyTagId
             |> identifierToReverse
-            |> params.listingEvent
+            |> OReversal
+            |> Msg.Request project
+            |> Msg.UserClick
             |> Event.onClick
         ]
         [ Html.text t.id.kind ]
 
 
-descriptions : List Description -> Html.Html msg
+descriptions : List Description -> Html.Html Msg
 descriptions descs =
     Html.div [] <|
         List.map description descs
 
 
-description : Description -> Html.Html msg
+description : Description -> Html.Html Msg
 description desc =
     Html.details []
         [ Html.summary []

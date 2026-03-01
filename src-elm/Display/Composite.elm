@@ -1,4 +1,4 @@
-module Display.Composite exposing (Params, view)
+module Display.Composite exposing (Model, Msg, view)
 
 import Display.InterlinearListing
 import Display.Meta
@@ -21,18 +21,23 @@ import Menkayonta
         , Value(..)
         , identifierToString
         )
+import Msg
+import UUID
 
 
-type alias Params msg =
+type alias Msg =
+      Msg.Msg
+          
+
+type alias Model =
     { composite : Composite
-    , editEvent : Interlinear -> msg
-    , listingEvent : Maybe String -> msg
+    , project : UUID.UUID
     }
 
 
-view : Params msg -> Html.Html msg
-view params =
-    case params.composite.doc of
+view : Model -> Html.Html Msg
+view model =
+    case model.composite.doc of
         Just (MyInterlinear int) ->
             Html.div []
                 [ Html.nav []
@@ -40,22 +45,23 @@ view params =
                         [ Html.li []
                             [ Html.a
                                 [ Attr.href "#"
-                                , Event.onClick <|
-                                    params.editEvent int
+                                , Msg.EditInterlinear model.project int
+                                    |> Msg.UserClick
+                                    |> Event.onClick
                                 ]
                                 [ Html.text "Edit" ]
                             ]
                         ]
                     ]
-                , viewInterlinear params int
+                , viewInterlinear model int
                 ]
 
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
 
 
-viewInterlinear : Params msg -> Interlinear -> Html.Html msg
-viewInterlinear params int =
+viewInterlinear : Model -> Interlinear -> Html.Html Msg
+viewInterlinear model int =
     Html.div [ Attr.class "docview" ]
         [ Html.h2 []
             [ Html.text "Interlinear Gloss" ]
@@ -75,51 +81,46 @@ viewInterlinear params int =
         , Html.h2 []
             [ Html.text "Metadata" ]
         , Html.div [ Attr.class "metaview" ]
-            [ if not (List.isEmpty params.composite.tags) then
-                let
-                    metaParams : Display.Meta.Params msg
-                    metaParams =
-                        { listingEvent = params.listingEvent }
-                in
+            [ if not (List.isEmpty model.composite.tags) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
                             [ Html.text "Tags" ]
                         ]
-                    , tags metaParams params.composite.tags
+                    , tags model.project model.composite.tags
                     ]
 
               else
                 Html.text ""
-            , if not (List.isEmpty params.composite.properties) then
+            , if not (List.isEmpty model.composite.properties) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
                             [ Html.text "Properties" ]
                         ]
-                    , properties params.composite.properties
+                    , properties model.composite.properties
                     ]
 
               else
                 Html.text ""
-            , if not (List.isEmpty params.composite.descriptions) then
+            , if not (List.isEmpty model.composite.descriptions) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
                             [ Html.text "Descriptions" ]
                         ]
-                    , descriptions params.composite.descriptions
+                    , descriptions model.composite.descriptions
                     ]
 
               else
                 Html.text ""
-            , if not (List.isEmpty params.composite.links) then
+            , if not (List.isEmpty model.composite.links) then
                 Html.article []
                     [ Html.header []
                         [ Html.h3 []
                             [ Html.text "Links" ]
                         ]
-                    , links params.composite.links
+                    , links model.composite.links
                     ]
 
               else
@@ -129,7 +130,7 @@ viewInterlinear params int =
                     [ Html.h3 []
                         [ Html.text "Modifications" ]
                     ]
-                , modifications params.composite.modifications
+                , modifications model.composite.modifications
                 ]
             ]
         ]

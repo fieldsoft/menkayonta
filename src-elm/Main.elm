@@ -18,6 +18,7 @@ import Json.Decode as D
 import Json.Encode as E
 import List.Extra as LE
 import Menkayonta as M
+import Msg exposing (ReceiveType(..), RequestType(..))
 import Random
 import Set exposing (Set)
 import Tab
@@ -38,8 +39,8 @@ import Tab
         )
 import Task
 import Time
-import Unicode
 import UUID
+import Unicode
 import Url
 
 
@@ -66,35 +67,12 @@ type Msg
     | EditImporter String
     | MultiMsg (List Msg)
     | None
+    | Ms Msg.Msg
     | PR ProjectId Form.Project.Msg
-    | Received ReceiveType
-    | Request ProjectId RequestType
     | ShowGlobalSettings E.Value
-    | NewInterlinear ProjectId
-    | EditInterlinear ProjectId M.Interlinear
-    | EditPerson ProjectId M.Person
-    | NewProject
-    | EditProject Form.Project.Model
     | Stamp (Time.Posix -> Envelope) (E.Value -> Cmd Msg) Time.Posix
     | Tab Tab.Msg
     | ToggleSidebar
-    | UserClick Msg
-
-
-type ReceiveType
-    = IViewArea E.Value
-    | IComposite E.Value
-    | IGlobalConfig E.Value
-    | IReversal E.Value
-    | IInterlinearListing E.Value
-    | IPersonListing E.Value
-
-
-type RequestType
-    = OReversal (Maybe String)
-    | OInterlinearListing
-    | OComposite String
-    | OPersonListing
 
 
 {-| Inject a message into `Cmd`
@@ -272,14 +250,14 @@ update msg model =
             in
             ( model, cmd envelope )
 
-        UserClick clickMsg ->
+        Ms (Msg.UserClick clickMsg) ->
             let
                 subModel : Tab.Model
                 subModel =
                     Tab.update Tab.Unlock model.tabs
                         |> Tuple.first
             in
-            ( { model | tabs = subModel }, sendMsg clickMsg )
+            ( { model | tabs = subModel }, sendMsg (Ms clickMsg) )
 
         ToggleSidebar ->
             ( { model | sideBar = not model.sideBar }
@@ -698,7 +676,7 @@ update msg model =
                         _ ->
                             ( nmodel, Cmd.map (PR id) p.cmd )
 
-        Received (IViewArea jsonValue) ->
+        Ms (Msg.Received (IViewArea jsonValue)) ->
             case D.decodeValue dimensionsDecoder jsonValue of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -710,9 +688,7 @@ update msg model =
                     , Cmd.none
                     )
 
-        -- SetWindowTitle title ->
-        --     ( model, setWindowTitle title )
-        Received (IGlobalConfig gc) ->
+        Ms (Msg.Received (IGlobalConfig gc)) ->
             case D.decodeValue Config.globalConfigDecoder gc of
                 Err err ->
                     ( { model | error = D.errorToString err }
@@ -756,7 +732,7 @@ update msg model =
                     in
                     ( newmodel, command )
 
-        Request project OInterlinearListing ->
+        Ms (Msg.Request project OInterlinearListing) ->
             let
                 envelope : E.Value
                 envelope =
@@ -775,7 +751,7 @@ update msg model =
             , send envelope
             )
 
-        Request project (OComposite id) ->
+        Ms (Msg.Request project (OComposite id)) ->
             let
                 envelope : E.Value
                 envelope =
@@ -788,7 +764,7 @@ update msg model =
             in
             ( model, send envelope )
 
-        Request project OPersonListing ->
+        Ms (Msg.Request project OPersonListing) ->
             let
                 envelope : E.Value
                 envelope =
@@ -801,7 +777,7 @@ update msg model =
             in
             ( model, send envelope )
 
-        Request project (OReversal query) ->
+        Ms (Msg.Request project (OReversal query)) ->
             case query of
                 Nothing ->
                     ( model, Cmd.none )
@@ -819,7 +795,7 @@ update msg model =
                     in
                     ( model, send envelope )
 
-        Received (IInterlinearListing envelope) ->
+        Ms (Msg.Received (IInterlinearListing envelope)) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -871,7 +847,7 @@ update msg model =
                                 "Glosses"
                                 model
 
-        Received (IPersonListing envelope) ->
+        Ms (Msg.Received (IPersonListing envelope)) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -923,7 +899,7 @@ update msg model =
                                 "People"
                                 model
 
-        Received (IReversal envelope) ->
+        Ms (Msg.Received (IReversal envelope)) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -1020,7 +996,7 @@ update msg model =
                                 full
                                 model
 
-        Received (IComposite envelope) ->
+        Ms (Msg.Received (IComposite envelope)) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -1224,7 +1200,7 @@ update msg model =
                         ]
                     )
 
-        NewProject ->
+        Ms Msg.NewProject ->
             let
                 step :
                     { uuid : UUID.UUID
@@ -1306,7 +1282,7 @@ update msg model =
                         ]
                     )
 
-        EditProject project ->
+        Ms (Msg.EditProject project) ->
             let
                 id : String
                 id =
@@ -1363,7 +1339,7 @@ update msg model =
                         ]
                     )
 
-        NewInterlinear project ->
+        Ms (Msg.NewInterlinear project) ->
             let
                 step :
                     { uuid : UUID.UUID
@@ -1432,10 +1408,10 @@ update msg model =
             , sendMsg (Tab <| Tab.New ventana)
             )
 
-        EditPerson project person ->
+        Ms (Msg.EditPerson project person) ->
             ( model, Cmd.none )
 
-        EditInterlinear project int ->
+        Ms (Msg.EditInterlinear project int) ->
             let
                 id : String
                 id =
@@ -1678,22 +1654,29 @@ handleVista vista short full model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
+    let
+        r : (E.Value -> Msg.ReceiveType) -> (E.Value -> Msg)
+        r t =
+            (\v -> t v |> Msg.Received |> Ms)
+
+        move : Direction -> (() -> Msg)
+        move d =
+            (\_ -> Tab.Move d |> Tab)
+    in
     Sub.batch
-        [ receivedGlobalConfig <| \x -> Received <| IGlobalConfig x
-        , receivedInterlinearListing <|
-            \x -> Received <| IInterlinearListing x
-        , receivedPersonListing <|
-            \x -> Received <| IPersonListing x
-        , receivedInterlinearReversals <| \x -> Received <| IReversal x
-        , receivedComposite <| \x -> Received <| IComposite x
-        , receivedViewArea <| \x -> Received <| IViewArea x
-        , newProject <| \_ -> NewProject
+        [ receivedGlobalConfig <| r IGlobalConfig
+        , receivedInterlinearListing <| r IInterlinearListing
+        , receivedPersonListing <| r IPersonListing
+        , receivedInterlinearReversals <| r IReversal
+        , receivedComposite <| r IComposite
+        , receivedViewArea <| r IViewArea
+        , newProject <| \_ -> Ms Msg.NewProject
         , importOptions EditImporter
         , globalSettings ShowGlobalSettings
-        , moveLeft_ <| \_ -> Tab <| Tab.Move Left
-        , moveRight_ <| \_ -> Tab <| Tab.Move Right
-        , moveUp_ <| \_ -> Tab <| Tab.Move Up
-        , moveDown_ <| \_ -> Tab <| Tab.Move Down
+        , moveLeft_ <| move Left
+        , moveRight_ <| move Right
+        , moveUp_ <| move Up
+        , moveDown_ <|  move Down
         , closeTab_
             (\_ ->
                 case model.tabs.focused of
@@ -1928,8 +1911,10 @@ viewProject model p =
             [ Html.li []
                 [ Html.a
                     [ Attr.href "#"
-                    , Event.onClick <|
-                        UserClick (EditProject pmodel)
+                    , Msg.EditProject pmodel
+                        |> Msg.UserClick
+                        |> Ms
+                        |> Event.onClick
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Settings" ]
@@ -1937,9 +1922,10 @@ viewProject model p =
             , Html.li []
                 [ Html.a
                     [ Attr.href "#"
-                    , Event.onClick <|
-                        UserClick <|
-                            Request p.identifier OInterlinearListing
+                    , Msg.Request p.identifier OInterlinearListing
+                        |> Msg.UserClick
+                        |> Ms
+                        |> Event.onClick
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Gloss Index" ]
@@ -1947,9 +1933,10 @@ viewProject model p =
             , Html.li []
                 [ Html.a
                     [ Attr.href "#"
-                    , Event.onClick <|
-                        UserClick <|
-                            Request p.identifier OPersonListing
+                    , Msg.Request p.identifier OPersonListing
+                        |> Msg.UserClick
+                        |> Ms
+                        |> Event.onClick
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Person Index" ]
@@ -1957,8 +1944,10 @@ viewProject model p =
             , Html.li []
                 [ Html.a
                     [ Attr.href "#"
-                    , Event.onClick <|
-                        UserClick (NewInterlinear p.identifier)
+                    , Msg.NewInterlinear p.identifier
+                        |> Msg.UserClick
+                        |> Ms
+                        |> Event.onClick
                     , Attr.class "secondary"
                     ]
                     [ Html.text "Gloss New Item" ]
@@ -1984,32 +1973,34 @@ viewVista model tp vista =
 
         Content.ITV composite ->
             let
-                editEvent : M.Interlinear -> Msg
-                editEvent int =
-                    case UUID.fromString vista.project of
-                        Err _ ->
-                            None
+                vp : Maybe UUID.UUID
+                vp =
+                    UUID.fromString vista.project
+                        |> Result.toMaybe
 
-                        Ok uuid ->
-                            EditInterlinear uuid int
+                intid : Maybe UUID.UUID
+                intid =
+                    case composite.doc of
+                        Just (M.MyInterlinear int) ->
+                            Just int.id
 
-                listingEvent : Maybe String -> Msg
-                listingEvent mstr =
-                    case UUID.fromString vista.project of
-                        Err _ ->
-                            None
-
-                        Ok uuid ->
-                            UserClick (Request uuid (OReversal mstr))
-
-                params : Display.Composite.Params Msg
-                params =
-                    { composite = composite
-                    , editEvent = editEvent
-                    , listingEvent = listingEvent
-                    }
+                        _ ->
+                            Nothing
             in
-            Display.Composite.view params
+            case ( vp, intid ) of
+                ( Just project, Just id ) ->
+                    let
+                        cmodel : Display.Composite.Model
+                        cmodel =
+                            { composite = composite
+                            , project = project
+                            }
+                    in
+                    Display.Composite.view cmodel
+                        |> Html.map Ms
+
+                _ ->
+                    Html.text "Invalid project or non-interlinear"
 
         Content.ITS ints ->
             let
@@ -2072,8 +2063,9 @@ viewVista model tp vista =
                             [ "interlinear/", UUID.toString identifier ]
                                 |> String.concat
                                 |> OComposite
-                                |> Request uuid
-                                |> UserClick
+                                |> Msg.Request uuid
+                                |> Msg.UserClick
+                                |> Ms
 
                 editEvent : M.Interlinear -> Msg
                 editEvent interlinear =
@@ -2083,8 +2075,9 @@ viewVista model tp vista =
 
                         Ok uuid ->
                             interlinear
-                                |> EditInterlinear uuid
-                                |> UserClick
+                                |> Msg.EditInterlinear uuid
+                                |> Msg.UserClick
+                                |> Ms
 
                 displayParams : Display.InterlinearListing.Params Msg
                 displayParams =
@@ -2159,11 +2152,12 @@ viewVista model tp vista =
                     let
                         strings : M.Person -> List ( String, String )
                         strings person =
-                            Dict.foldl (\_  n acc ->
-                                            ( "name", n ) :: acc
-                                       )
+                            Dict.foldl
+                                (\_ n acc ->
+                                    ( "name", n ) :: acc
+                                )
                                 []
-                                (person.names)
+                                person.names
                                 |> List.append
                                     [ ( "id", person.id ) ]
                     in
@@ -2193,8 +2187,9 @@ viewVista model tp vista =
                             [ "person/", identifier ]
                                 |> String.concat
                                 |> OComposite
-                                |> Request uuid
-                                |> UserClick
+                                |> Msg.Request uuid
+                                |> Msg.UserClick
+                                |> Ms
 
                 editEvent : M.Person -> Msg
                 editEvent person =
@@ -2204,8 +2199,9 @@ viewVista model tp vista =
 
                         Ok uuid ->
                             person
-                                |> EditPerson uuid
-                                |> UserClick
+                                |> Msg.EditPerson uuid
+                                |> Msg.UserClick
+                                |> Ms
 
                 displayParams : Display.PersonListing.Params Msg
                 displayParams =
