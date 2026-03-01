@@ -124,9 +124,15 @@ ul.index-listing > li {
     display: inline-block;
     padding: 0.1rem;
     margin: 0.25rem;
-    color: var(--pico-contrast-inverse);
     background-color: var(--pico-contrast-background);
     border-radius: 4px;
+}
+
+.tag > a {
+    color: var(--pico-contrast-inverse);
+    margin-left: 0.1rem;
+    margin-right: 0.1rem;
+    text-decoration: none;
 }
 
 div.hidden {

@@ -6,6 +6,7 @@ import Content exposing (Content(..))
 import Dict exposing (Dict)
 import Display.Composite
 import Display.InterlinearListing
+import Display.Meta
 import Display.PersonListing
 import Form.Global
 import Form.Importer
@@ -17,7 +18,9 @@ import Html.Events as Event
 import Json.Decode as D
 import Json.Encode as E
 import List.Extra as LE
+import Maybe.Extra as ME
 import Menkayonta as M
+import Meta
 import Msg exposing (ReceiveType(..), RequestType(..))
 import Random
 import Set exposing (Set)
@@ -66,7 +69,6 @@ type Msg
     | ITE UUID.UUID Form.Interlinear.Msg
     | EditImporter String
     | MultiMsg (List Msg)
-    | None
     | Ms Msg.Msg
     | PR ProjectId Form.Project.Msg
     | ShowGlobalSettings E.Value
@@ -235,7 +237,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         -- A message for doing nothing
-        None ->
+        Ms Msg.None ->
             ( model, Cmd.none )
 
         -- A message of many messages
@@ -276,6 +278,59 @@ update msg model =
             ( { model | tabs = t.model }
             , Cmd.map Tab t.cmd
             )
+
+        Ms (Msg.SaveTag tagfield) ->
+            ( model, sendMsg (Ms (Msg.ChangeTag Nothing)))
+
+        Ms (Msg.ChangeTag tagfield) ->
+            case model.tabs.focused of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just tp ->
+                    case Dict.get tp model.tabs.ventanas of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just ventana ->
+                            let
+                                params : Tab.VentanaParams
+                                params =
+                                    ventana.params
+
+                                meta : Meta.Dialog
+                                meta =
+                                    params.meta
+
+                                params_ : Tab.VentanaParams
+                                params_ =
+                                    { params
+                                        | meta =
+                                            { meta
+                                                | tag =
+                                                    tagfield
+                                            }
+                                    }
+
+                                ventana_ : Tab.Ventana
+                                ventana_ =
+                                    { ventana | params = params_ }
+
+                                ventanas : Tab.Ventanas
+                                ventanas =
+                                    Dict.insert tp
+                                        ventana_
+                                        model.tabs.ventanas
+
+                                tabs : Tab.Model
+                                tabs =
+                                    model.tabs
+                            in
+                            ( { model
+                                | tabs = { tabs | ventanas = ventanas }
+                              }
+                            , Cmd.none
+                            )
 
         ITE id subMsg ->
             let
@@ -1386,6 +1441,7 @@ update msg model =
                     , params =
                         { length = 0
                         , searchString = ""
+                        , meta = { tag = Nothing }
                         }
                     }
 
@@ -1491,6 +1547,7 @@ update msg model =
                             , params =
                                 { length = 0
                                 , searchString = ""
+                                , meta = { tag = Nothing }
                                 }
                             }
 
@@ -1657,11 +1714,11 @@ subscriptions model =
     let
         r : (E.Value -> Msg.ReceiveType) -> (E.Value -> Msg)
         r t =
-            (\v -> t v |> Msg.Received |> Ms)
+            \v -> t v |> Msg.Received |> Ms
 
         move : Direction -> (() -> Msg)
         move d =
-            (\_ -> Tab.Move d |> Tab)
+            \_ -> Tab.Move d |> Tab
     in
     Sub.batch
         [ receivedGlobalConfig <| r IGlobalConfig
@@ -1676,12 +1733,12 @@ subscriptions model =
         , moveLeft_ <| move Left
         , moveRight_ <| move Right
         , moveUp_ <| move Up
-        , moveDown_ <|  move Down
+        , moveDown_ <| move Down
         , closeTab_
             (\_ ->
                 case model.tabs.focused of
                     Nothing ->
-                        None
+                        Ms Msg.None
 
                     Just tp ->
                         Tab (Tab.Close tp)
@@ -1995,9 +2052,30 @@ viewVista model tp vista =
                             { composite = composite
                             , project = project
                             }
+
+                        display : Html.Html Msg
+                        display =
+                            Display.Composite.view cmodel
+                                |> Html.map Ms
+
+                        tagfield : Maybe Meta.TagField
+                        tagfield =
+                            Dict.get tp model.tabs.ventanas
+                                |> Maybe.map .params
+                                |> Maybe.map .meta
+                                |> Maybe.map .tag
+                                |> ME.join
                     in
-                    Display.Composite.view cmodel
-                        |> Html.map Ms
+                    case tagfield of
+                        Nothing ->
+                            display
+
+                        Just tagfield_ ->
+                            Html.div []
+                                [ Display.Meta.tagField tagfield_
+                                    |> Html.map Ms
+                                , display
+                                ]
 
                 _ ->
                     Html.text "Invalid project or non-interlinear"
@@ -2057,7 +2135,7 @@ viewVista model tp vista =
                 viewEvent identifier =
                     case UUID.fromString vista.project of
                         Err _ ->
-                            None
+                            Ms Msg.None
 
                         Ok uuid ->
                             [ "interlinear/", UUID.toString identifier ]
@@ -2071,7 +2149,7 @@ viewVista model tp vista =
                 editEvent interlinear =
                     case UUID.fromString vista.project of
                         Err _ ->
-                            None
+                            Ms Msg.None
 
                         Ok uuid ->
                             interlinear
@@ -2181,7 +2259,7 @@ viewVista model tp vista =
                 viewEvent identifier =
                     case UUID.fromString vista.project of
                         Err _ ->
-                            None
+                            Ms Msg.None
 
                         Ok uuid ->
                             [ "person/", identifier ]
@@ -2195,7 +2273,7 @@ viewVista model tp vista =
                 editEvent person =
                     case UUID.fromString vista.project of
                         Err _ ->
-                            None
+                            Ms Msg.None
 
                         Ok uuid ->
                             person

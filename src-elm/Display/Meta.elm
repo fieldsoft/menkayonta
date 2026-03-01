@@ -4,6 +4,7 @@ module Display.Meta exposing
     , links
     , modifications
     , properties
+    , tagField
     , tags
     )
 
@@ -22,6 +23,7 @@ import Menkayonta
         , identifierToReverse
         , identifierToString
         )
+import Meta exposing (TagField)
 import Msg exposing (RequestType(..))
 import Time
 import UUID
@@ -30,7 +32,12 @@ import Url
 
 type alias Msg =
     Msg.Msg
-      
+
+
+openval : String
+openval =
+    "!!!OPEN!!!"
+        
 
 properties : List Property -> Html.Html Msg
 properties props =
@@ -155,24 +162,136 @@ modification mod =
 
 tags : UUID.UUID -> List Tag -> Html.Html Msg
 tags project ts =
-    Html.div [] <|
-        List.map (tag project) ts
+    case ts of
+        [] ->
+            Html.text ""
+
+        t :: _ ->
+            Html.article []
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Tags "
+                        , Html.a
+                            [ Attr.href "#"
+                            , Attr.title "Add a new tag"
+                            , Attr.attribute "role" "button"
+                            , Attr.class "secondary"
+                            , Event.onClick <|
+                                Msg.ChangeTag <|
+                                    Just
+                                        { value = openval
+                                        , docid = t.id.docid
+                                        }
+                            ]
+                            [ Html.text "+" ]
+                        ]
+                    ]
+                , Html.div [] <|
+                    List.map (tag project) ts
+                ]
 
 
 tag : UUID.UUID -> Tag -> Html.Html Msg
 tag project t =
-    Html.a
-        [ Attr.href "#"
-        , Attr.class "tag"
-        , t.id
-            |> MyTagId
-            |> identifierToReverse
-            |> OReversal
-            |> Msg.Request project
-            |> Msg.UserClick
-            |> Event.onClick
+    Html.span
+        [ Attr.class "tag" ]
+        [ Html.a
+            [ Attr.href "#"
+            , Attr.title <| "View items tagged: " ++ t.id.kind
+            , t.id
+                |> MyTagId
+                |> identifierToReverse
+                |> OReversal
+                |> Msg.Request project
+                |> Msg.UserClick
+                |> Event.onClick
+            ]
+            [ Html.text t.id.kind ]
+        , Html.a
+            [ Attr.href "#"
+            , Attr.title <| "Revove the tag: " ++ t.id.kind
+            ]
+            [ Html.text "×" ]
         ]
-        [ Html.text t.id.kind ]
+
+
+tagField : TagField -> Html.Html Msg
+tagField tagfield =
+    let
+        isValid : Bool
+        isValid =
+            not (String.isEmpty tagfield.value)
+                || tagfield.value
+                == openval
+    in
+    Html.fieldset []
+        [ Html.label []
+            [ Html.text "New Tag"
+            , Html.input
+                [ Attr.value
+                    (if tagfield.value == openval then
+                        ""
+
+                     else
+                        tagfield.value
+                    )
+                , Attr.type_ "text"
+                , Attr.name "tagfield"
+                , Attr.attribute "aria-label" "New Tag"
+                , Attr.attribute "aria-describedby" "tagfield-desc"
+                , Attr.spellcheck True
+                , if isValid then
+                    Attr.attribute "aria-invalid" "false"
+
+                  else
+                    Attr.attribute "aria-invalid" "true"
+                , Event.onInput <|
+                    \val ->
+                        Msg.ChangeTag
+                            (Just { tagfield | value = val })
+                ]
+                []
+            , Html.small
+                [ Attr.id "tagfield-desc" ]
+                [ if isValid then
+                    Html.text
+                        (String.concat
+                            [ "A short tag name. "
+                            , "Avoid punctuation and spaces. "
+                            , "Complex tag names aren't needed. "
+                            , "One can always add additional tags or "
+                            , "a different metadata type, "
+                            , "such as a property."
+                            ]
+                        )
+
+                  else
+                    Html.text "The tag name can't be blank."
+                ]
+            ]
+        , Html.button
+            (if isValid then
+                [ Attr.type_ "button"
+                , Event.onClick <|
+                    Msg.SaveTag tagfield
+                ]
+
+             else
+                [ Attr.attribute "data-tooltip" "Cannot be blank"
+                , Attr.attribute "data-placement" "below"
+                , Attr.type_ "button"
+                , Event.onClick Msg.None
+                ]
+            )
+            [ Html.text "Save" ]
+        , Html.button
+            [ Attr.class "secondary"
+            , Attr.type_ "button"
+            , Event.onClick <|
+                Msg.ChangeTag Nothing
+            ]
+            [ Html.text "Cancel" ]
+        ]
 
 
 descriptions : List Description -> Html.Html Msg

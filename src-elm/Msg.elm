@@ -1,9 +1,11 @@
-module Msg exposing (Msg(..), RequestType(..), ReceiveType(..))
+module Msg exposing (Msg(..), ReceiveType(..), RequestType(..))
 
-import UUID
+import Form.Project
 import Json.Encode as E
 import Menkayonta as M
-import Form.Project
+import Meta
+import UUID
+
 
 type Msg
     = Received ReceiveType
@@ -14,6 +16,10 @@ type Msg
     | NewProject
     | EditProject Form.Project.Model
     | UserClick Msg
+    | ChangeTag (Maybe Meta.TagField)
+    | SaveTag Meta.TagField
+    | None
+
 
 type alias ProjectId =
     UUID.UUID
@@ -33,5 +39,3 @@ type RequestType
     | OInterlinearListing
     | OComposite String
     | OPersonListing
-
-        

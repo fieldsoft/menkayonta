@@ -27,6 +27,7 @@ import Content exposing (Content)
 import Dict exposing (Dict)
 import List.Extra as LE
 import Math.Vector3 as V3
+import Meta
 import Set exposing (Set)
 import Task
 
@@ -85,6 +86,7 @@ type alias Ventana =
 type alias VentanaParams =
     { length : Int
     , searchString : String
+    , meta : Meta.Dialog
     }
 
 
@@ -131,6 +133,7 @@ defVParams : VentanaParams
 defVParams =
     { length = 0
     , searchString = ""
+    , meta = { tag = Nothing }
     }
 
 
