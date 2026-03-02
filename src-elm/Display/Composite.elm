@@ -81,21 +81,8 @@ viewInterlinear model int =
         , Html.h2 []
             [ Html.text "Metadata" ]
         , Html.div [ Attr.class "metaview" ]
-            [ if not (List.isEmpty model.composite.tags) then
-                  tags model.project model.composite.tags
-              else
-                Html.text ""
-            , if not (List.isEmpty model.composite.properties) then
-                Html.article []
-                    [ Html.header []
-                        [ Html.h3 []
-                            [ Html.text "Properties" ]
-                        ]
-                    , properties model.composite.properties
-                    ]
-
-              else
-                Html.text ""
+            [ tags model.project model.composite.tags
+            , properties model.project model.composite.properties
             , if not (List.isEmpty model.composite.descriptions) then
                 Html.article []
                     [ Html.header []

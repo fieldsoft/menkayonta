@@ -18,6 +18,8 @@ type Msg
     | UserClick Msg
     | ChangeTag (Maybe Meta.TagField)
     | SaveTag Meta.TagField
+    | ChangeProperty (Maybe Meta.PropertyField)
+    | SaveProperty Meta.PropertyField
     | None
 
 

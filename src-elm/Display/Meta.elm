@@ -4,6 +4,7 @@ module Display.Meta exposing
     , links
     , modifications
     , properties
+    , propertyField
     , tagField
     , tags
     )
@@ -23,7 +24,7 @@ import Menkayonta
         , identifierToReverse
         , identifierToString
         )
-import Meta exposing (TagField)
+import Meta exposing (PropertyField, TagField)
 import Msg exposing (RequestType(..))
 import Time
 import UUID
@@ -39,28 +40,220 @@ openval =
     "!!!OPEN!!!"
 
 
-properties : List Property -> Html.Html Msg
-properties props =
-    Html.table [ Attr.class "striped" ]
-        [ Html.thead []
-            [ Html.tr []
-                [ Html.th [ Attr.attribute "scope" "col" ]
-                    [ Html.text "Attribute" ]
-                , Html.th [ Attr.attribute "scope" "col" ]
-                    [ Html.text "Value" ]
+properties : UUID.UUID -> List Property -> Html.Html Msg
+properties project props =
+    case props of
+        [] ->
+            Html.text ""
+
+        p :: _ ->
+            Html.article []
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Properties "
+                        , Html.a
+                            [ Attr.href "#"
+                            , Attr.title "Add a new property"
+                            , Attr.attribute "role" "button"
+                            , Attr.class "secondary"
+                            , Event.onClick <|
+                                Msg.ChangeProperty <|
+                                    Just
+                                        { kind = openval
+                                        , value = openval
+                                        , docids = [ p.id.docid ]
+                                        , project = project
+                                        }
+                            ]
+                            [ Html.text "+" ]
+                        ]
+                    ]
+                , Html.table [ Attr.class "striped" ]
+                    [ Html.thead []
+                        [ Html.tr []
+                            [ Html.td
+                                []
+                                []
+                            , Html.th
+                                [ Attr.attribute "scope" "col" ]
+                                [ Html.text "Attribute" ]
+                            , Html.th
+                                [ Attr.attribute "scope" "col" ]
+                                [ Html.text "Value" ]
+                            ]
+                        ]
+                    , Html.tbody [] <| List.map (property project) props
+                    ]
                 ]
+
+
+property : UUID.UUID -> Property -> Html.Html Msg
+property project prop =
+    let
+        propstring : String
+        propstring =
+            String.join " : "
+                [ prop.id.kind, prop.id.value ]
+
+        proppart : String -> Property -> Html.Html Msg
+        proppart str p =
+            Html.a
+                [ Attr.href "#"
+                , Attr.title <| "View items with the property: " ++ propstring
+                , p.id
+                    |> MyPropertyId
+                    |> identifierToReverse
+                    |> OReversal
+                    |> Msg.Request project
+                    |> Msg.UserClick
+                    |> Event.onClick
+                ]
+                [ Html.text str ]
+    in
+    Html.tr []
+        [ Html.td []
+            [ Html.a
+                [ Attr.href "#"
+                , Attr.title <| "Revove the property: " ++ propstring
+                , prop.id
+                    |> MyPropertyId
+                    |> identifierToString
+                    |> ODelete prop.rev
+                    |> Msg.Request project
+                    |> Event.onClick
+                ]
+                [ Html.text "×" ]
             ]
-        , Html.tbody [] <| List.map property props
+        , Html.td []
+            [ proppart prop.id.kind prop ]
+        , Html.td []
+            [ proppart prop.id.value prop ]
         ]
 
 
-property : Property -> Html.Html Msg
-property prop =
-    Html.tr []
-        [ Html.td []
-            [ Html.text prop.id.kind ]
-        , Html.td []
-            [ Html.text prop.id.value ]
+propertyField : PropertyField -> Html.Html Msg
+propertyField propfield =
+    let
+        isValidK : Bool
+        isValidK =
+            not (String.isEmpty propfield.kind)
+                || propfield.kind
+                == openval
+
+        isValidV : Bool
+        isValidV =
+            not (String.isEmpty propfield.value)
+                || propfield.value
+                == openval
+    in
+    Html.fieldset []
+        [ Html.label []
+            [ Html.text "New Attribute"
+            , Html.input
+                [ Attr.value
+                    (if propfield.kind == openval then
+                        ""
+
+                     else
+                        propfield.kind
+                    )
+                , Attr.type_ "text"
+                , Attr.name "kindfield"
+                , Attr.attribute "aria-label" "New Attribute"
+                , Attr.attribute "aria-describedby" "kindfield-desc"
+                , Attr.spellcheck True
+                , if isValidK then
+                    Attr.attribute "aria-invalid" "false"
+
+                  else
+                    Attr.attribute "aria-invalid" "true"
+                , Event.onInput <|
+                    \val ->
+                        Msg.ChangeProperty
+                            (Just { propfield | kind = val })
+                ]
+                []
+            , Html.small
+                [ Attr.id "kindfield-desc" ]
+                [ if isValidK then
+                    Html.text
+                        (String.concat
+                            [ "A short property attibute name. "
+                            , "Avoid punctuation and spaces. "
+                            , "Complex names aren't needed. "
+                            , "One can always add additional metadata."
+                            ]
+                        )
+
+                  else
+                    Html.text "The attribute name can't be blank."
+                ]
+            ]
+        , Html.label []
+            [ Html.text "New Value"
+            , Html.input
+                [ Attr.value
+                    (if propfield.value == openval then
+                        ""
+
+                     else
+                        propfield.value
+                    )
+                , Attr.type_ "text"
+                , Attr.name "valuefield"
+                , Attr.attribute "aria-label" "New Value"
+                , Attr.attribute "aria-describedby" "valuefield-desc"
+                , Attr.spellcheck True
+                , if isValidV then
+                    Attr.attribute "aria-invalid" "false"
+
+                  else
+                    Attr.attribute "aria-invalid" "true"
+                , Event.onInput <|
+                    \val ->
+                        Msg.ChangeProperty
+                            (Just { propfield | value = val })
+                ]
+                []
+            , Html.small
+                [ Attr.id "valuefield-desc" ]
+                [ if isValidV then
+                    Html.text
+                        (String.concat
+                            [ "A short property value. "
+                            , "Avoid punctuation and spaces. "
+                            , "Don't try to stuff in multiple values. "
+                            , "You can add multiple attribute-value "
+                            , "pairs with the same attribute name."
+                            ]
+                        )
+
+                  else
+                    Html.text "The attribute name can't be blank."
+                ]
+            ]
+        , Html.button
+            (if isValidK && isValidV then
+                [ Attr.type_ "button"
+                , Event.onClick <|
+                    Msg.SaveProperty propfield
+                ]
+
+             else
+                [ Attr.attribute "data-tooltip" "Fields cannot be blank"
+                , Attr.attribute "data-placement" "below"
+                , Attr.type_ "button"
+                , Event.onClick Msg.None
+                ]
+            )
+            [ Html.text "Save" ]
+        , Html.button
+            [ Attr.class "secondary"
+            , Attr.type_ "button"
+            , Event.onClick <|
+                Msg.ChangeProperty Nothing
+            ]
+            [ Html.text "Cancel" ]
         ]
 
 
@@ -179,7 +372,7 @@ tags project ts =
                             , Event.onClick <|
                                 Msg.ChangeTag <|
                                     Just
-                                        { value = openval
+                                        { kind = openval
                                         , docids = [ t.id.docid ]
                                         , project = project
                                         }
@@ -227,8 +420,8 @@ tagField tagfield =
     let
         isValid : Bool
         isValid =
-            not (String.isEmpty tagfield.value)
-                || tagfield.value
+            not (String.isEmpty tagfield.kind)
+                || tagfield.kind
                 == openval
     in
     Html.fieldset []
@@ -236,11 +429,11 @@ tagField tagfield =
             [ Html.text "New Tag"
             , Html.input
                 [ Attr.value
-                    (if tagfield.value == openval then
+                    (if tagfield.kind == openval then
                         ""
 
                      else
-                        tagfield.value
+                        tagfield.kind
                     )
                 , Attr.type_ "text"
                 , Attr.name "tagfield"
@@ -255,7 +448,7 @@ tagField tagfield =
                 , Event.onInput <|
                     \val ->
                         Msg.ChangeTag
-                            (Just { tagfield | value = val })
+                            (Just { tagfield | kind = val })
                 ]
                 []
             , Html.small

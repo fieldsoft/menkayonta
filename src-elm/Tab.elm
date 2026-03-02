@@ -134,7 +134,9 @@ defVParams : VentanaParams
 defVParams =
     { length = 0
     , searchString = ""
-    , meta = { tag = Nothing }
+    , meta = { tag = Nothing
+             , property = Nothing
+             }
     }
 
 

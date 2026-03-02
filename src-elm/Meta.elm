@@ -1,4 +1,4 @@
-module Meta exposing (Dialog, Model, TagField)
+module Meta exposing (Dialog, Model, PropertyField, TagField)
 
 import Dict exposing (Dict)
 import Menkayonta exposing (DocId(..))
@@ -17,11 +17,21 @@ type alias Model =
 
 
 type alias TagField =
-    { value : String
+    { kind : String
+    , docids : List DocId
+    , project : UUID.UUID
+    }
+
+
+type alias PropertyField =
+    { kind : String
+    , value : String
     , docids : List DocId
     , project : UUID.UUID
     }
 
 
 type alias Dialog =
-    { tag : Maybe TagField }
+    { tag : Maybe TagField
+    , property : Maybe PropertyField
+    }

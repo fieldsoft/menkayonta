@@ -293,16 +293,16 @@ update msg model =
                             rt |> Msg.Request env.project |> Ms |> sendMsg
                     in
                     case Debug.log env.address (String.split "/" env.address) of
-                        ["interlinear"] ->
+                        [ "interlinear" ] ->
                             ( model
                             , req OInterlinearListing
                             )
 
-                        ["person"] ->
+                        [ "person" ] ->
                             ( model
                             , req OPersonListing
                             )
-                            
+
                         "interlinear" :: id :: [] ->
                             ( model
                             , req <| OComposite env.address
@@ -316,7 +316,6 @@ update msg model =
                         _ ->
                             ( model, Cmd.none )
 
-
         Ms (Msg.Request project (ODelete rev id)) ->
             case rev of
                 Just rev_ ->
@@ -324,9 +323,9 @@ update msg model =
                         payload : E.Value
                         payload =
                             E.object
-                                [ ("_id", E.string id)
-                                , ("_rev", E.string rev_)
-                                , ("_deleted", E.bool True)
+                                [ ( "_id", E.string id )
+                                , ( "_rev", E.string rev_ )
+                                , ( "_deleted", E.bool True )
                                 ]
 
                         path : String
@@ -335,12 +334,10 @@ update msg model =
                                 |> Maybe.map .path
                                 |> Maybe.withDefault ""
 
-
                         envelope : E.Value
                         envelope =
                             envelopeEncoder
                                 { command = "delete-doc"
-                                      
                                 , project = project
                                 , address = path
                                 , content = payload
@@ -359,7 +356,7 @@ update msg model =
                         |> List.map
                             (\docid ->
                                 { id =
-                                    { kind = tagfield.value
+                                    { kind = tagfield.kind
                                     , docid = docid
                                     , fragment = Nothing
                                     }
@@ -392,6 +389,48 @@ update msg model =
                 ]
             )
 
+        Ms (Msg.SaveProperty propertyfield) ->
+            let
+                payload : E.Value
+                payload =
+                    propertyfield.docids
+                        |> List.map
+                            (\docid ->
+                                { id =
+                                    { kind = propertyfield.kind
+                                    , value = propertyfield.value
+                                    , docid = docid
+                                    , fragment = Nothing
+                                    }
+                                , rev = Nothing
+                                , version = 1
+                                }
+                                    |> M.MyProperty
+                            )
+                        |> E.list M.encoder
+
+                path : String
+                path =
+                    Tab.getFocusedVista model.tabs
+                        |> Maybe.map .path
+                        |> Maybe.withDefault ""
+
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                        { command = "bulk-write"
+                        , project = propertyfield.project
+                        , address = path
+                        , content = payload
+                        }
+            in
+            ( model
+            , Cmd.batch
+                [ sendMsg (Ms (Msg.ChangeProperty Nothing))
+                , send envelope
+                ]
+            )
+
         Ms (Msg.ChangeTag tagfield) ->
             case model.tabs.focused of
                 Nothing ->
@@ -419,6 +458,56 @@ update msg model =
                                             { meta
                                                 | tag =
                                                     tagfield
+                                            }
+                                    }
+
+                                ventana_ : Tab.Ventana
+                                ventana_ =
+                                    { ventana | params = params_ }
+
+                                ventanas : Tab.Ventanas
+                                ventanas =
+                                    Dict.insert tp
+                                        ventana_
+                                        model.tabs.ventanas
+
+                                tabs : Tab.Model
+                                tabs =
+                                    model.tabs
+                            in
+                            ( { model
+                                | tabs = { tabs | ventanas = ventanas }
+                              }
+                            , Cmd.none
+                            )
+
+        Ms (Msg.ChangeProperty propertyfield) ->
+            case model.tabs.focused of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just tp ->
+                    case Dict.get tp model.tabs.ventanas of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just ventana ->
+                            let
+                                params : Tab.VentanaParams
+                                params =
+                                    ventana.params
+
+                                meta : Meta.Dialog
+                                meta =
+                                    params.meta
+
+                                params_ : Tab.VentanaParams
+                                params_ =
+                                    { params
+                                        | meta =
+                                            { meta
+                                                | property =
+                                                    propertyfield
                                             }
                                     }
 
@@ -1549,11 +1638,7 @@ update msg model =
                     { title = key ++ ": New Gloss"
                     , fullTitle = title ++ ": New Gloss"
                     , vista = id
-                    , params =
-                        { length = 0
-                        , searchString = ""
-                        , meta = { tag = Nothing }
-                        }
+                    , params = Tab.defVParams
                     }
 
                 tabs : Tab.Model
@@ -1655,11 +1740,7 @@ update msg model =
                             { title = short
                             , fullTitle = full
                             , vista = id
-                            , params =
-                                { length = 0
-                                , searchString = ""
-                                , meta = { tag = Nothing }
-                                }
+                            , params = Tab.defVParams
                             }
 
                         vistas : Dict String Vista
@@ -2170,24 +2251,31 @@ viewVista model tp vista =
                             Display.Composite.view cmodel
                                 |> Html.map Ms
 
-                        tagfield : Maybe Meta.TagField
+                        tagfield : Html.Html Msg
                         tagfield =
                             Dict.get tp model.tabs.ventanas
                                 |> Maybe.map .params
                                 |> Maybe.map .meta
-                                |> Maybe.map .tag
-                                |> ME.join
-                    in
-                    case tagfield of
-                        Nothing ->
-                            display
+                                |> Maybe.andThen .tag
+                                |> Maybe.map Display.Meta.tagField
+                                |> Maybe.map (Html.map Ms)
+                                |> Maybe.withDefault (Html.text "")
 
-                        Just tagfield_ ->
-                            Html.div []
-                                [ Display.Meta.tagField tagfield_
-                                    |> Html.map Ms
-                                , display
-                                ]
+                        propfield : Html.Html Msg
+                        propfield =
+                            Dict.get tp model.tabs.ventanas
+                                |> Maybe.map .params
+                                |> Maybe.map .meta
+                                |> Maybe.andThen .property
+                                |> Maybe.map Display.Meta.propertyField
+                                |> Maybe.map (Html.map Ms)
+                                |> Maybe.withDefault (Html.text "")
+                    in
+                    Html.div []
+                        [ tagfield
+                        , propfield
+                        , display
+                        ]
 
                 _ ->
                     Html.text "Invalid project or non-interlinear"
