@@ -124,6 +124,21 @@ const handleBulk = async (docs, address) => {
   }
 }
 
+const handleDelete = async (doc, address) => {
+  try {
+    await gvs.db.put(doc)
+
+    process.parentPort.postMessage({
+      command: 'received-reload-request',
+      content: null,
+      project: gvs.identifier,
+      address: address,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleRequestReversal = async (queryString) => {
   try {
     const reversals = await gvs.db.query('menkayonta/meta_reversals', {
@@ -272,6 +287,11 @@ const handleMainMessage = (m) => {
 
     case 'update-doc': {
       handleUpdateDoc(m.data)
+      break
+    }
+
+    case 'delete-doc': {
+      handleDelete(m.data.content, m.data.address)
       break
     }
 

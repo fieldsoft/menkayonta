@@ -25,6 +25,10 @@ type alias ProjectId =
     UUID.UUID
 
 
+type alias Revision =
+    Maybe String
+
+
 type ReceiveType
     = IViewArea E.Value
     | IComposite E.Value
@@ -40,3 +44,5 @@ type RequestType
     | OInterlinearListing
     | OComposite String
     | OPersonListing
+    | ODelete Revision String
+

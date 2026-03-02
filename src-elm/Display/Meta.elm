@@ -211,6 +211,12 @@ tag project t =
         , Html.a
             [ Attr.href "#"
             , Attr.title <| "Revove the tag: " ++ t.id.kind
+            , t.id
+                |> MyTagId
+                |> identifierToString
+                |> ODelete t.rev
+                |> Msg.Request project
+                |> Event.onClick
             ]
             [ Html.text "×" ]
         ]

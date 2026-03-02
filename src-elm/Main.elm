@@ -317,6 +317,40 @@ update msg model =
                             ( model, Cmd.none )
 
 
+        Ms (Msg.Request project (ODelete rev id)) ->
+            case rev of
+                Just rev_ ->
+                    let
+                        payload : E.Value
+                        payload =
+                            E.object
+                                [ ("_id", E.string id)
+                                , ("_rev", E.string rev_)
+                                , ("_deleted", E.bool True)
+                                ]
+
+                        path : String
+                        path =
+                            Tab.getFocusedVista model.tabs
+                                |> Maybe.map .path
+                                |> Maybe.withDefault ""
+
+
+                        envelope : E.Value
+                        envelope =
+                            envelopeEncoder
+                                { command = "delete-doc"
+                                      
+                                , project = project
+                                , address = path
+                                , content = payload
+                                }
+                    in
+                    ( model, send envelope )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
         Ms (Msg.SaveTag tagfield) ->
             let
                 payload : E.Value
