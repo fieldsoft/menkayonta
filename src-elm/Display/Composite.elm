@@ -62,13 +62,18 @@ view model =
 
 viewInterlinear : Model -> Interlinear -> Html.Html Msg
 viewInterlinear model int =
+    let
+        intid : DocId
+        intid =
+             InterlinearId int.id
+    in
     Html.div [ Attr.class "docview" ]
         [ Html.h2 []
             [ Html.text "Interlinear Gloss" ]
         , Html.article []
             [ Display.InterlinearListing.viewInterlinear int
             , Html.footer []
-                [ InterlinearId int.id
+                [ intid
                     |> MyDocId
                     |> identifierToString
                     |> (\x ->
@@ -81,8 +86,8 @@ viewInterlinear model int =
         , Html.h2 []
             [ Html.text "Metadata" ]
         , Html.div [ Attr.class "metaview" ]
-            [ tags model.project model.composite.tags
-            , properties model.project model.composite.properties
+            [ tags model.project intid model.composite.tags
+            , properties model.project intid model.composite.properties
             , if not (List.isEmpty model.composite.descriptions) then
                 Html.article []
                     [ Html.header []

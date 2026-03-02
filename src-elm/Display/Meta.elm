@@ -15,7 +15,8 @@ import Html.Attributes as Attr
 import Html.Events as Event
 import Menkayonta
     exposing
-        ( Description
+        ( DocId
+        , Description
         , Identifier(..)
         , Link
         , Modification
@@ -40,13 +41,13 @@ openval =
     "!!!OPEN!!!"
 
 
-properties : UUID.UUID -> List Property -> Html.Html Msg
-properties project props =
+properties : UUID.UUID -> DocId -> List Property -> Html.Html Msg
+properties project docid props =
     case props of
         [] ->
             Html.text ""
 
-        p :: _ ->
+        _ ->
             Html.article []
                 [ Html.header []
                     [ Html.h3 []
@@ -61,7 +62,7 @@ properties project props =
                                     Just
                                         { kind = openval
                                         , value = openval
-                                        , docids = [ p.id.docid ]
+                                        , docids = [ docid ]
                                         , project = project
                                         }
                             ]
@@ -353,8 +354,8 @@ modification mod =
         ]
 
 
-tags : UUID.UUID -> List Tag -> Html.Html Msg
-tags project ts =
+tags : UUID.UUID -> DocId -> List Tag -> Html.Html Msg
+tags project docid ts =
     case ts of
         [] ->
             Html.text ""
@@ -373,7 +374,7 @@ tags project ts =
                                 Msg.ChangeTag <|
                                     Just
                                         { kind = openval
-                                        , docids = [ t.id.docid ]
+                                        , docids = [ docid ]
                                         , project = project
                                         }
                             ]
