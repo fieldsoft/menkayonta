@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('received-composite', (_event, data) => callback(data)),
   onReceivedDoc: (callback) =>
     ipcRenderer.on('received-doc', (_event, data) => callback(data)),
+  onReceivedReloadRequest: (callback) =>
+    ipcRenderer.on('received-reload-request', (_event, data) => callback(data)),
   requestGlobalConfig: () => ipcRenderer.invoke('request-gconfig'),
   updateProject: (projectInfo) =>
     ipcRenderer.invoke('update-project', projectInfo),

@@ -32,6 +32,7 @@ type ReceiveType
     | IReversal E.Value
     | IInterlinearListing E.Value
     | IPersonListing E.Value
+    | IReload E.Value
 
 
 type RequestType

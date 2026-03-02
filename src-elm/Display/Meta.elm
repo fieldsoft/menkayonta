@@ -37,7 +37,7 @@ type alias Msg =
 openval : String
 openval =
     "!!!OPEN!!!"
-        
+
 
 properties : List Property -> Html.Html Msg
 properties props =
@@ -180,7 +180,8 @@ tags project ts =
                                 Msg.ChangeTag <|
                                     Just
                                         { value = openval
-                                        , docid = t.id.docid
+                                        , docids = [ t.id.docid ]
+                                        , project = project
                                         }
                             ]
                             [ Html.text "+" ]

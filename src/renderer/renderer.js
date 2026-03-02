@@ -39,6 +39,10 @@ app.ports.requestGlobalConfig.subscribe(async () => {
   app.ports.receivedGlobalConfig.send(gconfig)
 })
 
+window.electronAPI.onReceivedReloadRequest((data) => {
+  app.ports.receivedReloadRequest.send(data)
+})
+
 window.electronAPI.onReceivedPersonListing((data) => {
   app.ports.receivedPersonListing.send(data)
 })

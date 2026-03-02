@@ -109,9 +109,16 @@ const handleInit = ({ identifier: i, projectsPath: pp, url: url }) => {
   return gvs
 }
 
-const handleBulk = async (docs) => {
+const handleBulk = async (docs, address) => {
   try {
     await gvs.db.bulkDocs(docs)
+
+    process.parentPort.postMessage({
+      command: 'received-reload-request',
+      content: null,
+      project: gvs.identifier,
+      address: address,
+    })
   } catch (e) {
     error(e)
   }
@@ -253,8 +260,8 @@ const handleUpdateDoc = async (data) => {
 
 const handleMainMessage = (m) => {
   // Ensure correct normalization for anything going into the DB.
-  if (typeof m.data.command === 'string') {
-    m.data.command.normalize('NFC')
+  if (typeof m.data.content === 'string') {
+    m.data.content.normalize('NFC')
   }
 
   switch (m.data.command) {
@@ -269,7 +276,7 @@ const handleMainMessage = (m) => {
     }
 
     case 'bulk-write': {
-      handleBulk(m.data.content)
+      handleBulk(m.data.content, m.data.address)
       break
     }
 

@@ -128,7 +128,7 @@ envelopeEncoder env =
 globalSettingsVista : Vista
 globalSettingsVista =
     { project = "global"
-    , kind = "global-settings"
+    , path = "/"
     , identifier = "global-settings"
     , content = Content.GF Form.Global.initData
     }
@@ -137,7 +137,7 @@ globalSettingsVista =
 importOptionsVista : Vista
 importOptionsVista =
     { project = "global"
-    , kind = "import-options"
+    , path = "/"
     , identifier = "import-options"
     , content = Content.IM Form.Importer.initData
     }
@@ -279,8 +279,84 @@ update msg model =
             , Cmd.map Tab t.cmd
             )
 
+        Ms (Msg.Received (IReload envelope)) ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    let
+                        req : RequestType -> Cmd Msg
+                        req rt =
+                            rt |> Msg.Request env.project |> Ms |> sendMsg
+                    in
+                    case Debug.log env.address (String.split "/" env.address) of
+                        ["interlinear"] ->
+                            ( model
+                            , req OInterlinearListing
+                            )
+
+                        ["person"] ->
+                            ( model
+                            , req OPersonListing
+                            )
+                            
+                        "interlinear" :: id :: [] ->
+                            ( model
+                            , req <| OComposite env.address
+                            )
+
+                        "tag" :: kind :: [] ->
+                            ( model
+                            , req <| OReversal (Just env.address)
+                            )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+
         Ms (Msg.SaveTag tagfield) ->
-            ( model, sendMsg (Ms (Msg.ChangeTag Nothing)))
+            let
+                payload : E.Value
+                payload =
+                    tagfield.docids
+                        |> List.map
+                            (\docid ->
+                                { id =
+                                    { kind = tagfield.value
+                                    , docid = docid
+                                    , fragment = Nothing
+                                    }
+                                , rev = Nothing
+                                , version = 1
+                                }
+                                    |> M.MyTag
+                            )
+                        |> E.list M.encoder
+
+                path : String
+                path =
+                    Tab.getFocusedVista model.tabs
+                        |> Maybe.map .path
+                        |> Maybe.withDefault ""
+
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                        { command = "bulk-write"
+                        , project = tagfield.project
+                        , address = path
+                        , content = payload
+                        }
+            in
+            ( model
+            , Cmd.batch
+                [ sendMsg (Ms (Msg.ChangeTag Nothing))
+                , send envelope
+                ]
+            )
 
         Ms (Msg.ChangeTag tagfield) ->
             case model.tabs.focused of
@@ -643,7 +719,7 @@ update msg model =
                             case Dict.get vistaId model.tabs.vistas of
                                 Nothing ->
                                     { project = "global"
-                                    , kind = "new-project"
+                                    , path = UUID.toString id
                                     , identifier = vistaId
                                     , content =
                                         Content.PR
@@ -887,8 +963,8 @@ update msg model =
                                 vista =
                                     { project =
                                         UUID.toString env.project
-                                    , kind =
-                                        "interlinear-listing"
+                                    , path =
+                                        "interlinear"
                                     , identifier =
                                         "GLOSSES::"
                                             ++ UUID.toString env.project
@@ -939,8 +1015,8 @@ update msg model =
                                 vista =
                                     { project =
                                         UUID.toString env.project
-                                    , kind =
-                                        "person-listing"
+                                    , path =
+                                        "person"
                                     , identifier =
                                         "PEOPLE::"
                                             ++ UUID.toString env.project
@@ -1033,8 +1109,8 @@ update msg model =
                                 vista =
                                     { project =
                                         UUID.toString env.project
-                                    , kind =
-                                        "interlinear-reversals"
+                                    , path =
+                                        env.address
                                     , identifier =
                                         String.concat
                                             [ full
@@ -1090,8 +1166,9 @@ update msg model =
                                         vista =
                                             { project =
                                                 UUID.toString env.project
-                                            , kind =
-                                                "interlinear"
+                                            , path =
+                                                "interlinear/"
+                                                    ++ UUID.toString i.id
                                             , identifier =
                                                 UUID.toString i.id
                                             , content =
@@ -1139,7 +1216,7 @@ update msg model =
                 vista : Vista
                 vista =
                     { project = "global"
-                    , kind = "import-options"
+                    , path = "/"
                     , identifier = "import-options"
                     , content = content
                     }
@@ -1206,7 +1283,7 @@ update msg model =
                 vista : Vista
                 vista =
                     { project = "global"
-                    , kind = "global-settings"
+                    , path = "/"
                     , identifier = "global-settings"
                     , content = Content.GF g.model
                     }
@@ -1291,7 +1368,7 @@ update msg model =
                 vista : Vista
                 vista =
                     { project = "global"
-                    , kind = "new-project"
+                    , path = id
                     , identifier = vistaId
                     , content = Content.PR p.model
                     }
@@ -1350,7 +1427,7 @@ update msg model =
                 vista : Vista
                 vista =
                     { project = id
-                    , kind = "edit-project"
+                    , path = id
                     , identifier = vistaId
                     , content = Content.PR project
                     }
@@ -1418,7 +1495,7 @@ update msg model =
                 vista : Vista
                 vista =
                     { identifier = id
-                    , kind = "interlinear"
+                    , path = "interlinear/" ++ UUID.toString step.uuid
                     , project = UUID.toString project
                     , content = Content.ITE int
                     }
@@ -1534,7 +1611,7 @@ update msg model =
                         vista : Vista
                         vista =
                             { identifier = id
-                            , kind = "interlinear"
+                            , path = "interlinear/" ++ id
                             , project = UUID.toString project
                             , content = Content.ITE i.model
                             }
@@ -1665,7 +1742,7 @@ handleVista vista short full model =
 
         loading : Set String
         loading =
-            if vista.kind /= "interlinear" then
+            if String.startsWith "interlinear" vista.path then
                 Set.remove vista.project model.loading
 
             else
@@ -1727,6 +1804,7 @@ subscriptions model =
         , receivedInterlinearReversals <| r IReversal
         , receivedComposite <| r IComposite
         , receivedViewArea <| r IViewArea
+        , receivedReloadRequest <| r IReload
         , newProject <| \_ -> Ms Msg.NewProject
         , importOptions EditImporter
         , globalSettings ShowGlobalSettings
@@ -2440,6 +2518,9 @@ port receivedInterlinearListing : (E.Value -> msg) -> Sub msg
 
 
 port receivedPersonListing : (E.Value -> msg) -> Sub msg
+
+
+port receivedReloadRequest : (E.Value -> msg) -> Sub msg
 
 
 port receivedInterlinearReversals : (E.Value -> msg) -> Sub msg

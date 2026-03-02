@@ -13,6 +13,7 @@ module Tab exposing
     , columnCount
     , defVParams
     , getByVista
+    , getFocusedVista
     , initData
     , multipleRows
     , pathToString
@@ -100,7 +101,7 @@ type alias Ventanas =
 -}
 type alias Vista =
     { project : String
-    , kind : String
+    , path : String
     , identifier : String
     , content : Content
     }
@@ -985,3 +986,15 @@ multipleRows tabs =
         |> Dict.filter (\_ v -> Set.size v > 1)
         |> Dict.isEmpty
         |> not
+
+
+getFocusedVista : Model -> Maybe Vista
+getFocusedVista model =
+    model.focused
+        |> Maybe.andThen
+           (\tp -> Dict.get tp model.ventanas)
+        |> Maybe.map .vista
+        |> Maybe.andThen
+           (\vid -> Dict.get vid model.vistas)
+
+    

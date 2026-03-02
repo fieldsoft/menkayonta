@@ -1,8 +1,9 @@
-module Meta exposing (Model, TagField, Dialog)
+module Meta exposing (Dialog, Model, TagField)
 
-import Set exposing (Set)
 import Dict exposing (Dict)
 import Menkayonta exposing (DocId(..))
+import Set exposing (Set)
+import UUID
 
 
 type alias Model =
@@ -17,7 +18,8 @@ type alias Model =
 
 type alias TagField =
     { value : String
-    , docid : DocId
+    , docids : List DocId
+    , project : UUID.UUID
     }
 
 
