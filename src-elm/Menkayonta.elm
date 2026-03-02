@@ -46,6 +46,8 @@ type Value
     = MyPerson Person
     | MyInterlinear Interlinear
     | MySequence Sequence
+    | MyPage Page
+    | MyNote Note
     | MyTag Tag
     | MyProperty Property
     | MyUtility Utility
@@ -64,6 +66,7 @@ type Identifier
     | MyUtilityId UtilityId
     | MyModificationId ModificationId
     | MyLinkId LinkId
+    | MyNoteId NoteId
 
 
 {-| Most identifiers are identifiers for metadata. These are for
@@ -73,6 +76,7 @@ type DocId
     = PersonId String
     | InterlinearId UUID
     | SequenceId UUID
+    | PageId UUID
 
 
 {-| When working with documents in forms and other contexts, it is
@@ -110,6 +114,15 @@ type alias Interlinear =
     , text : String
     , ann : Annotations
     , translations : Dict Int Translation
+    }
+
+
+type alias Page =
+    { id : UUID
+    , rev : Maybe String
+    , version : Int
+    , title : String
+    , description : String
     }
 
 
@@ -151,6 +164,18 @@ type alias Link =
     { id : LinkId
     , rev : Maybe String
     , version : Int
+    }
+
+
+type alias NoteId =
+    DocId
+
+
+type alias Note =
+    { id : NoteId
+    , rev : Maybe String
+    , version : Int
+    , note : String
     }
 
 
@@ -396,6 +421,9 @@ identifierToString ident =
         MyDocId ident_ ->
             docIdToString ident_
 
+        MyNoteId ident_ ->
+            noteIdToString ident_
+
         MyTagId ident_ ->
             tagIdToString ident_
 
@@ -430,6 +458,10 @@ docIdToList docid =
             [ "sequence", UUID.toString uuid ]
                 |> List.map Url.percentEncode
 
+        PageId uuid ->
+            [ "page", UUID.toString uuid ]
+                |> List.map Url.percentEncode
+
 
 docIdToString : DocId -> String
 docIdToString docid =
@@ -449,6 +481,9 @@ docIdToSimpleString docid =
             UUID.toString uuid
 
         SequenceId uuid ->
+            UUID.toString uuid
+
+        PageId uuid ->
             UUID.toString uuid
 
 
@@ -494,6 +529,17 @@ linkIdToString linkid =
     in
     Url.Builder.custom Relative path [] linkid.fragment
 
+
+noteIdToString : NoteId -> String
+noteIdToString noteid =
+    let
+        path : List String
+        path =
+            [ "note " ]
+                |> List.append (docIdToList noteid)
+    in
+    Url.Builder.custom Relative path [] Nothing
+        
 
 tagIdToString : TagId -> String
 tagIdToString tagid =
@@ -556,8 +602,16 @@ identifierToReverse ident =
         MyLinkId ident_ ->
             Just <| linkIdToReverse ident_
 
+        MyNoteId _ ->
+            Just <| noteIdToReverse
+
         MyUtilityId _ ->
             Nothing
+
+
+noteIdToReverse : String
+noteIdToReverse =
+    Url.Builder.custom Relative [ "note" ] [] Nothing
 
 
 descriptionIdToReverse : DescriptionId -> String
@@ -657,8 +711,14 @@ decoder_ idstr =
         Just (MyDocId (SequenceId id_)) ->
             D.map MySequence <| sequenceDecoder id_
 
+        Just (MyDocId (PageId id_)) ->
+            D.map MyPage <| pageDecoder id_
+
         Just (MyDocId (PersonId id_)) ->
             D.map MyPerson <| personDecoder id_
+
+        Just (MyNoteId id_) ->
+            D.map MyNote <| noteDecoder id_
 
         Just (MyTagId id_) ->
             D.map MyTag <| tagDecoder id_
@@ -691,6 +751,16 @@ interlinearDecoder id =
         (D.field "text" D.string)
         (D.field "ann" annDecoder)
         (D.field "translations" (DE.dict2 D.int translationDecoder))
+
+
+pageDecoder : UUID -> D.Decoder Page
+pageDecoder id =
+    D.map5 Page
+        (D.succeed id)
+        (D.maybe <| D.field "_rev" D.string)
+        (D.field "version" D.int)
+        (D.field "title" D.string)
+        (D.field "description" D.string)
 
 
 sequenceDecoder : UUID -> D.Decoder Sequence
@@ -749,6 +819,15 @@ descriptionDecoder id =
         (D.field "_rev" <| D.nullable D.string)
         (D.field "version" D.int)
         (D.field "value" D.string)
+
+
+noteDecoder : NoteId -> D.Decoder Note
+noteDecoder id =
+    D.map4 Note
+        (D.succeed id)
+        (D.maybe <| D.field "_rev" D.string)
+        (D.field "version" D.int)
+        (D.field "note" D.string)
 
 
 tagDecoder : TagId -> D.Decoder Tag
@@ -813,8 +892,14 @@ encoder value =
         MySequence sequence ->
             sequenceEncoder sequence
 
+        MyPage page ->
+            pageEncoder page
+
         MyTag tag ->
             tagEncoder tag
+
+        MyNote note ->
+            noteEncoder note
 
         MyProperty property ->
             propertyEncoder property
@@ -880,6 +965,16 @@ interlinearEncoder int =
         |> addRev int.rev
 
 
+pageEncoder : Page -> E.Value
+pageEncoder page =
+    [ ( "_id", E.string (docIdToString <| PageId page.id) )
+    , ( "version", E.int page.version )
+    , ( "title", E.string page.title )
+    , ( "description", E.string page.description )
+    ]
+        |> addRev page.rev
+
+
 annEncoder : Annotations -> E.Value
 annEncoder ann =
     E.object
@@ -896,6 +991,15 @@ translationEncoder tr =
         [ ( "translation", E.string tr.translation )
         , ( "judgment", E.string tr.judgment )
         ]
+
+
+noteEncoder : Note -> E.Value
+noteEncoder note =
+    [ ( "_id", E.string (noteIdToString note.id) )
+    , ( "version", E.int note.version )
+    , ( "note", E.string note.note )
+    ]
+        |> addRev note.rev
 
 
 tagEncoder : Tag -> E.Value
