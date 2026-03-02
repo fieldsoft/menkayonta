@@ -45,6 +45,7 @@ application data in Menkayonta.
 type Value
     = MyPerson Person
     | MyInterlinear Interlinear
+    | MySequence Sequence
     | MyTag Tag
     | MyProperty Property
     | MyUtility Utility
@@ -71,6 +72,7 @@ documents, data structures that contain non-metadata.
 type DocId
     = PersonId String
     | InterlinearId UUID
+    | SequenceId UUID
 
 
 {-| When working with documents in forms and other contexts, it is
@@ -108,6 +110,17 @@ type alias Interlinear =
     , text : String
     , ann : Annotations
     , translations : Dict Int Translation
+    }
+
+
+type alias Sequence =
+    { id : UUID
+    , rev : Maybe String
+    , version : Int
+    , kind : String
+    , title : String
+    , description : String
+    , items : List { key : E.Value, value : Interlinear }
     }
 
 
@@ -221,8 +234,8 @@ stringToIdentifier s =
 idParser : UP.Parser (Identifier -> a) a
 idParser =
     let
-        interlinearId : UP.Parser (UUID.UUID -> b) b
-        interlinearId =
+        uuid : UP.Parser (UUID.UUID -> b) b
+        uuid =
             UP.custom "UUID"
                 (\s ->
                     UUID.fromString s
@@ -250,7 +263,9 @@ idParser =
         docId =
             UP.oneOf
                 [ UP.map InterlinearId
-                    (UP.s "interlinear" </> interlinearId)
+                    (UP.s "interlinear" </> uuid)
+                , UP.map SequenceId
+                    (UP.s "sequence" </> uuid)
                 , UP.map PersonId
                     (UP.s "person" </> personId)
                 ]
@@ -411,6 +426,10 @@ docIdToList docid =
             [ "interlinear", UUID.toString uuid ]
                 |> List.map Url.percentEncode
 
+        SequenceId uuid ->
+            [ "sequence", UUID.toString uuid ]
+                |> List.map Url.percentEncode
+
 
 docIdToString : DocId -> String
 docIdToString docid =
@@ -427,6 +446,9 @@ docIdToSimpleString docid =
             id
 
         InterlinearId uuid ->
+            UUID.toString uuid
+
+        SequenceId uuid ->
             UUID.toString uuid
 
 
@@ -630,35 +652,38 @@ decoder_ idstr =
     in
     case id of
         Just (MyDocId (InterlinearId id_)) ->
-            D.map MyInterlinear <| interlinearDecoder_ id_
+            D.map MyInterlinear <| interlinearDecoder id_
+
+        Just (MyDocId (SequenceId id_)) ->
+            D.map MySequence <| sequenceDecoder id_
 
         Just (MyDocId (PersonId id_)) ->
-            D.map MyPerson <| personDecoder_ id_
+            D.map MyPerson <| personDecoder id_
 
         Just (MyTagId id_) ->
-            D.map MyTag <| tagDecoder_ id_
+            D.map MyTag <| tagDecoder id_
 
         Just (MyDescriptionId id_) ->
-            D.map MyDescription <| descriptionDecoder_ id_
+            D.map MyDescription <| descriptionDecoder id_
 
         Just (MyUtilityId id_) ->
-            D.map MyUtility <| utilityDecoder_ id_
+            D.map MyUtility <| utilityDecoder id_
 
         Just (MyPropertyId id_) ->
-            D.map MyProperty <| propertyDecoder_ id_
+            D.map MyProperty <| propertyDecoder id_
 
         Just (MyModificationId id_) ->
-            D.map MyModification <| modificationDecoder_ id_
+            D.map MyModification <| modificationDecoder id_
 
         Just (MyLinkId id_) ->
-            D.map MyLink <| linkDecoder_ id_
+            D.map MyLink <| linkDecoder id_
 
         Nothing ->
             D.fail "Unrecognized Document Type"
 
 
-interlinearDecoder_ : UUID -> D.Decoder Interlinear
-interlinearDecoder_ id =
+interlinearDecoder : UUID -> D.Decoder Interlinear
+interlinearDecoder id =
     D.map6 Interlinear
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
@@ -666,6 +691,30 @@ interlinearDecoder_ id =
         (D.field "text" D.string)
         (D.field "ann" annDecoder)
         (D.field "translations" (DE.dict2 D.int translationDecoder))
+
+
+sequenceDecoder : UUID -> D.Decoder Sequence
+sequenceDecoder id =
+    let
+        intD : D.Decoder Interlinear
+        intD =
+            D.field "_id" UUID.jsonDecoder
+                |> D.andThen interlinearDecoder
+
+        itemDecoder : D.Decoder { key : E.Value, value : Interlinear }
+        itemDecoder =
+            D.map2 (\k v -> { key = k, value = v })
+                (D.field "key" D.value)
+                (D.field "value" intD)
+    in
+    D.map7 Sequence
+        (D.succeed id)
+        (D.maybe <| D.field "_rev" D.string)
+        (D.field "version" D.int)
+        (D.field "kind" D.string)
+        (D.field "title" D.string)
+        (D.field "description" D.string)
+        (D.field "items" (D.list itemDecoder))
 
 
 annDecoder : D.Decoder Annotations
@@ -684,8 +733,8 @@ translationDecoder =
         (D.field "judgment" D.string)
 
 
-personDecoder_ : String -> D.Decoder Person
-personDecoder_ id =
+personDecoder : String -> D.Decoder Person
+personDecoder id =
     D.map4 Person
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
@@ -693,8 +742,8 @@ personDecoder_ id =
         (D.field "names" (DE.dict2 D.int D.string))
 
 
-descriptionDecoder_ : DescriptionId -> D.Decoder Description
-descriptionDecoder_ id =
+descriptionDecoder : DescriptionId -> D.Decoder Description
+descriptionDecoder id =
     D.map4 Description
         (D.succeed id)
         (D.field "_rev" <| D.nullable D.string)
@@ -702,32 +751,32 @@ descriptionDecoder_ id =
         (D.field "value" D.string)
 
 
-tagDecoder_ : TagId -> D.Decoder Tag
-tagDecoder_ id =
+tagDecoder : TagId -> D.Decoder Tag
+tagDecoder id =
     D.map3 Tag
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
 
 
-propertyDecoder_ : PropertyId -> D.Decoder Property
-propertyDecoder_ id =
+propertyDecoder : PropertyId -> D.Decoder Property
+propertyDecoder id =
     D.map3 Property
         (D.succeed id)
         (D.field "_rev" <| D.nullable D.string)
         (D.field "version" D.int)
 
 
-linkDecoder_ : LinkId -> D.Decoder Link
-linkDecoder_ id =
+linkDecoder : LinkId -> D.Decoder Link
+linkDecoder id =
     D.map3 Link
         (D.succeed id)
         (D.field "_rev" <| D.nullable D.string)
         (D.field "version" D.int)
 
 
-modificationDecoder_ : ModificationId -> D.Decoder Modification
-modificationDecoder_ id =
+modificationDecoder : ModificationId -> D.Decoder Modification
+modificationDecoder id =
     D.map6 Modification
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
@@ -737,8 +786,8 @@ modificationDecoder_ id =
         (D.field "value" D.value)
 
 
-utilityDecoder_ : UtilityId -> D.Decoder Utility
-utilityDecoder_ id =
+utilityDecoder : UtilityId -> D.Decoder Utility
+utilityDecoder id =
     D.map4 Utility
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
@@ -760,6 +809,9 @@ encoder value =
 
         MyInterlinear interlinear ->
             interlinearEncoder interlinear
+
+        MySequence sequence ->
+            sequenceEncoder sequence
 
         MyTag tag ->
             tagEncoder tag
@@ -791,6 +843,26 @@ personEncoder person =
     , ( "names", E.dict String.fromInt E.string person.names )
     ]
         |> addRev person.rev
+
+
+sequenceEncoder : Sequence -> E.Value
+sequenceEncoder seq =
+    let
+        itemEncoder : { key : E.Value, value : Interlinear } -> E.Value
+        itemEncoder item =
+            E.object
+                [ ( "key", item.key )
+                , ( "value", interlinearEncoder item.value )
+                ]
+    in
+    [ ( "_id", E.string (docIdToString <| SequenceId seq.id) )
+    , ( "version", E.int seq.version )
+    , ( "kind", E.string seq.kind )
+    , ( "title", E.string seq.title )
+    , ( "description", E.string seq.description )
+    , ( "items", E.list itemEncoder seq.items )
+    ]
+        |> addRev seq.rev
 
 
 {-| Interlinears may be updated. The revision on encoding is not
