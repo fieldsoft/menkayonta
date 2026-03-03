@@ -37,6 +37,8 @@ type alias Model =
     , project : UUID
     , to : Dict String M.Value
     , from : List DT.DativeForm
+    , items : Dict Int UUID
+    , note : String
     , stage : Stage
     , time : Time.Posix
     , me : String
@@ -71,6 +73,7 @@ type Stage
     | UtilityS -- information associated with a parsing utility writen
       -- for dative.
     | InterlinearS -- the main document and remaining metadata
+    | NoteS -- The note, which relies of pervious stages
 
 
 {-| Random seeds are needed to generate Person documents. One of the
@@ -178,6 +181,8 @@ init flags =
               , project = project_
               , to = Dict.empty
               , from = []
+              , items = Dict.empty
+              , note = ""
               , stage = OriginalS
               , time = Time.millisToPosix flags.time
               , me = flags.me
@@ -200,6 +205,8 @@ init flags =
               , project = fakeuuid
               , to = Dict.empty
               , from = []
+              , items = Dict.empty
+              , note = ""
               , stage = OriginalS
               , time = Time.millisToPosix 0
               , me = flags.me
@@ -213,6 +220,8 @@ init flags =
               , project = project_
               , to = Dict.empty
               , from = []
+              , items = Dict.empty
+              , note = ""
               , stage = OriginalS
               , time = Time.millisToPosix 0
               , me = "nobody@example.com"
@@ -235,6 +244,8 @@ init flags =
               , project = fakeuuid
               , to = Dict.empty
               , from = []
+              , items = Dict.empty
+              , note = ""
               , stage = OriginalS
               , time = Time.millisToPosix 0
               , me = "nobody@example.com"
@@ -277,15 +288,58 @@ update msg model =
         Next ->
             case model.from of
                 -- An empty list indicates that processing has
-                -- finished.
+                -- finished. The sequence object still needs to be
+                -- added.
                 [] ->
                     let
+                        uuid : UUID.UUID
+                        uuid =
+                            let
+                                ( uuid_, _ ) =
+                                    UUID.step model.seeds
+                            in
+                            uuid_
+
+                        docid : M.DocId
+                        docid =
+                            M.SequenceId uuid
+
+                        stringid : String
+                        stringid =
+                            docid |> M.MyDocId |> M.identifierToString
+
+                        sequence : M.Sequence
+                        sequence =
+                            { id = uuid
+                            , rev = Nothing
+                            , version = 1
+                            , kind = "int"
+                            , title = "Imported Dative"
+                            , description = "The imported values listed by their original ID"
+                            , items =
+                                Dict.foldl
+                                    (\k v acc ->
+                                        { key = E.int k
+                                        , value = v
+                                        }
+                                            :: acc
+                                    )
+                                    []
+                                    model.items
+                            }
+
+                        newto : Dict String M.Value
+                        newto =
+                            Dict.insert stringid
+                                (M.MySequence sequence)
+                                model.to
+
                         job : Job
                         job =
                             { project =
                                 model.project
                             , payload =
-                                Dict.values model.to
+                                Dict.values newto
                                     |> E.list M.encoder
                             }
 
@@ -316,9 +370,11 @@ resolveStage curr model =
     case model.stage of
         -- At this stage, the original dative 'form' object is saved
         -- in a `modification` document. This makes it available for
-        -- later examination if needed. In most other cases there is a
-        -- stage handling function associated with the stage, but
-        -- OriginalS is fairly simple.
+        -- later examination if needed. It also adds id values to
+        -- `items`, so that a Menkayonta.Sequence can capture the
+        -- original ordering. In most other cases there is a stage
+        -- handling function associated with the stage, but OriginalS
+        -- is fairly simple.
         OriginalS ->
             let
                 constm : ConstructM
@@ -338,7 +394,11 @@ resolveStage curr model =
                 newto =
                     Dict.insert (M.identifierToString m.id) m.val model.to
             in
-            ( { model | to = newto, stage = SpeakerS }
+            ( { model
+                | to = newto
+                , stage = SpeakerS
+                , items = Dict.insert curr.id curr.uuid model.items
+              }
             , next "Completed OriginalS"
             )
 
@@ -453,6 +513,42 @@ resolveStage curr model =
         InterlinearS ->
             interlinearStage curr model
 
+        NoteS ->
+            noteStage curr model
+
+
+noteStage : DT.DativeForm -> Model -> ( Model, Cmd Msg )
+noteStage curr model =
+    let
+        docid : M.DocId
+        docid =
+            M.InterlinearId curr.uuid
+
+        stringid : String
+        stringid =
+            docid |> M.MyNoteId |> M.identifierToString
+
+        note : M.Note
+        note =
+            { id = docid
+            , rev = Nothing
+            , version = 1
+            , note = model.note
+            }
+
+        newto : Dict String M.Value
+        newto =
+            Dict.insert stringid (M.MyNote note) model.to
+    in
+    ( { model
+        | stage = OriginalS
+        , note = ""
+        , from = tail model.from
+        , to = newto
+      }
+    , next "Completed NoteS"
+    )
+
 
 interlinearStage : DT.DativeForm -> Model -> ( Model, Cmd Msg )
 interlinearStage curr model =
@@ -494,11 +590,18 @@ interlinearStage curr model =
         stringid =
             docid |> M.MyDocId |> M.identifierToString
 
-        nptrans : Maybe IdVal
-        nptrans =
-            constNonBlankDesc "narrow phonetic transription"
-                curr.narrow_phonetic_transcription
-                docid
+        note : String
+        note =
+            if String.isEmpty curr.narrow_phonetic_transcription then
+                model.note
+
+            else
+                String.concat
+                    [ model.note
+                    , "# Narrow phonetic transcription\n\n"
+                    , curr.narrow_phonetic_transcription
+                    , "\n\n"
+                    ]
 
         syntax : Maybe IdVal
         syntax =
@@ -540,7 +643,6 @@ interlinearStage curr model =
                             indict
                             tags
                    )
-                |> when nptrans
                 |> when syntax
                 |> when semantics
                 |> when status
@@ -548,9 +650,9 @@ interlinearStage curr model =
                 |> when source
     in
     ( { model
-        | stage = OriginalS
+        | stage = NoteS
         , to = newto
-        , from = tail model.from
+        , note = note
       }
     , next "Completed InterlinearS"
     )
@@ -726,11 +828,18 @@ elicitorStage { docid, curr, elicitor, model } =
         people =
             Dict.insert elicitor.id p.person model.people
 
-        -- Associate speaker comment information with
-        -- the interlinear document.
-        comment_ : Maybe IdVal
-        comment_ =
-            constNonBlankDesc "comment" curr.comments docid
+        note : String
+        note =
+            if String.isEmpty curr.comments then
+                model.note
+
+            else
+                String.concat
+                    [ model.note
+                    , "# Comments\n\n"
+                    , curr.comments
+                    , "\n\n"
+                    ]
 
         -- Add a modification event for the elcitation
         -- date, if it exists.
@@ -749,13 +858,13 @@ elicitorStage { docid, curr, elicitor, model } =
         newto : Dict String M.Value
         newto =
             Dict.insert p.stringId (M.MyPerson p.person) model.to
-                |> when comment_
                 |> when modDate_
                 |> when elicitationMethod
     in
     ( { model
         | people = people
         , to = newto
+        , note = note
         , stage = EntererS
       }
     , next "Completed ElicitorS"
@@ -831,6 +940,19 @@ speakerStage { docid, curr, speaker, model } =
         speakerComment =
             constNonBlankDesc "speaker comment" curr.speaker_comments docid
 
+        note : String
+        note =
+            if String.isEmpty curr.speaker_comments then
+                model.note
+
+            else
+                String.concat
+                    [ model.note
+                    , "# Speaker Comment\n\n"
+                    , curr.speaker_comments
+                    , "\n\n"
+                    ]
+
         -- Sequentially insert new records to the
         -- output "to" dictionary.
         newto : Dict String M.Value
@@ -845,6 +967,7 @@ speakerStage { docid, curr, speaker, model } =
     ( { model
         | to = newto
         , people = people
+        , note = note
         , stage = ElicitorS
       }
     , next "Completed SpeakerS"
