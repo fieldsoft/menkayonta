@@ -10,9 +10,13 @@ module Menkayonta exposing
     , LinkId
     , Modification
     , ModificationId
+    , Note
+    , NoteId
+    , Page
     , Person
     , Property
     , PropertyId
+    , Sequence
     , Tag
     , TagId
     , Translation
@@ -133,7 +137,7 @@ type alias Sequence =
     , kind : String
     , title : String
     , description : String
-    , items : List { key : E.Value, value : Interlinear }
+    , items : List { key : E.Value, value : UUID.UUID }
     }
 
 
@@ -291,6 +295,8 @@ idParser =
                     (UP.s "interlinear" </> uuid)
                 , UP.map SequenceId
                     (UP.s "sequence" </> uuid)
+                , UP.map PageId
+                    (UP.s "page" </> uuid)
                 , UP.map PersonId
                     (UP.s "person" </> personId)
                 ]
@@ -376,6 +382,8 @@ idParser =
                 </> UP.string
                 </> UP.fragment identity
             )
+        , UP.map MyNoteId
+            (docId </> UP.s "note")
         , UP.map descriptionId
             (docId
                 </> UP.s "description"
@@ -539,7 +547,7 @@ noteIdToString noteid =
                 |> List.append (docIdToList noteid)
     in
     Url.Builder.custom Relative path [] Nothing
-        
+
 
 tagIdToString : TagId -> String
 tagIdToString tagid =
@@ -766,16 +774,11 @@ pageDecoder id =
 sequenceDecoder : UUID -> D.Decoder Sequence
 sequenceDecoder id =
     let
-        intD : D.Decoder Interlinear
-        intD =
-            D.field "_id" UUID.jsonDecoder
-                |> D.andThen interlinearDecoder
-
-        itemDecoder : D.Decoder { key : E.Value, value : Interlinear }
+        itemDecoder : D.Decoder { key : E.Value, value : UUID.UUID }
         itemDecoder =
             D.map2 (\k v -> { key = k, value = v })
                 (D.field "key" D.value)
-                (D.field "value" intD)
+                (D.field "value" UUID.jsonDecoder)
     in
     D.map7 Sequence
         (D.succeed id)
@@ -933,11 +936,11 @@ personEncoder person =
 sequenceEncoder : Sequence -> E.Value
 sequenceEncoder seq =
     let
-        itemEncoder : { key : E.Value, value : Interlinear } -> E.Value
+        itemEncoder : { key : E.Value, value : UUID.UUID } -> E.Value
         itemEncoder item =
             E.object
                 [ ( "key", item.key )
-                , ( "value", interlinearEncoder item.value )
+                , ( "value", E.string (UUID.toString item.value) )
                 ]
     in
     [ ( "_id", E.string (docIdToString <| SequenceId seq.id) )
