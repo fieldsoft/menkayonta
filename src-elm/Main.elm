@@ -240,7 +240,7 @@ update msg model =
         -- A message for doing nothing
         Ms Msg.None ->
             ( model, Cmd.none )
-
+                
         -- A message of many messages
         MultiMsg msgs ->
             ( model, msgs |> List.map sendMsg |> Cmd.batch )

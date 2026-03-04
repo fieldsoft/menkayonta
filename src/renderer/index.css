@@ -165,3 +165,9 @@ div.hidden {
 .gloss-controls {
     text-align: right;
 }
+
+/* Note rendering */
+
+h1.note-title {
+    font-size: 150%;
+}
