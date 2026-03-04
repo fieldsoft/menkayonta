@@ -39,6 +39,7 @@ type ReceiveType
     | IInterlinearListing E.Value
     | IPersonListing E.Value
     | IReload E.Value
+    | INote E.Value
 
 
 type RequestType
@@ -47,4 +48,5 @@ type RequestType
     | OComposite String
     | OPersonListing
     | ODelete Revision String
+    | ONoteFor M.Identifier M.Value
 

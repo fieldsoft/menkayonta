@@ -7,6 +7,7 @@ import Dict exposing (Dict)
 import Display.Composite
 import Display.InterlinearListing
 import Display.Meta
+import Display.Note
 import Display.PersonListing
 import Form.Global
 import Form.Importer
@@ -292,7 +293,7 @@ update msg model =
                         req rt =
                             rt |> Msg.Request env.project |> Ms |> sendMsg
                     in
-                    case Debug.log env.address (String.split "/" env.address) of
+                    case String.split "/" env.address of
                         [ "interlinear" ] ->
                             ( model
                             , req OInterlinearListing
@@ -315,6 +316,63 @@ update msg model =
 
                         _ ->
                             ( model, Cmd.none )
+
+        Ms (Msg.Received (INote envelope)) ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    let
+                        dnote : M.Value -> D.Decoder M.Note
+                        dnote n =
+                            case n of
+                                M.MyNote note ->
+                                    D.succeed note
+
+                                _ ->
+                                    D.fail "Expected a Note"
+                                    
+                        ndecoder : D.Decoder { note : M.Note
+                                             , doc : M.Value
+                                             }
+                        ndecoder =
+                            D.map2 (\n d ->
+                                        { note = n
+                                        , doc = d
+                                        }
+                                   )
+                                (D.field "note" M.decoder
+                                     |> D.andThen dnote
+                                )
+                                (D.field "doc" M.decoder)
+                    in
+                    case D.decodeValue ndecoder env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok c ->
+                           handleReceivedNote env.project
+                                        model
+                                        c.doc
+                                        c.note
+
+        Ms (Msg.Request project (ONoteFor id value)) ->
+            let
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                        { command = "request-note-for"
+                        , project = project
+                        , address = M.identifierToString id
+                        , content = M.encoder value
+                        }
+            in
+            ( model, send envelope )
 
         Ms (Msg.Request project (ODelete rev id)) ->
             case rev of
@@ -544,12 +602,6 @@ update msg model =
                         , getByVista id_ model.tabs.ventanas
                         )
                     of
-                        ( Nothing, _ ) ->
-                            Nothing
-
-                        ( _, Nothing ) ->
-                            Nothing
-
                         ( Just v, Just t ) ->
                             case UUID.fromString v.project of
                                 Err _ ->
@@ -557,6 +609,9 @@ update msg model =
 
                                 Ok uuid ->
                                     Just ( v, t, uuid )
+
+                        _ ->
+                            Nothing
             in
             case maybeData of
                 Nothing ->
@@ -1251,7 +1306,7 @@ update msg model =
                                 model
 
         Ms (Msg.Received (IComposite envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
+            case Debug.log "decode envelope" (D.decodeValue envelopeDecoder envelope) of
                 Err e ->
                     ( { model | error = D.errorToString e }
                     , Cmd.none
@@ -1261,7 +1316,7 @@ update msg model =
                     let
                         doc : Result.Result D.Error M.Composite
                         doc =
-                            reduceDoc env
+                            Debug.log "reducing" (reduceDoc env)
                     in
                     case doc of
                         Ok doc_ ->
@@ -1848,6 +1903,100 @@ prepInterlinearSave int project me time =
     }
 
 
+handleReceivedNote :
+    UUID.UUID
+    -> Model
+    -> M.Value
+    -> M.Note
+    -> ( Model, Cmd Msg )
+handleReceivedNote project model doc note =
+    let
+        projectStr : String
+        projectStr =
+             UUID.toString project
+
+        titlepart : String
+        titlepart =
+            case doc of
+                M.MyInterlinear int ->
+                    int.text
+
+                M.MyPerson person ->
+                    person.id
+
+                M.MySequence seq ->
+                    seq.title
+
+                M.MyPage page ->
+                    page.title
+
+                _ ->
+                    ""
+
+        desc : String
+        desc =
+            case doc of
+                M.MyInterlinear int ->
+                    int.translations
+                        |> Dict.values
+                        |> List.head
+                        |> Maybe.map .translation
+                        |> Maybe.withDefault ""
+
+                M.MyPerson person ->
+                    person.names
+                        |> Dict.values
+                        |> List.head
+                        |> Maybe.withDefault person.id
+
+                M.MySequence seq ->
+                    seq.title
+
+                M.MyPage page ->
+                    page.title
+
+                _ ->
+                    ""
+
+        full : String
+        full =
+            String.concat [ "Note: ", titlepart ]
+
+        short : String
+        short =
+            if String.length titlepart > 7 then
+                String.concat
+                    [ "Note: "
+                    , String.left 7 titlepart
+                    , "..."
+                    ]
+
+            else
+                full
+
+        content : Content
+        content =
+            Content.NTV { title = titlepart
+                        , description = desc
+                        , note = note
+                        }
+
+        idstr : String
+        idstr =
+            M.identifierToString (M.MyNoteId note.id)
+                
+        vista : Tab.Vista
+        vista =
+            { project = projectStr
+            , path = idstr
+            , identifier = "NOTE::" ++ idstr
+            , content = content
+            }
+        
+    in
+    handleVista vista short full model
+
+
 handleVista : Vista -> String -> String -> Model -> ( Model, Cmd Msg )
 handleVista vista short full model =
     let
@@ -1920,6 +2069,7 @@ subscriptions model =
         , receivedComposite <| r IComposite
         , receivedViewArea <| r IViewArea
         , receivedReloadRequest <| r IReload
+        , receivedNote <| r INote
         , newProject <| \_ -> Ms Msg.NewProject
         , importOptions EditImporter
         , globalSettings ShowGlobalSettings
@@ -2221,6 +2371,9 @@ viewVista model tp vista =
         Content.PR pmodel ->
             Form.Project.view pmodel |> Html.map (PR pmodel.identifier)
 
+        Content.NTV note ->
+            Display.Note.view note |> Html.map Ms
+                
         Content.ITV composite ->
             let
                 vp : Maybe UUID.UUID
@@ -2583,7 +2736,6 @@ reduceDoc env =
                     { doc = Nothing
                     , tags = []
                     , properties = []
-                    , descriptions = []
                     , modifications = []
                     , links = []
                     }
@@ -2649,6 +2801,9 @@ port receivedInterlinearReversals : (E.Value -> msg) -> Sub msg
 
 
 port receivedComposite : (E.Value -> msg) -> Sub msg
+
+
+port receivedNote : (E.Value -> msg) -> Sub msg
 
 
 {-| Received information about client area size.

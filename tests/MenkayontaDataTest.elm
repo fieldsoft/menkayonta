@@ -98,6 +98,17 @@ stringToIdTests =
                             ]
                             |> stringToIdentifier
                         )
+            , test "Note interlinear" <|
+                \_ ->
+                    Expect.equal
+                        (intid |> MyNoteId |> Just)
+                        (String.join "/"
+                            [ "interlinear"
+                            , UUID.toString uuid
+                            , "note"
+                            ]
+                            |> stringToIdentifier
+                        )
             , test "Tag person" <|
                 \_ ->
                     Expect.equal
@@ -176,42 +187,6 @@ stringToIdTests =
                             ]
                             |> stringToIdentifier
                         )
-            , test "Description interlinear" <|
-                \_ ->
-                    Expect.equal
-                        ({ kind = "descriptionname"
-                         , docid = intid
-                         , fragment = Nothing
-                         }
-                            |> MyDescriptionId
-                            |> Just
-                        )
-                        (String.join "/"
-                            [ "interlinear"
-                            , UUID.toString uuid
-                            , "description"
-                            , "descriptionname"
-                            ]
-                            |> stringToIdentifier
-                        )
-            , test "Description person" <|
-                \_ ->
-                    Expect.equal
-                        ({ kind = "descriptionname"
-                         , docid = intid2
-                         , fragment = Nothing
-                         }
-                            |> MyDescriptionId
-                            |> Just
-                        )
-                        (String.join "/"
-                            [ "person"
-                            , "e@w.com"
-                            , "description"
-                            , "descriptionname"
-                            ]
-                            |> stringToIdentifier
-                        )
             ]
         , describe "with fragment"
             [ test "Tag" <|
@@ -229,46 +204,6 @@ stringToIdTests =
                             , UUID.toString uuid
                             , "tag"
                             , "tagname"
-                            ]
-                            |> (\x -> [ x, "$.store.book[3].author" ])
-                            |> String.join "#"
-                            |> stringToIdentifier
-                        )
-            , test "Description interlinear" <|
-                \_ ->
-                    Expect.equal
-                        ({ kind = "descriptionname"
-                         , docid = intid
-                         , fragment = Just "$.store.book[3].author"
-                         }
-                            |> MyDescriptionId
-                            |> Just
-                        )
-                        (String.join "/"
-                            [ "interlinear"
-                            , UUID.toString uuid
-                            , "description"
-                            , "descriptionname"
-                            ]
-                            |> (\x -> [ x, "$.store.book[3].author" ])
-                            |> String.join "#"
-                            |> stringToIdentifier
-                        )
-            , test "Description person" <|
-                \_ ->
-                    Expect.equal
-                        ({ kind = "descriptionname"
-                         , docid = intid2
-                         , fragment = Just "$.store.book[3].author"
-                         }
-                            |> MyDescriptionId
-                            |> Just
-                        )
-                        (String.join "/"
-                            [ "person"
-                            , "e@w.com"
-                            , "description"
-                            , "descriptionname"
                             ]
                             |> (\x -> [ x, "$.store.book[3].author" ])
                             |> String.join "#"
@@ -338,6 +273,19 @@ idToStringTests =
                         |> MyTagId
                         |> identifierToString
                     )
+        , test "Note interlinear without fragment" <|
+            \_ ->
+                Expect.equal
+                    (String.join "/"
+                        [ "interlinear"
+                        , UUID.toString uuid
+                        , "note"
+                        ]
+                    )
+                    (intid
+                        |> MyNoteId
+                        |> identifierToString
+                    )
         , test "Tag person without fragment" <|
             \_ ->
                 Expect.equal
@@ -372,23 +320,6 @@ idToStringTests =
                      , fragment = Nothing
                      }
                         |> MyPropertyId
-                        |> identifierToString
-                    )
-        , test "Description without fragment" <|
-            \_ ->
-                Expect.equal
-                    (String.join "/"
-                        [ "interlinear"
-                        , UUID.toString uuid
-                        , "description"
-                        , "descriptionname"
-                        ]
-                    )
-                    ({ kind = "descriptionname"
-                     , docid = intid
-                     , fragment = Nothing
-                     }
-                        |> MyDescriptionId
                         |> identifierToString
                     )
         , test "Modification without fragment" <|

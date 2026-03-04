@@ -1,8 +1,6 @@
 module Menkayonta exposing
     ( Annotations
     , Composite
-    , Description
-    , DescriptionId
     , DocId(..)
     , Identifier(..)
     , Interlinear
@@ -24,6 +22,7 @@ module Menkayonta exposing
     , UtilityId
     , Value(..)
     , compositeBuilder
+    , decoder
     , encoder
     , identifierToReverse
     , identifierToString
@@ -56,7 +55,6 @@ type Value
     | MyProperty Property
     | MyUtility Utility
     | MyModification Modification
-    | MyDescription Description
     | MyLink Link
 
 
@@ -65,7 +63,6 @@ type Value
 type Identifier
     = MyDocId DocId
     | MyTagId TagId
-    | MyDescriptionId DescriptionId
     | MyPropertyId PropertyId
     | MyUtilityId UtilityId
     | MyModificationId ModificationId
@@ -91,7 +88,6 @@ type alias Composite =
     { doc : Maybe Value
     , tags : List Tag
     , properties : List Property
-    , descriptions : List Description
     , modifications : List Modification
     , links : List Link
     }
@@ -138,21 +134,6 @@ type alias Sequence =
     , title : String
     , description : String
     , items : List { key : E.Value, value : UUID.UUID }
-    }
-
-
-type alias DescriptionId =
-    { kind : String
-    , docid : DocId
-    , fragment : Maybe String
-    }
-
-
-type alias Description =
-    { id : DescriptionId
-    , rev : Maybe String
-    , version : Int
-    , value : String
     }
 
 
@@ -314,14 +295,6 @@ idParser =
             }
                 |> MyTagId
 
-        descriptionId : DocId -> String -> Maybe String -> Identifier
-        descriptionId docid kind fragment =
-            { kind = urlDecode kind
-            , docid = docid
-            , fragment = fragment
-            }
-                |> MyDescriptionId
-
         propertyId :
             DocId
             -> String
@@ -384,12 +357,6 @@ idParser =
             )
         , UP.map MyNoteId
             (docId </> UP.s "note")
-        , UP.map descriptionId
-            (docId
-                </> UP.s "description"
-                </> UP.string
-                </> UP.fragment identity
-            )
         , UP.map utilityId
             (UP.s "utility"
                 </> UP.string
@@ -437,9 +404,6 @@ identifierToString ident =
 
         MyPropertyId ident_ ->
             propertyIdToString ident_
-
-        MyDescriptionId ident_ ->
-            descriptionIdToString ident_
 
         MyModificationId ident_ ->
             modificationIdToString ident_
@@ -495,18 +459,6 @@ docIdToSimpleString docid =
             UUID.toString uuid
 
 
-descriptionIdToString : DescriptionId -> String
-descriptionIdToString descriptionid =
-    let
-        path : List String
-        path =
-            [ "description", descriptionid.kind ]
-                |> List.map Url.percentEncode
-                |> List.append (docIdToList descriptionid.docid)
-    in
-    Url.Builder.custom Relative path [] descriptionid.fragment
-
-
 modificationIdToString : ModificationId -> String
 modificationIdToString modid =
     let
@@ -543,7 +495,7 @@ noteIdToString noteid =
     let
         path : List String
         path =
-            [ "note " ]
+            [ "note" ]
                 |> List.append (docIdToList noteid)
     in
     Url.Builder.custom Relative path [] Nothing
@@ -601,9 +553,6 @@ identifierToReverse ident =
         MyPropertyId ident_ ->
             Just <| propertyIdToReverse ident_
 
-        MyDescriptionId ident_ ->
-            Just <| descriptionIdToReverse ident_
-
         MyModificationId ident_ ->
             Just <| modificationIdToReverse ident_
 
@@ -620,19 +569,6 @@ identifierToReverse ident =
 noteIdToReverse : String
 noteIdToReverse =
     Url.Builder.custom Relative [ "note" ] [] Nothing
-
-
-descriptionIdToReverse : DescriptionId -> String
-descriptionIdToReverse descriptionid =
-    let
-        path : List String
-        path =
-            [ "description"
-            , descriptionid.kind
-            ]
-                |> List.map Url.percentEncode
-    in
-    Url.Builder.custom Relative path [] Nothing
 
 
 linkIdToReverse : LinkId -> String
@@ -731,9 +667,6 @@ decoder_ idstr =
         Just (MyTagId id_) ->
             D.map MyTag <| tagDecoder id_
 
-        Just (MyDescriptionId id_) ->
-            D.map MyDescription <| descriptionDecoder id_
-
         Just (MyUtilityId id_) ->
             D.map MyUtility <| utilityDecoder id_
 
@@ -813,15 +746,6 @@ personDecoder id =
         (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
         (D.field "names" (DE.dict2 D.int D.string))
-
-
-descriptionDecoder : DescriptionId -> D.Decoder Description
-descriptionDecoder id =
-    D.map4 Description
-        (D.succeed id)
-        (D.field "_rev" <| D.nullable D.string)
-        (D.field "version" D.int)
-        (D.field "value" D.string)
 
 
 noteDecoder : NoteId -> D.Decoder Note
@@ -912,9 +836,6 @@ encoder value =
 
         MyModification modification ->
             modificationEncoder modification
-
-        MyDescription description ->
-            descriptionEncoder description
 
         MyLink link ->
             linkEncoder link
@@ -1030,15 +951,6 @@ utilityEncoder utility =
         |> addRev utility.rev
 
 
-descriptionEncoder : Description -> E.Value
-descriptionEncoder description =
-    [ ( "_id", E.string (descriptionIdToString description.id) )
-    , ( "version", E.int description.version )
-    , ( "value", E.string description.value )
-    ]
-        |> addRev description.rev
-
-
 linkEncoder : Link -> E.Value
 linkEncoder link =
     [ ( "_id", E.string (linkIdToString link.id) )
@@ -1086,9 +998,6 @@ compositeBuilder v comp =
         MyProperty p ->
             { comp | properties = p :: comp.properties }
 
-        MyDescription d ->
-            { comp | descriptions = d :: comp.descriptions }
-
         MyModification m ->
             { comp | modifications = m :: comp.modifications }
 
@@ -1098,5 +1007,17 @@ compositeBuilder v comp =
         MyUtility _ ->
             comp
 
-        other ->
-            { comp | doc = Just other }
+        MyNote _ ->
+            comp
+
+        MyInterlinear i ->
+            { comp | doc = Just (MyInterlinear i) }
+
+        MyPerson p ->
+            { comp | doc = Just (MyPerson p) }
+
+        MySequence s ->
+            { comp | doc = Just (MySequence s) }
+
+        MyPage p ->
+            { comp | doc = Just (MyPage p) }

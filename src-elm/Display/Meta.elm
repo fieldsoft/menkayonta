@@ -1,6 +1,5 @@
 module Display.Meta exposing
     ( Msg
-    , descriptions
     , links
     , modifications
     , properties
@@ -16,7 +15,6 @@ import Html.Events as Event
 import Menkayonta
     exposing
         ( DocId
-        , Description
         , Identifier(..)
         , Link
         , Modification
@@ -492,20 +490,4 @@ tagField tagfield =
                 Msg.ChangeTag Nothing
             ]
             [ Html.text "Cancel" ]
-        ]
-
-
-descriptions : List Description -> Html.Html Msg
-descriptions descs =
-    Html.div [] <|
-        List.map description descs
-
-
-description : Description -> Html.Html Msg
-description desc =
-    Html.details []
-        [ Html.summary []
-            [ Html.text desc.id.kind ]
-        , Html.p []
-            [ Html.text desc.value ]
         ]

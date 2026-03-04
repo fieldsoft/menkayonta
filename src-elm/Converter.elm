@@ -934,12 +934,6 @@ speakerStage { docid, curr, speaker, model } =
         speakerLink =
             maybeConstLink "speaker" docid personid
 
-        -- Associate speaker comment information with
-        -- the interlinear document.
-        speakerComment : Maybe IdVal
-        speakerComment =
-            constNonBlankDesc "speaker comment" curr.speaker_comments docid
-
         note : String
         note =
             if String.isEmpty curr.speaker_comments then
@@ -962,7 +956,6 @@ speakerStage { docid, curr, speaker, model } =
                 |> when docDialect
                 |> when speakerRole
                 |> when speakerLink
-                |> when speakerComment
     in
     ( { model
         | to = newto
@@ -1065,33 +1058,6 @@ constNonBlankProp kind str docid =
 
     else
         Just <| constructProperty kind str docid
-
-
-constructDescription : String -> String -> M.DocId -> IdVal
-constructDescription kind value docid =
-    { id =
-        { kind = kind
-        , docid = docid
-        , fragment = Nothing
-        }
-    , rev = Nothing
-    , version = 1
-    , value = value
-    }
-        |> (\x ->
-                { id = M.MyDescriptionId x.id
-                , val = M.MyDescription x
-                }
-           )
-
-
-constNonBlankDesc : String -> String -> M.DocId -> Maybe IdVal
-constNonBlankDesc kind c docid =
-    if not (String.isEmpty c) then
-        constructDescription kind c docid |> Just
-
-    else
-        Nothing
 
 
 personIdString : String -> String

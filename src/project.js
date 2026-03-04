@@ -113,12 +113,14 @@ const handleBulk = async (docs, address) => {
   try {
     await gvs.db.bulkDocs(docs)
 
-    process.parentPort.postMessage({
-      command: 'received-reload-request',
-      content: null,
-      project: gvs.identifier,
-      address: address,
-    })
+    if (address) {
+      process.parentPort.postMessage({
+        command: 'received-reload-request',
+        content: null,
+        project: gvs.identifier,
+        address: address,
+      })
+    }
   } catch (e) {
     error(e)
   }
@@ -233,6 +235,35 @@ const handleRequestDocId = async (docid) => {
   }
 }
 
+const handleRequestNoteFor = async (docid, context) => {
+  try {
+    const note = await gvs.db.get(`${docid}/note`)
+
+    process.parentPort.postMessage({
+      command: 'received-note',
+      content: { note: note, doc: context },
+      project: gvs.identifier,
+      address: docid,
+    })
+  } catch (e) {
+    if (e.status === 404) {
+      // Succeed even if it doesn't exist, yet.
+      // A new note will be created for the object.
+      process.parentPort.postMessage({
+        command: 'received-note',
+        content: {
+          note: { _id: `${docid}/note`, version: 1, note: 'Nothing yet.' },
+          doc: context,
+        },
+        project: gvs.identifier,
+        address: docid,
+      })
+    } else {
+      error(e)
+    }
+  }
+}
+
 const handleRequestComposite = async (docid) => {
   try {
     if (typeof docid === 'string') {
@@ -323,6 +354,10 @@ const handleMainMessage = (m) => {
     case 'request-docid': {
       handleRequestDocId(m.data.docid)
       break
+    }
+
+    case 'request-note-for': {
+      handleRequestNoteFor(m.data.address, m.data.content)
     }
 
     case 'request-composite': {

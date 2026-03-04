@@ -3,8 +3,7 @@ module Display.Composite exposing (Model, Msg, view)
 import Display.InterlinearListing
 import Display.Meta
     exposing
-        ( descriptions
-        , links
+        ( links
         , modifications
         , properties
         , tags
@@ -26,8 +25,8 @@ import UUID
 
 
 type alias Msg =
-      Msg.Msg
-          
+    Msg.Msg
+
 
 type alias Model =
     { composite : Composite
@@ -39,6 +38,17 @@ view : Model -> Html.Html Msg
 view model =
     case model.composite.doc of
         Just (MyInterlinear int) ->
+            let
+                id : Identifier
+                id =
+                    int.id
+                        |> InterlinearId
+                        |> MyDocId
+
+                doc : Value
+                doc =
+                    MyInterlinear int
+            in
             Html.div []
                 [ Html.nav []
                     [ Html.ul []
@@ -50,6 +60,16 @@ view model =
                                     |> Event.onClick
                                 ]
                                 [ Html.text "Edit" ]
+                            ]
+                        , Html.li []
+                            [ Html.a
+                                [ Attr.href "#"
+                                , Msg.ONoteFor id doc
+                                    |> Msg.Request model.project
+                                    |> Msg.UserClick
+                                    |> Event.onClick
+                                ]
+                                [ Html.text "Note" ]
                             ]
                         ]
                     ]
@@ -65,7 +85,7 @@ viewInterlinear model int =
     let
         intid : DocId
         intid =
-             InterlinearId int.id
+            InterlinearId int.id
     in
     Html.div [ Attr.class "docview" ]
         [ Html.h2 []
@@ -88,17 +108,6 @@ viewInterlinear model int =
         , Html.div [ Attr.class "metaview" ]
             [ tags model.project intid model.composite.tags
             , properties model.project intid model.composite.properties
-            , if not (List.isEmpty model.composite.descriptions) then
-                Html.article []
-                    [ Html.header []
-                        [ Html.h3 []
-                            [ Html.text "Descriptions" ]
-                        ]
-                    , descriptions model.composite.descriptions
-                    ]
-
-              else
-                Html.text ""
             , if not (List.isEmpty model.composite.links) then
                 Html.article []
                     [ Html.header []
