@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('received-composite', (_event, data) => callback(data)),
   onReceivedNote: (callback) =>
     ipcRenderer.on('received-note', (_event, data) => callback(data)),
+  onReceivedNoteFor: (callback) =>
+    ipcRenderer.on('received-note-for', (_event, data) => callback(data)),
   onReceivedDoc: (callback) =>
     ipcRenderer.on('received-doc', (_event, data) => callback(data)),
   onReceivedReloadRequest: (callback) =>

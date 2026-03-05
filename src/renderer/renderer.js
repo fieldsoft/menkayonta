@@ -63,6 +63,10 @@ window.electronAPI.onReceivedNote((data) => {
   app.ports.receivedNote.send(data)
 })
 
+window.electronAPI.onReceivedNoteFor((data) => {
+  app.ports.receivedNoteFor.send(data)
+})
+
 window.electronAPI.onReceivedComposite((data) => {
   app.ports.receivedComposite.send(data)
 })

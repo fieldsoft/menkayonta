@@ -4,6 +4,7 @@ import Form.Global
 import Form.Importer
 import Form.Interlinear
 import Form.Project
+import Display.Note
 import Menkayonta
     exposing
         ( Composite
@@ -33,7 +34,7 @@ type Content
     | ITV Composite
     | ITE Form.Interlinear.Model
     | PLS (List Person)
-    | NTV { note : Note, title : String, description : String }
+    | NTV Display.Note.Model
     | GF Form.Global.Model
     | PR Form.Project.Model
     | IM Form.Importer.Model

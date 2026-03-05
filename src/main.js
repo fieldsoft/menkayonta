@@ -91,6 +91,9 @@ const handleProjectMessage = (m) => {
     case 'received-note':
       gvs.webContents.send(m.command, m)
       break
+    case 'received-note-for':
+      gvs.webContents.send(m.command, m)
+      break
     case 'received-doc':
       gvs.webContents.send(m.command, m)
       break

@@ -240,7 +240,7 @@ update msg model =
         -- A message for doing nothing
         Ms Msg.None ->
             ( model, Cmd.none )
-                
+
         -- A message of many messages
         MultiMsg msgs ->
             ( model, msgs |> List.map sendMsg |> Cmd.batch )
@@ -252,6 +252,61 @@ update msg model =
                     envelopePart time |> envelopeEncoder
             in
             ( model, cmd envelope )
+
+        Ms (Msg.ChangeNote vistaid str) ->
+            case Dict.get vistaid model.tabs.vistas of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just vista ->
+                    case vista.content of
+                        NTV nmodel ->
+                            let
+                                note : M.Note
+                                note =
+                                    nmodel.note
+
+                                nmodel_ : Display.Note.Model
+                                nmodel_ =
+                                    {nmodel | note = {note | note = str}}
+
+                                content_ : Content
+                                content_ =
+                                    NTV nmodel_
+
+                                vista_ : Tab.Vista
+                                vista_ =
+                                    { vista | content = content_ }
+
+                                tabs : Tab.Model
+                                tabs =
+                                    model.tabs
+
+                                vistas : Dict String Vista
+                                vistas =
+                                    Dict.insert vistaid
+                                        vista_
+                                        model.tabs.vistas
+                            in
+                            ( { model
+                                | tabs =
+                                    { tabs
+                                        | vistas = vistas
+                                    }
+                              }
+                            , Cmd.none
+                            )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+        Ms Msg.EditToggle ->
+            case model.tabs.focused of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just tp ->
+                    ( model, Tab.Change Tab.Edit tp "" |> Tab |> sendMsg )
 
         Ms (Msg.UserClick clickMsg) ->
             let
@@ -309,7 +364,17 @@ update msg model =
                             , req <| OComposite env.address
                             )
 
+                        "interlinear" :: _ :: "note" :: [] ->
+                            ( model
+                            , req <| ONote env.address
+                            )
+
                         "tag" :: kind :: [] ->
+                            ( model
+                            , req <| OReversal (Just env.address)
+                            )
+
+                        "property" :: kind :: value :: [] ->
                             ( model
                             , req <| OReversal (Just env.address)
                             )
@@ -317,7 +382,7 @@ update msg model =
                         _ ->
                             ( model, Cmd.none )
 
-        Ms (Msg.Received (INote envelope)) ->
+        Ms (Msg.Received (INoteFor envelope)) ->
             case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
@@ -334,18 +399,21 @@ update msg model =
 
                                 _ ->
                                     D.fail "Expected a Note"
-                                    
-                        ndecoder : D.Decoder { note : M.Note
-                                             , doc : M.Value
-                                             }
+
+                        ndecoder :
+                            D.Decoder
+                                { note : M.Note
+                                , doc : M.Value
+                                }
                         ndecoder =
-                            D.map2 (\n d ->
-                                        { note = n
-                                        , doc = d
-                                        }
-                                   )
+                            D.map2
+                                (\n d ->
+                                    { note = n
+                                    , doc = d
+                                    }
+                                )
                                 (D.field "note" M.decoder
-                                     |> D.andThen dnote
+                                    |> D.andThen dnote
                                 )
                                 (D.field "doc" M.decoder)
                     in
@@ -356,10 +424,87 @@ update msg model =
                             )
 
                         Ok c ->
-                           handleReceivedNote env.project
-                                        model
-                                        c.doc
-                                        c.note
+                            handleReceivedNote env.project
+                                model
+                                c.doc
+                                c.note
+
+        Ms (Msg.Received (INote envelope)) ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    case D.decodeValue M.decoder env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok (M.MyNote note) ->
+                            let
+                                vid : String
+                                vid =
+                                    "NOTE::"
+                                        ++ M.identifierToString
+                                            (M.MyNoteId note.id)
+                            in
+                            case Dict.get vid model.tabs.vistas of
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                                Just vista ->
+                                    case vista.content of
+                                        NTV nmodel ->
+                                            let
+                                                nmodel_ : Display.Note.Model
+                                                nmodel_ =
+                                                    { nmodel
+                                                        | note =
+                                                            note
+                                                        , original =
+                                                            note.note
+                                                    }
+
+                                                content_ : Content
+                                                content_ =
+                                                    NTV nmodel_
+
+                                                vista_ : Tab.Vista
+                                                vista_ =
+                                                    { vista
+                                                        | content =
+                                                            content_
+                                                    }
+
+                                                tabs : Tab.Model
+                                                tabs =
+                                                    model.tabs
+
+                                                vistas : Tab.Vistas
+                                                vistas =
+                                                    Dict.insert
+                                                        vid
+                                                            vista_
+                                                                tabs.vistas
+                                            in
+                                            ( { model
+                                                | tabs =
+                                                    { tabs
+                                                        | vistas =
+                                                            vistas
+                                                    }
+                                              }
+                                            , Cmd.none
+                                            )
+
+                                        _ ->
+                                            ( model, Cmd.none )
+
+                        _ ->
+                            ( model, Cmd.none )
 
         Ms (Msg.Request project (ONoteFor id value)) ->
             let
@@ -370,6 +515,19 @@ update msg model =
                         , project = project
                         , address = M.identifierToString id
                         , content = M.encoder value
+                        }
+            in
+            ( model, send envelope )
+
+        Ms (Msg.Request project (ONote id)) ->
+            let
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                        { command = "request-note"
+                        , project = project
+                        , address = id
+                        , content = E.null
                         }
             in
             ( model, send envelope )
@@ -446,6 +604,36 @@ update msg model =
                 , send envelope
                 ]
             )
+
+        Ms (Msg.SaveNote note) ->
+            case Tab.getFocusedVista model.tabs of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just vista ->
+                    case UUID.fromString vista.project of
+                        Err _ ->
+                            ( model, Cmd.none )
+
+                        Ok project ->
+                            let
+                                payload : E.Value
+                                payload =
+                                    [ M.MyNote note ]
+                                        |> E.list M.encoder
+
+                                envelope : E.Value
+                                envelope =
+                                    envelopeEncoder
+                                        { command = "bulk-write"
+                                        , project = project
+                                        , address = vista.path
+                                        , content = payload
+                                        }
+                            in
+                            ( model
+                            , send envelope
+                            )
 
         Ms (Msg.SaveProperty propertyfield) ->
             let
@@ -1306,7 +1494,7 @@ update msg model =
                                 model
 
         Ms (Msg.Received (IComposite envelope)) ->
-            case Debug.log "decode envelope" (D.decodeValue envelopeDecoder envelope) of
+            case D.decodeValue envelopeDecoder envelope of
                 Err e ->
                     ( { model | error = D.errorToString e }
                     , Cmd.none
@@ -1316,7 +1504,7 @@ update msg model =
                     let
                         doc : Result.Result D.Error M.Composite
                         doc =
-                            Debug.log "reducing" (reduceDoc env)
+                            reduceDoc env
                     in
                     case doc of
                         Ok doc_ ->
@@ -1903,17 +2091,12 @@ prepInterlinearSave int project me time =
     }
 
 
-handleReceivedNote :
-    UUID.UUID
-    -> Model
-    -> M.Value
-    -> M.Note
-    -> ( Model, Cmd Msg )
+handleReceivedNote : UUID.UUID -> Model -> M.Value -> M.Note -> (Model, Cmd Msg)
 handleReceivedNote project model doc note =
     let
         projectStr : String
         projectStr =
-             UUID.toString project
+            UUID.toString project
 
         titlepart : String
         titlepart =
@@ -1976,15 +2159,17 @@ handleReceivedNote project model doc note =
 
         content : Content
         content =
-            Content.NTV { title = titlepart
-                        , description = desc
-                        , note = note
-                        }
+            Content.NTV
+                { title = titlepart
+                , description = desc
+                , note = note
+                , original = note.note
+                }
 
         idstr : String
         idstr =
             M.identifierToString (M.MyNoteId note.id)
-                
+
         vista : Tab.Vista
         vista =
             { project = projectStr
@@ -1992,7 +2177,6 @@ handleReceivedNote project model doc note =
             , identifier = "NOTE::" ++ idstr
             , content = content
             }
-        
     in
     handleVista vista short full model
 
@@ -2070,6 +2254,7 @@ subscriptions model =
         , receivedViewArea <| r IViewArea
         , receivedReloadRequest <| r IReload
         , receivedNote <| r INote
+        , receivedNoteFor <| r INoteFor
         , newProject <| \_ -> Ms Msg.NewProject
         , importOptions EditImporter
         , globalSettings ShowGlobalSettings
@@ -2372,8 +2557,20 @@ viewVista model tp vista =
             Form.Project.view pmodel |> Html.map (PR pmodel.identifier)
 
         Content.NTV note ->
-            Display.Note.view note |> Html.map Ms
-                
+            let
+                edit : Bool
+                edit =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.map .edit
+                        |> Maybe.withDefault False
+            in
+            if edit then
+                Display.Note.edit note |> Html.map Ms
+
+            else
+                Display.Note.view note |> Html.map Ms
+
         Content.ITV composite ->
             let
                 vp : Maybe UUID.UUID
@@ -2801,6 +2998,9 @@ port receivedInterlinearReversals : (E.Value -> msg) -> Sub msg
 
 
 port receivedComposite : (E.Value -> msg) -> Sub msg
+
+
+port receivedNoteFor : (E.Value -> msg) -> Sub msg
 
 
 port receivedNote : (E.Value -> msg) -> Sub msg

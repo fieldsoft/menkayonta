@@ -17,9 +17,12 @@ type Msg
     | EditProject Form.Project.Model
     | UserClick Msg
     | ChangeTag (Maybe Meta.TagField)
+    | ChangeNote String String
     | SaveTag Meta.TagField
+    | SaveNote M.Note
     | ChangeProperty (Maybe Meta.PropertyField)
     | SaveProperty Meta.PropertyField
+    | EditToggle
     | None
 
 
@@ -39,6 +42,7 @@ type ReceiveType
     | IInterlinearListing E.Value
     | IPersonListing E.Value
     | IReload E.Value
+    | INoteFor E.Value
     | INote E.Value
 
 
@@ -49,4 +53,5 @@ type RequestType
     | OPersonListing
     | ODelete Revision String
     | ONoteFor M.Identifier M.Value
+    | ONote String
 

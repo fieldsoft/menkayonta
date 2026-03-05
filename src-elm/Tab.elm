@@ -69,6 +69,7 @@ type alias Model =
 type Param
     = Search
     | Length
+    | Edit
 
 
 {-| A Ventana supplies the title and a referrence to a Vista, which is
@@ -88,6 +89,7 @@ type alias VentanaParams =
     { length : Int
     , searchString : String
     , meta : Meta.Dialog
+    , edit : Bool
     }
 
 
@@ -137,6 +139,7 @@ defVParams =
     , meta = { tag = Nothing
              , property = Nothing
              }
+    , edit = False
     }
 
 
@@ -181,6 +184,33 @@ update msg model =
                 Just _ ->
                     ( focus tp model, Cmd.none )
 
+        Change Edit tp _ ->
+            case Dict.get tp model.ventanas of
+                Just ventana ->
+                    let
+                        params : VentanaParams
+                        params =
+                            ventana.params
+
+                        np : VentanaParams
+                        np =
+                            { params | edit = not params.edit }
+
+                        nv : Ventana
+                        nv =
+                            { ventana | params = np }
+
+                        nvs : Dict Path Ventana
+                        nvs =
+                            Dict.insert tp nv model.ventanas
+                    in
+                    ( { model | ventanas = nvs }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+                    
         Change Search tp str ->
             case Dict.get tp model.ventanas of
                 Just ventana ->
