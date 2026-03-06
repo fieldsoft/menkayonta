@@ -1,7 +1,7 @@
 // The purpose of this is essentially to allow functions to be tested.
 const fs = require('node:fs')
 
-const readJsonFile = (filepath) => {
+const readJsonFile = (filepath, error) => {
   try {
     // Parsing, stringifying, normalizing and then parsing again is
     // painful but the input may contain escaped unicode '\uXXXX', the

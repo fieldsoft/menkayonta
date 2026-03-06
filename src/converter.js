@@ -51,7 +51,7 @@ try {
 const handleMainMessage = (m) => {
   switch (m.data.command) {
     case 'convert-to-batch': {
-      const parsedJson = readJsonFile(m.data.filepath)
+      const parsedJson = readJsonFile(m.data.filepath, error)
 
       if (m.data.kind === 'Dative Form Json') {
         app.ports.receivedDativeForms.send({
