@@ -151,6 +151,33 @@ const createWindow = () => {
     },
   })
 
+  const tabmenu = [
+    {
+      click: () => mainWindow.webContents.send('move-left'),
+      label: 'Move Left',
+    },
+    {
+      click: () => mainWindow.webContents.send('move-right'),
+      label: 'Move Right',
+    },
+    {
+      click: () => mainWindow.webContents.send('move-up'),
+      label: 'Move Up',
+    },
+    {
+      click: () => mainWindow.webContents.send('move-down'),
+      label: 'Move Down',
+    },
+    {
+      click: () => mainWindow.webContents.send('clone-tab'),
+      label: 'Clone Tab',
+    },
+    {
+      click: () => mainWindow.webContents.send('close-tab'),
+      label: 'Close Tab',
+    },
+  ]
+
   // The application menu template
   const mainMenu = [
     // { role: 'appMenu' }
@@ -249,32 +276,7 @@ const createWindow = () => {
     },
     {
       label: 'Tab',
-      submenu: [
-        {
-          click: () => mainWindow.webContents.send('move-left'),
-          label: 'Move Left',
-        },
-        {
-          click: () => mainWindow.webContents.send('move-right'),
-          label: 'Move Right',
-        },
-        {
-          click: () => mainWindow.webContents.send('move-up'),
-          label: 'Move Up',
-        },
-        {
-          click: () => mainWindow.webContents.send('move-down'),
-          label: 'Move Down',
-        },
-        {
-          click: () => mainWindow.webContents.send('clone-tab'),
-          label: 'Clone Tab',
-        },
-        {
-          click: () => mainWindow.webContents.send('close-tab'),
-          label: 'Close Tab',
-        },
-      ],
+      submenu: tabmenu,
     },
     // { role: 'windowMenu' }
     {
@@ -306,7 +308,12 @@ const createWindow = () => {
   mainWindow.setMenu(menu)
 
   mainWindow.webContents.on('context-menu', (_event, params) => {
-    if (params.formControlType !== 'submit-button') {
+    const tabContextMenu = Menu.buildFromTemplate(tabmenu)
+    const target = params.linkURL.split('#')
+
+    if (target[1] === 'tabnav') {
+      tabContextMenu.popup()
+    } else {
       contextMenu.popup()
     }
   })

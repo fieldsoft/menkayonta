@@ -2393,7 +2393,7 @@ viewTabHeader model tp =
             visMember tp model.tabs.visVentanas
     in
     Html.span []
-        [ Html.button
+        [ Html.a
             [ Event.onClick (Tab <| Tab.Select tp)
             , Event.onDoubleClick (Tab <| Tab.Clone)
             , Attr.id (pathToString tp)
@@ -2404,9 +2404,11 @@ viewTabHeader model tp =
                 , ( "tab-nav", True )
                 ]
             , Attr.title ventana.fullTitle
+            , Attr.attribute "role" "button"
+            , Attr.href <| "#tabnav#" ++ (pathToString tp)
             ]
             [ Html.text ventana.title ]
-        , Html.button
+        , Html.a
             [ Event.onClick (Tab <| Tab.Close tp)
             , Attr.title "Close this tab"
             , Attr.classList
@@ -2415,6 +2417,8 @@ viewTabHeader model tp =
                 , ( "secondary outline", not focused && not visible )
                 , ( "close-button", True )
                 ]
+            , Attr.attribute "role" "button"
+            , Attr.href "#"
             ]
             [ Html.text "×" ]
         ]
