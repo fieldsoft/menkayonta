@@ -3,7 +3,8 @@ module Display.Note exposing (Model, edit, view)
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Markdown
+import Markdown.Parser as Markdown
+import Markdown.Renderer as Renderer
 import Menkayonta as M
 import Msg exposing (Msg(..))
 
@@ -16,8 +17,34 @@ type alias Model =
     }
 
 
+deadEndsToString deadEnds =
+    deadEnds
+        |> List.map Markdown.deadEndToString
+        |> String.join "\n"
+           
+
 view : Model -> Html.Html Msg
 view model =
+    let
+        renderResult : Result String (List (Html.Html Msg))
+        renderResult =
+            model.note.note
+            |> Markdown.parse
+            |> Result.mapError deadEndsToString
+            |> Result.andThen
+               (\ast ->
+                    Renderer.render Renderer.defaultHtmlRenderer ast
+               )
+            
+        rendered : Html.Html Msg
+        rendered =
+            case renderResult of
+                Ok r ->
+                    Html.div [] r
+
+                Err e ->
+                    Html.text e
+    in
     Html.div []
         [ Html.nav []
             [ Html.ul []
@@ -32,7 +59,7 @@ view model =
             ]
         , Html.h1 [ Attr.class "note-title" ] [ Html.text model.title ]
         , Html.p [] [ Html.text model.description ]
-        , Markdown.toHtml [] model.note.note
+        , rendered
         ]
 
 
