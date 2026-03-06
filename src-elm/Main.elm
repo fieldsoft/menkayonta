@@ -268,7 +268,7 @@ update msg model =
 
                                 nmodel_ : Display.Note.Model
                                 nmodel_ =
-                                    {nmodel | note = {note | note = str}}
+                                    { nmodel | note = { note | note = str } }
 
                                 content_ : Content
                                 content_ =
@@ -487,8 +487,8 @@ update msg model =
                                                 vistas =
                                                     Dict.insert
                                                         vid
-                                                            vista_
-                                                                tabs.vistas
+                                                        vista_
+                                                        tabs.vistas
                                             in
                                             ( { model
                                                 | tabs =
@@ -2091,7 +2091,7 @@ prepInterlinearSave int project me time =
     }
 
 
-handleReceivedNote : UUID.UUID -> Model -> M.Value -> M.Note -> (Model, Cmd Msg)
+handleReceivedNote : UUID.UUID -> Model -> M.Value -> M.Note -> ( Model, Cmd Msg )
 handleReceivedNote project model doc note =
     let
         projectStr : String
