@@ -19,7 +19,11 @@ simpleVentana =
     { title = "Simple Ventana"
     , fullTitle = "Simple Ventana"
     , vista = "global"
-    , params = { length = 0, searchString = "", meta = { tag = Nothing, property = Nothing } }
+    , params = { length = 0
+               , searchString = ""
+               , meta = { tag = Nothing, property = Nothing }
+               , edit = False
+               }
     }
 
 
