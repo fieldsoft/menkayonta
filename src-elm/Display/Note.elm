@@ -73,6 +73,7 @@ edit model =
             , Html.button
                 [ Attr.class "secondary"
                 , Attr.type_ "button"
+                , Attr.spellcheck True
                 , Event.onClick <|
                     ChangeNote
                         ("NOTE::"
