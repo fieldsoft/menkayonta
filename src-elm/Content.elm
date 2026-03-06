@@ -9,9 +9,7 @@ import Menkayonta
     exposing
         ( Composite
         , Interlinear
-        , Note
         , Person
-        , Value
         )
 
 

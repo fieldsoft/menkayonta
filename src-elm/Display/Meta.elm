@@ -358,7 +358,7 @@ tags project docid ts =
         [] ->
             Html.text ""
 
-        t :: _ ->
+        _ :: _ ->
             Html.article []
                 [ Html.header []
                     [ Html.h3 []

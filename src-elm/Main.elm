@@ -19,7 +19,6 @@ import Html.Events as Event
 import Json.Decode as D
 import Json.Encode as E
 import List.Extra as LE
-import Maybe.Extra as ME
 import Menkayonta as M
 import Meta
 import Msg exposing (ReceiveType(..), RequestType(..))
@@ -359,7 +358,7 @@ update msg model =
                             , req OPersonListing
                             )
 
-                        "interlinear" :: id :: [] ->
+                        "interlinear" :: _ :: [] ->
                             ( model
                             , req <| OComposite env.address
                             )
@@ -369,12 +368,12 @@ update msg model =
                             , req <| ONote env.address
                             )
 
-                        "tag" :: kind :: [] ->
+                        "tag" :: _ :: [] ->
                             ( model
                             , req <| OReversal (Just env.address)
                             )
 
-                        "property" :: kind :: value :: [] ->
+                        "property" :: _ :: _ :: [] ->
                             ( model
                             , req <| OReversal (Just env.address)
                             )
@@ -2572,23 +2571,11 @@ viewVista model tp vista =
                 Display.Note.view note |> Html.map Ms
 
         Content.ITV composite ->
-            let
-                vp : Maybe UUID.UUID
-                vp =
-                    UUID.fromString vista.project
-                        |> Result.toMaybe
-
-                intid : Maybe UUID.UUID
-                intid =
-                    case composite.doc of
-                        Just (M.MyInterlinear int) ->
-                            Just int.id
-
-                        _ ->
-                            Nothing
-            in
-            case ( vp, intid ) of
-                ( Just project, Just id ) ->
+            case
+                UUID.fromString vista.project
+                    |> Result.toMaybe
+            of
+                Just project ->
                     let
                         cmodel : Display.Composite.Model
                         cmodel =

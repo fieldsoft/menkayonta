@@ -1,8 +1,10 @@
 module Markdown exposing (render)
 
 import Html
-import Markdown.Parser as Markdown
+import Markdown.Parser
 import Markdown.Renderer as Renderer
+import Parser.Advanced
+import Parser
 
 
 render : String -> Html.Html msg
@@ -11,7 +13,7 @@ render raw =
         renderResult : Result String (List (Html.Html msg))
         renderResult =
             raw
-                |> Markdown.parse
+                |> Markdown.Parser.parse
                 |> Result.mapError deadEndsToString
                 |> Result.andThen
                    (\ast ->
@@ -27,7 +29,8 @@ render raw =
             Html.text e
     
 
+deadEndsToString : (List (Parser.Advanced.DeadEnd String Parser.Problem)) -> String
 deadEndsToString deadEnds =
     deadEnds
-        |> List.map Markdown.deadEndToString
+        |> List.map Markdown.Parser.deadEndToString
         |> String.join "\n"

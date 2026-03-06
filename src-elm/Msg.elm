@@ -1,4 +1,10 @@
-module Msg exposing (Msg(..), ReceiveType(..), RequestType(..))
+module Msg exposing
+    ( Msg(..)
+    , ReceiveType(..)
+    , RequestType(..)
+    , Revision
+    , ProjectId
+    )
 
 import Form.Project
 import Json.Encode as E
@@ -54,4 +60,3 @@ type RequestType
     | ODelete Revision String
     | ONoteFor M.Identifier M.Value
     | ONote String
-

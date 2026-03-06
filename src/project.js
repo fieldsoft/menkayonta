@@ -376,10 +376,12 @@ const handleMainMessage = (m) => {
 
     case 'request-note-for': {
       handleRequestNoteFor(m.data.address, m.data.content)
+      break
     }
 
     case 'request-note': {
       handleRequestNote(m.data.address)
+      break
     }
 
     case 'request-composite': {
