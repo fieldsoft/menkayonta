@@ -3,8 +3,7 @@ module Display.Note exposing (Model, edit, view)
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Markdown.Parser as Markdown
-import Markdown.Renderer as Renderer
+import Markdown exposing (render)
 import Menkayonta as M
 import Msg exposing (Msg(..))
 
@@ -17,33 +16,12 @@ type alias Model =
     }
 
 
-deadEndsToString deadEnds =
-    deadEnds
-        |> List.map Markdown.deadEndToString
-        |> String.join "\n"
-           
-
 view : Model -> Html.Html Msg
 view model =
     let
-        renderResult : Result String (List (Html.Html Msg))
-        renderResult =
-            model.note.note
-            |> Markdown.parse
-            |> Result.mapError deadEndsToString
-            |> Result.andThen
-               (\ast ->
-                    Renderer.render Renderer.defaultHtmlRenderer ast
-               )
-            
         rendered : Html.Html Msg
         rendered =
-            case renderResult of
-                Ok r ->
-                    Html.div [] r
-
-                Err e ->
-                    Html.text e
+            render model.note.note
     in
     Html.div []
         [ Html.nav []
@@ -81,16 +59,16 @@ edit model =
         , Html.p [] [ Html.text model.description ]
         , Html.form []
             [ Html.button
-                  ( if model.note.note /= model.original then
-                        [ Event.onClick <| SaveNote model.note
-                        , Attr.type_ "button"
-                        ]
+                (if model.note.note /= model.original then
+                    [ Event.onClick <| SaveNote model.note
+                    , Attr.type_ "button"
+                    ]
 
-                    else
-                        [ Attr.type_ "button"
-                        , Attr.disabled True
-                        ]
-                  )
+                 else
+                    [ Attr.type_ "button"
+                    , Attr.disabled True
+                    ]
+                )
                 [ Html.text "Save" ]
             , Html.button
                 [ Attr.class "secondary"
