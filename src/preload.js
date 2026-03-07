@@ -2,13 +2,18 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
   setTitle: (title) => ipcRenderer.send('set-title', title),
-  onMoveLeft: (callback) => ipcRenderer.on('move-left', (_event) => callback()),
-  onMoveRight: (callback) =>
-    ipcRenderer.on('move-right', (_event) => callback()),
-  onMoveUp: (callback) => ipcRenderer.on('move-up', (_event) => callback()),
-  onMoveDown: (callback) => ipcRenderer.on('move-down', (_event) => callback()),
-  onCloseTab: (callback) => ipcRenderer.on('close-tab', (_event) => callback()),
-  onCloneTab: (callback) => ipcRenderer.on('clone-tab', (_event) => callback()),
+  onMoveLeft: (callback) =>
+    ipcRenderer.on('move-left', (_event, data) => callback(data)),
+  onMoveRight: (callback, data) =>
+    ipcRenderer.on('move-right', (_event, data) => callback(data)),
+  onMoveUp: (callback) =>
+    ipcRenderer.on('move-up', (_event, data) => callback(data)),
+  onMoveDown: (callback) =>
+    ipcRenderer.on('move-down', (_event, data) => callback(data)),
+  onCloseTab: (callback) =>
+    ipcRenderer.on('close-tab', (_event, data) => callback(data)),
+  onCloneTab: (callback) =>
+    ipcRenderer.on('clone-tab', (_event, data) => callback(data)),
   onNewProject: (callback) =>
     ipcRenderer.on('new-project', (_event) => callback()),
   onImportOptions: (callback) =>

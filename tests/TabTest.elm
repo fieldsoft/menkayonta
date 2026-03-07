@@ -4,9 +4,9 @@ import Dict
 import Expect
 import Tab
     exposing
-        ( Msg(..)
-        , Direction(..)
+        ( Direction(..)
         , Model
+        , Msg(..)
         , Ventana
         , initData
         , update
@@ -19,11 +19,12 @@ simpleVentana =
     { title = "Simple Ventana"
     , fullTitle = "Simple Ventana"
     , vista = "global"
-    , params = { length = 0
-               , searchString = ""
-               , meta = { tag = Nothing, property = Nothing }
-               , edit = False
-               }
+    , params =
+        { length = 0
+        , searchString = ""
+        , meta = { tag = Nothing, property = Nothing }
+        , edit = False
+        }
     }
 
 
@@ -199,6 +200,15 @@ newOnNonEmpty =
 
 moveTests : Test
 moveTests =
+    let
+        firstTp : Tab.Path
+        firstTp =
+            ( 0, ( 0, 0 ) )
+
+        secondTp : Tab.Path
+        secondTp =
+            ( 0, ( 0, 1 ) )
+    in
     describe "Moving a tab"
         [ describe "when there is a single tab"
             [ test "left has no effect for single item" <|
@@ -206,81 +216,147 @@ moveTests =
                     Expect.equal
                         (update (New simpleVentana) m)
                         (update (New simpleVentana) m
-                            |> next (Move Left)
+                            |> next (Move Left firstTp)
                         )
             , test "right has no effect for single item" <|
                 \_ ->
                     Expect.equal
                         (update (New simpleVentana) m)
                         (update (New simpleVentana) m
-                            |> next (Move Right)
+                            |> next (Move Right firstTp)
                         )
             , test "down has no effect for single item" <|
                 \_ ->
                     Expect.equal
                         (update (New simpleVentana) m)
                         (update (New simpleVentana) m
-                            |> next (Move Down)
+                            |> next (Move Down firstTp)
                         )
             , test "up has no effect for single item" <|
                 \_ ->
                     Expect.equal
                         (update (New simpleVentana) m)
                         (update (New simpleVentana) m
-                            |> next (Move Up)
+                            |> next (Move Up firstTp)
                         )
             ]
         , describe "when there are two tabs" <|
-            [ test "left sets negative counter column and positive row" <|
-                \_ ->
-                    Expect.equal
-                        (Just ( -2, ( 2, 0 ) ))
-                        (update (New simpleVentana) m
-                            |> next (New simpleVentana)
-                            |> next (Move Left)
-                            |> Tuple.first
-                            |> .focused
-                        )
-            , test "right sets positive counter column and positive row" <|
-                \_ ->
-                    Expect.equal
-                        (Just ( 2, ( 2, 0 ) ))
-                        (update (New simpleVentana) m
-                            |> next (New simpleVentana)
-                            |> next (Move Right)
-                            |> Tuple.first
-                            |> .focused
-                        )
-            , test "down retains column and sets positive row" <|
-                \_ ->
-                    Expect.equal
-                        (Just ( 0, ( 2, 0 ) ))
-                        (update (New simpleVentana) m
-                            |> next (New simpleVentana)
-                            |> next (Move Down)
-                            |> Tuple.first
-                            |> .focused
-                        )
-            , test "up retains column and sets negative row" <|
-                \_ ->
-                    Expect.equal
-                        (Just ( 0, ( -2, 0 ) ))
-                        (update (New simpleVentana) m
-                            |> next (New simpleVentana)
-                            |> next (Move Up)
-                            |> Tuple.first
-                            |> .focused
-                        )
-            , test "left leaves focusHistory empty" <|
-                \_ ->
-                    Expect.equal
-                        []
-                        (update (New simpleVentana) m
-                            |> next (New simpleVentana)
-                            |> next (Move Left)
-                            |> Tuple.first
-                            |> .focusHistory
-                        )
+            [ describe "hidden" <|
+                [ test "hidden left doesn't change focus" <|
+                    \_ ->
+                        Expect.equal
+                            (Just ( 0, ( 0, 0 ) ))
+                            (update (New simpleVentana) m
+                                |> next (New simpleVentana)
+                                |> next (Move Left secondTp)
+                                |> Tuple.first
+                                |> .focused
+                            )
+                , test "hidden left becomes visible" <|
+                    \_ ->
+                        Expect.equal
+                            (Just 1)
+                            (update (New simpleVentana) m
+                                |> next (New simpleVentana)
+                                |> next (Move Left secondTp)
+                                |> Tuple.first
+                                |> .visVentanas
+                                |> Dict.get ( -2, 2 )
+                            )
+                , describe "Adding after left move" <|
+                    [ test "new item is in focus column" <|
+                        \_ ->
+                            Expect.equal
+                                (Just simpleVentana)
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (Move Left secondTp)
+                                    |> next (New simpleVentana)
+                                    |> Tuple.first
+                                    |> .ventanas
+                                    |> Dict.get ( 0, ( 0, 3 ) )
+                                )
+                    , test "new item move left is not visible" <|
+                        \_ ->
+                            Expect.equal
+                                (Just 1)
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (Move Left secondTp)
+                                    |> next (New simpleVentana)
+                                    |> next (Move Left ( 0, ( 0, 3 ) ))
+                                    |> Tuple.first
+                                    |> .visVentanas
+                                    |> Dict.get ( -2, 2 )
+                                )
+                    , test "new item move left then down is visible" <|
+                        \_ ->
+                            Expect.equal
+                                (Just 3)
+                                (update (New simpleVentana) m
+                                    |> next (New simpleVentana)
+                                    |> next (Move Left secondTp)
+                                    |> next (New simpleVentana)
+                                    |> next (Move Left ( 0, ( 0, 3 ) ))
+                                    |> next (Move Down ( -2, ( 2, 3 ) ))
+                                    |> Tuple.first
+                                    |> .visVentanas
+                                    |> Dict.get ( -2, 4 )
+                                )
+                    ]
+                ]
+            , describe "focused" <|
+                [ test "left negative counter column and positive row" <|
+                    \_ ->
+                        Expect.equal
+                            (Just ( -2, ( 2, 0 ) ))
+                            (update (New simpleVentana) m
+                                |> next (New simpleVentana)
+                                |> next (Move Left firstTp)
+                                |> Tuple.first
+                                |> .focused
+                            )
+                , test "right sets positive counter column and positive row" <|
+                    \_ ->
+                        Expect.equal
+                            (Just ( 2, ( 2, 0 ) ))
+                            (update (New simpleVentana) m
+                                |> next (New simpleVentana)
+                                |> next (Move Right firstTp)
+                                |> Tuple.first
+                                |> .focused
+                            )
+                , test "down retains column and sets positive row" <|
+                    \_ ->
+                        Expect.equal
+                            (Just ( 0, ( 2, 0 ) ))
+                            (update (New simpleVentana) m
+                                |> next (New simpleVentana)
+                                |> next (Move Down firstTp)
+                                |> Tuple.first
+                                |> .focused
+                            )
+                , test "up retains column and sets negative row" <|
+                    \_ ->
+                        Expect.equal
+                            (Just ( 0, ( -2, 0 ) ))
+                            (update (New simpleVentana) m
+                                |> next (New simpleVentana)
+                                |> next (Move Up firstTp)
+                                |> Tuple.first
+                                |> .focused
+                            )
+                , test "left leaves focusHistory empty" <|
+                    \_ ->
+                        Expect.equal
+                            []
+                            (update (New simpleVentana) m
+                                |> next (New simpleVentana)
+                                |> next (Move Left firstTp)
+                                |> Tuple.first
+                                |> .focusHistory
+                            )
+                ]
             ]
         ]
 
@@ -299,7 +375,7 @@ closeTests =
                             -- 0 0 1
                             |> next (New simpleVentana)
                             -- 0 0 2
-                            |> next (Move Down)
+                            |> next (Move Down ( 0, ( 0, 0 ) ))
                             -- 0 3 0
                             |> next (New simpleVentana)
                             -- 0 3 4
@@ -365,7 +441,7 @@ closeTests =
                                 -- 0 0 1
                                 |> next (New simpleVentana)
                                 -- 0 0 2
-                                |> next (Move Down)
+                                |> next (Move Down ( 0, ( 0, 0 ) ))
                                 -- 0 3 0
                                 |> next (New simpleVentana)
                                 -- 0 3 4
@@ -386,7 +462,7 @@ closeTests =
                                 -- 0 0 1
                                 |> next (New simpleVentana)
                                 -- 0 0 2
-                                |> next (Move Down)
+                                |> next (Move Down ( 0, ( 0, 0 ) ))
                                 -- 0 3 0
                                 |> next (New simpleVentana)
                                 -- 0 3 4
@@ -406,7 +482,7 @@ closeTests =
                                 -- 0 0 1
                                 |> next (New simpleVentana)
                                 -- 0 0 2
-                                |> next (Move Down)
+                                |> next (Move Down ( 0, ( 0, 0 ) ))
                                 -- 0 3 0 (focused) (0 0 1 visible)
                                 |> next (New simpleVentana)
                                 -- 0 3 4 (nearest)
@@ -426,7 +502,7 @@ closeTests =
                             (update (New simpleVentana) m
                                 |> next (New simpleVentana)
                                 |> next (New simpleVentana)
-                                |> next (Move Down)
+                                |> next (Move Down ( 0, ( 0, 0 ) ))
                                 |> next Unlock
                                 |> next (Focus ( 0, ( 0, 1 ) ))
                                 |> next (New simpleVentana)
@@ -445,7 +521,7 @@ closeTests =
                                 -- 0 0 1
                                 |> next (New simpleVentana)
                                 -- 0 0 2
-                                |> next (Move Down)
+                                |> next (Move Down ( 0, ( 0, 0 ) ))
                                 -- 0 3 0
                                 |> next (New simpleVentana)
                                 -- 0 3 4
@@ -465,7 +541,7 @@ closeTests =
                             (update (New simpleVentana) m
                                 |> next (New simpleVentana)
                                 |> next (New simpleVentana)
-                                |> next (Move Down)
+                                |> next (Move Down ( 0, ( 0, 0 ) ))
                                 |> next (New simpleVentana)
                                 |> next (New simpleVentana)
                                 |> next Unlock

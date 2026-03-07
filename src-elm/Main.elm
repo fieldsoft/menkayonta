@@ -2233,44 +2233,55 @@ handleVista vista short full model =
             ( newmodel, sendMsg (Tab <| Tab.Focus tp) )
 
 
+
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     let
-        r : (E.Value -> Msg.ReceiveType) -> (E.Value -> Msg)
-        r t =
+        rcvd : (E.Value -> Msg.ReceiveType) -> (E.Value -> Msg)
+        rcvd t =
             \v -> t v |> Msg.Received |> Ms
 
-        move : Direction -> (() -> Msg)
-        move d =
-            \_ -> Tab.Move d |> Tab
+        dtp : D.Decoder Tab.Path
+        dtp =
+            D.map3 (\c r t -> (c, (r, t)))
+                (D.field "column" D.int)
+                (D.field "row" D.int)
+                (D.field "tab" D.int)
+
+        move : Direction -> E.Value -> Msg
+        move d value =
+            tabAct (Tab.Move d) value
+                
+        tabAct : (Tab.Path -> Tab.Msg) -> E.Value -> Msg
+        tabAct a value =
+            case Debug.log "decode" (D.decodeValue dtp value) of
+                Err _ ->
+                    Ms Msg.None
+
+                Ok tp ->
+                    a tp |> Tab
     in
     Sub.batch
-        [ receivedGlobalConfig <| r IGlobalConfig
-        , receivedInterlinearListing <| r IInterlinearListing
-        , receivedPersonListing <| r IPersonListing
-        , receivedInterlinearReversals <| r IReversal
-        , receivedComposite <| r IComposite
-        , receivedViewArea <| r IViewArea
-        , receivedReloadRequest <| r IReload
-        , receivedNote <| r INote
-        , receivedNoteFor <| r INoteFor
+        [ receivedGlobalConfig <| rcvd IGlobalConfig
+        , receivedInterlinearListing <| rcvd IInterlinearListing
+        , receivedPersonListing <| rcvd IPersonListing
+        , receivedInterlinearReversals <| rcvd IReversal
+        , receivedComposite <| rcvd IComposite
+        , receivedViewArea <| rcvd IViewArea
+        , receivedReloadRequest <| rcvd IReload
+        , receivedNote <| rcvd INote
+        , receivedNoteFor <| rcvd INoteFor
         , newProject <| \_ -> Ms Msg.NewProject
         , importOptions EditImporter
         , globalSettings ShowGlobalSettings
-        , moveLeft_ <| move Left
-        , moveRight_ <| move Right
-        , moveUp_ <| move Up
-        , moveDown_ <| move Down
-        , closeTab_
-            (\_ ->
-                case model.tabs.focused of
-                    Nothing ->
-                        Ms Msg.None
-
-                    Just tp ->
-                        Tab (Tab.Close tp)
-            )
-        , cloneTab_ (\_ -> Tab Tab.Clone)
+        , moveLeft <| move Left
+        , moveRight <| move Right
+        , moveUp <| move Up
+        , moveDown <| move Down
+        , closeTab <| tabAct Tab.Close
+        , cloneTab <| tabAct Tab.Clone
         , toggleSidebar (\_ -> ToggleSidebar)
         ]
 
@@ -2395,7 +2406,7 @@ viewTabHeader model tp =
     Html.span []
         [ Html.a
             [ Event.onClick (Tab <| Tab.Select tp)
-            , Event.onDoubleClick (Tab <| Tab.Clone)
+            , Event.onDoubleClick (Tab <| Tab.Clone tp)
             , Attr.id (pathToString tp)
             , Attr.classList
                 [ ( "focused", focused )
@@ -3033,22 +3044,22 @@ project configuration to the backend.
 port updateGlobalSettings : E.Value -> Cmd msg
 
 
-port moveLeft_ : (() -> msg) -> Sub msg
+port moveLeft : (E.Value -> msg) -> Sub msg
 
 
-port moveRight_ : (() -> msg) -> Sub msg
+port moveRight : (E.Value -> msg) -> Sub msg
 
 
-port moveUp_ : (() -> msg) -> Sub msg
+port moveUp : (E.Value -> msg) -> Sub msg
 
 
-port moveDown_ : (() -> msg) -> Sub msg
+port moveDown : (E.Value -> msg) -> Sub msg
 
 
-port closeTab_ : (() -> msg) -> Sub msg
+port closeTab : (E.Value -> msg) -> Sub msg
 
 
-port cloneTab_ : (() -> msg) -> Sub msg
+port cloneTab : (E.Value -> msg) -> Sub msg
 
 
 port toggleSidebar : (() -> msg) -> Sub msg

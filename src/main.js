@@ -151,33 +151,6 @@ const createWindow = () => {
     },
   })
 
-  const tabmenu = [
-    {
-      click: () => mainWindow.webContents.send('move-left'),
-      label: 'Move Left',
-    },
-    {
-      click: () => mainWindow.webContents.send('move-right'),
-      label: 'Move Right',
-    },
-    {
-      click: () => mainWindow.webContents.send('move-up'),
-      label: 'Move Up',
-    },
-    {
-      click: () => mainWindow.webContents.send('move-down'),
-      label: 'Move Down',
-    },
-    {
-      click: () => mainWindow.webContents.send('clone-tab'),
-      label: 'Clone Tab',
-    },
-    {
-      click: () => mainWindow.webContents.send('close-tab'),
-      label: 'Close Tab',
-    },
-  ]
-
   // The application menu template
   const mainMenu = [
     // { role: 'appMenu' }
@@ -274,10 +247,6 @@ const createWindow = () => {
         { role: 'togglefullscreen' },
       ],
     },
-    {
-      label: 'Tab',
-      submenu: tabmenu,
-    },
     // { role: 'windowMenu' }
     {
       label: 'Window',
@@ -303,16 +272,52 @@ const createWindow = () => {
     { role: 'selectall' },
   ])
 
+  const tabmenu = (tabpath) => [
+    {
+      click: () => mainWindow.webContents.send('move-left', tabpath),
+      label: 'Move Left',
+    },
+    {
+      click: () => mainWindow.webContents.send('move-right', tabpath),
+      label: 'Move Right',
+    },
+    {
+      click: () => mainWindow.webContents.send('move-up', tabpath),
+      label: 'Move Up',
+    },
+    {
+      click: () => mainWindow.webContents.send('move-down', tabpath),
+      label: 'Move Down',
+    },
+    {
+      click: () => mainWindow.webContents.send('clone-tab', tabpath),
+      label: 'Clone Tab',
+    },
+    {
+      click: () => mainWindow.webContents.send('close-tab', tabpath),
+      label: 'Close Tab',
+    },
+  ]
+
   const menu = Menu.buildFromTemplate(mainMenu)
+
   Menu.setApplicationMenu(menu)
   mainWindow.setMenu(menu)
 
   mainWindow.webContents.on('context-menu', (_event, params) => {
-    const tabContextMenu = Menu.buildFromTemplate(tabmenu)
     const target = params.linkURL.split('#')
 
-    if (target[1] === 'tabnav') {
-      tabContextMenu.popup()
+    if (target[1] === 'tabnav' && target[2]) {
+      const patharray = target[2].split(',').map((item) => {
+        return parseInt(item)
+      })
+      const tabpath = {
+        column: patharray[0],
+        row: patharray[1],
+        tab: patharray[2],
+      }
+
+      Menu.buildFromTemplate(tabmenu(tabpath)).popup()
     } else {
       contextMenu.popup()
     }

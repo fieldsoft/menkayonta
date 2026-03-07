@@ -34,11 +34,11 @@ import Task
 
 
 type Msg
-    = Clone
+    = Clone Path
     | Close Path
     | Focus Path
     | Goto Path
-    | Move Direction
+    | Move Direction Path
     | New Ventana
     | None
     | Change Param Path String
@@ -136,9 +136,10 @@ defVParams : VentanaParams
 defVParams =
     { length = 0
     , searchString = ""
-    , meta = { tag = Nothing
-             , property = Nothing
-             }
+    , meta =
+        { tag = Nothing
+        , property = Nothing
+        }
     , edit = False
     }
 
@@ -210,7 +211,7 @@ update msg model =
 
                 Nothing ->
                     ( model, Cmd.none )
-                    
+
         Change Search tp str ->
             case Dict.get tp model.ventanas of
                 Just ventana ->
@@ -326,123 +327,113 @@ update msg model =
         Close tp ->
             ( closeTab True tp model, Cmd.none )
 
-        Clone ->
+        Clone tp ->
             let
                 ventana : Maybe Ventana
                 ventana =
-                    model.focused
-                        |> Maybe.andThen
-                            (\tp -> Dict.get tp model.ventanas)
-
-                idPatternMatch : Ventana -> Bool
-                idPatternMatch ventana_ =
-                    List.any
-                        (\x -> String.startsWith x ventana_.vista)
-                        dontClone
-
-                noClone : Ventana -> Bool
-                noClone ventana_ =
-                    idPatternMatch ventana_
-                        || List.member ventana_.vista model.globalVistas
+                    Dict.get tp model.ventanas
             in
             case ventana of
                 Nothing ->
                     ( model, Cmd.none )
 
                 Just v ->
+                    let
+                        -- There are string patterns in vistaids that
+                        -- indicate that a ventana should not be
+                        -- clone-able.
+                        idPatternMatch : Ventana -> Bool
+                        idPatternMatch ventana_ =
+                            List.any
+                                (\x -> String.startsWith x ventana_.vista)
+                                dontClone
+
+                        -- Certain vistaids or a global status
+                        -- (usually for reausable forms that scope
+                        -- over all projects) disallow cloning.
+                        noClone : Ventana -> Bool
+                        noClone ventana_ =
+                            idPatternMatch ventana_
+                                || List.member ventana_.vista
+                                    model.globalVistas
+                    in
                     if noClone v then
                         ( model, Cmd.none )
 
                     else
-                        ( model, sendMsg (New v) )
+                        let
+                            c : Int
+                            c =
+                                model.counter
 
-        Move dir ->
-            {- If there is more than one tab, and one is focused,
-               which always should be the case, see if there is more
-               than one tab in the row of the focused tab. If there is
-               not, the row will close when the focused tab is
-               removed. If there is, ensure that the nearest tab is
-               made visible. If there is no column or row in the
-               target direction, add a new column and/or row and
-               create a tab that references the same ventana as the
-               previous item. If there is a row at the target site,
-               create a new tab there, again referencing the original
-               ventana. Delete the original focused item and focus the
-               new tab.
-            -}
+                            ntp : Path
+                            ntp =
+                                tabpath (tcolumn tp) (trow tp) c
+
+                            newmodel : Model
+                            newmodel =
+                                { model
+                                    | counter = c + 1
+                                    , ventanas =
+                                      Dict.insert ntp v model.ventanas
+                                }
+                        in
+                        ( newmodel, Cmd.none )
+
+        Move direction tp ->
             let
-                vs : Dict Path Ventana
-                vs =
+                ventanas : Dict Path Ventana
+                ventanas =
                     model.ventanas
 
-                newmodel : Model
-                newmodel =
-                    if Dict.isEmpty vs || Dict.size vs == 1 then
-                        model
+                paths : List Path
+                paths =
+                    Dict.keys ventanas
 
-                    else
-                        case model.focused of
-                            Just fp ->
-                                let
-                                    keys : List Path
-                                    keys =
-                                        Dict.keys vs
+                cols : List Int
+                cols =
+                    tcolumns paths
 
-                                    cols : List Int
-                                    cols =
-                                        tcolumns keys
+                -- rows of the current column
+                rows : List Int
+                rows =
+                    trows (tcolumn tp) paths
 
-                                    -- rows of the current column
-                                    rows : List Int
-                                    rows =
-                                        trows (tcolumn fp) keys
-
-                                    needsCreation : Bool
-                                    needsCreation =
-                                        isCreationNecessary dir
-                                            fp
-                                            ( cols
-                                            , rows
-                                            )
-                                in
-                                {- Does the position of the tab's
-                                   column or row require that a new
-                                   tab or column be added to supply a
-                                   target?
-                                -}
-                                if needsCreation then
-                                    let
-                                        c : Int
-                                        c =
-                                            model.counter
-
-                                        newtp : Path
-                                        newtp =
-                                            newTabPath dir fp c
-
-                                        moved : Model
-                                        moved =
-                                            reassign fp newtp model
-                                    in
-                                    { moved | counter = c + 1 }
-
-                                else
-                                    let
-                                        new : Path
-                                        new =
-                                            insertTabPath dir
-                                                fp
-                                                ( cols
-                                                , rows
-                                                )
-                                                keys
-                                    in
-                                    reassign fp new model
-
-                            Nothing ->
-                                model
+                needsCreation : Bool
+                needsCreation =
+                    isCreationNecessary direction tp ( cols, rows )
             in
-            ( newmodel, Cmd.none )
+            if Dict.size ventanas > 1 then
+                if needsCreation then
+                    let
+                        c : Int
+                        c =
+                            model.counter
+
+                        newtp : Path
+                        newtp =
+                            newTabPath direction tp c
+
+                        moved : Model
+                        moved =
+                            reassign needsCreation tp newtp model
+                    in
+                    ( { moved | counter = c + 1 }
+                    , Cmd.none
+                    )
+                    
+                else
+                    let
+                        new : Path
+                        new =
+                            insertTabPath direction tp (cols, rows) paths
+                    in
+                    ( reassign needsCreation tp new model
+                    , Cmd.none
+                    )
+
+            else
+                ( model, Cmd.none )
 
 
 {-| insertTabPath, newTabPath, and isCreationNecessary are all helpers
@@ -462,10 +453,12 @@ insertTabPath dir tp ( cols, rows ) keys =
             let
                 col : Int
                 col =
+                    -- The column number after the current column
                     getNext (tcolumn tp) cols
 
                 newrows : List Int
                 newrows =
+                    -- All of the rows in the column
                     trows col keys
             in
             List.head newrows
@@ -543,6 +536,56 @@ isCreationNecessary dir tp ( cols, rows ) =
             Just (trow tp) == List.head rows
 
 
+ttabs : Int -> List Path -> List Path
+ttabs row paths =
+    List.filter (\tp -> (trow tp) == row ) paths
+        
+
+{-| Assign a ventana to a new tab.
+-}
+reassign : Bool -> Path -> Path -> Model -> Model
+reassign newrow old new model0 =
+    let
+        ventanas : Dict Path Ventana
+        ventanas =
+            Dict.get old model0.ventanas
+                |> Maybe.map (\v -> Dict.insert new v model0.ventanas)
+                |> Maybe.withDefault model0.ventanas
+
+        model1 : Model
+        model1 =
+            { model0 | ventanas = ventanas }
+
+        focusAtTarget : Bool
+        focusAtTarget =
+            case model0.focused of
+                Nothing ->
+                    False
+
+                Just (fc, (fr, _)) ->
+                    tcolumn new == fc && trow new == fr
+                
+        model2 : Model
+        model2 =
+            if ((Just old) == model0.focused) then
+                focus new model1
+
+            else
+                -- If the tab was previously visible, and its
+                -- visibility would not overwrite the focus tab
+                -- visibility, set the new tab to visible. Likewise,
+                -- set the new tab to visible if the row is empty.
+                if ( visible old model0 && (not focusAtTarget) ) ||
+                    newrow
+                then
+                { model1 | visVentanas = visInsert new model0.visVentanas }
+
+                else
+                    model1
+    in
+    closeTab False old model2
+
+
 {-| Return the Tab.Paths for the tabs in the same row.
 -}
 sharesRow : Path -> List Path -> List Path
@@ -600,6 +643,11 @@ nearest tp tabs =
             nearest_ tps
 
 
+visible : Path -> Model -> Bool
+visible tp model =
+    Just (ttab tp) == Dict.get ( tcolumn tp, trow tp ) model.visVentanas
+
+        
 {-| This will close a tab. If it was focused, it will focus the
 previous tab in the history, or the nearest tab, otherwise.
 -}
@@ -609,8 +657,7 @@ closeTab closevista tp model =
         -- Was the tab a visible tab?
         wasVisible : Bool
         wasVisible =
-            Just (ttab tp)
-                == Dict.get ( tcolumn tp, trow tp ) model.visVentanas
+            visible tp model
 
         -- ventans without closed tab
         ventanas : Dict Path Ventana
@@ -742,25 +789,6 @@ closeTab closevista tp model =
                     , visVentanas = newvars.visible
                     , vistas = vistas
                 }
-
-
-{-| Assign a ventana to a new tab. The assumption is that the ventana
-will be focused. This may change in the future.
--}
-reassign : Path -> Path -> Model -> Model
-reassign old new model =
-    let
-        ventanas : Dict Path Ventana
-        ventanas =
-            Dict.get old model.ventanas
-                |> Maybe.map (\v -> Dict.insert new v model.ventanas)
-                |> Maybe.withDefault model.ventanas
-
-        model_ : Model
-        model_ =
-            focus new { model | ventanas = ventanas }
-    in
-    closeTab False old model_
 
 
 {-| Attempts to find the integer after the current one in a list and
@@ -1024,9 +1052,7 @@ getFocusedVista : Model -> Maybe Vista
 getFocusedVista model =
     model.focused
         |> Maybe.andThen
-           (\tp -> Dict.get tp model.ventanas)
+            (\tp -> Dict.get tp model.ventanas)
         |> Maybe.map .vista
         |> Maybe.andThen
-           (\vid -> Dict.get vid model.vistas)
-
-    
+            (\vid -> Dict.get vid model.vistas)
