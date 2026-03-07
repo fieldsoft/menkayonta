@@ -4,7 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTitle: (title) => ipcRenderer.send('set-title', title),
   onMoveLeft: (callback) =>
     ipcRenderer.on('move-left', (_event, data) => callback(data)),
-  onMoveRight: (callback, data) =>
+  onMoveRight: (callback) =>
     ipcRenderer.on('move-right', (_event, data) => callback(data)),
   onMoveUp: (callback) =>
     ipcRenderer.on('move-up', (_event, data) => callback(data)),

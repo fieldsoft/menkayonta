@@ -2237,7 +2237,7 @@ handleVista vista short full model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     let
         rcvd : (E.Value -> Msg.ReceiveType) -> (E.Value -> Msg)
         rcvd t =
@@ -2256,7 +2256,7 @@ subscriptions model =
                 
         tabAct : (Tab.Path -> Tab.Msg) -> E.Value -> Msg
         tabAct a value =
-            case Debug.log "decode" (D.decodeValue dtp value) of
+            case D.decodeValue dtp value of
                 Err _ ->
                     Ms Msg.None
 

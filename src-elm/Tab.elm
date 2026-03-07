@@ -46,14 +46,6 @@ type Msg
     | Unlock
 
 
-{-| Inject a message into `Cmd`
--}
-sendMsg : Msg -> Cmd Msg
-sendMsg msg =
-    Task.succeed msg
-        |> Task.perform identity
-
-
 type alias Model =
     { counter : Int
     , ventanas : Ventanas
@@ -375,7 +367,7 @@ update msg model =
                                 { model
                                     | counter = c + 1
                                     , ventanas =
-                                      Dict.insert ntp v model.ventanas
+                                        Dict.insert ntp v model.ventanas
                                 }
                         in
                         ( newmodel, Cmd.none )
@@ -385,25 +377,26 @@ update msg model =
                 ventanas : Dict Path Ventana
                 ventanas =
                     model.ventanas
-
-                paths : List Path
-                paths =
-                    Dict.keys ventanas
-
-                cols : List Int
-                cols =
-                    tcolumns paths
-
-                -- rows of the current column
-                rows : List Int
-                rows =
-                    trows (tcolumn tp) paths
-
-                needsCreation : Bool
-                needsCreation =
-                    isCreationNecessary direction tp ( cols, rows )
             in
             if Dict.size ventanas > 1 then
+                let
+                    paths : List Path
+                    paths =
+                        Dict.keys ventanas
+
+                    cols : List Int
+                    cols =
+                        tcolumns paths
+
+                    -- rows of the current column
+                    rows : List Int
+                    rows =
+                        trows (tcolumn tp) paths
+
+                    needsCreation : Bool
+                    needsCreation =
+                        isCreationNecessary direction tp ( cols, rows )
+                in
                 if needsCreation then
                     let
                         c : Int
@@ -421,12 +414,12 @@ update msg model =
                     ( { moved | counter = c + 1 }
                     , Cmd.none
                     )
-                    
+
                 else
                     let
                         new : Path
                         new =
-                            insertTabPath direction tp (cols, rows) paths
+                            insertTabPath direction tp ( cols, rows ) paths
                     in
                     ( reassign needsCreation tp new model
                     , Cmd.none
@@ -536,11 +529,6 @@ isCreationNecessary dir tp ( cols, rows ) =
             Just (trow tp) == List.head rows
 
 
-ttabs : Int -> List Path -> List Path
-ttabs row paths =
-    List.filter (\tp -> (trow tp) == row ) paths
-        
-
 {-| Assign a ventana to a new tab.
 -}
 reassign : Bool -> Path -> Path -> Model -> Model
@@ -556,29 +544,31 @@ reassign newrow old new model0 =
         model1 =
             { model0 | ventanas = ventanas }
 
-        focusAtTarget : Bool
-        focusAtTarget =
-            case model0.focused of
-                Nothing ->
-                    False
-
-                Just (fc, (fr, _)) ->
-                    tcolumn new == fc && trow new == fr
-                
         model2 : Model
         model2 =
-            if ((Just old) == model0.focused) then
+            if Just old == model0.focused then
                 focus new model1
 
             else
+                let
+                    focusAtTarget : Bool
+                    focusAtTarget =
+                        case model0.focused of
+                            Nothing ->
+                                False
+
+                            Just ( fc, ( fr, _ ) ) ->
+                                tcolumn new == fc && trow new == fr
+                in
                 -- If the tab was previously visible, and its
                 -- visibility would not overwrite the focus tab
                 -- visibility, set the new tab to visible. Likewise,
                 -- set the new tab to visible if the row is empty.
-                if ( visible old model0 && (not focusAtTarget) ) ||
-                    newrow
+                if
+                    (visible old model0 && not focusAtTarget)
+                        || newrow
                 then
-                { model1 | visVentanas = visInsert new model0.visVentanas }
+                    { model1 | visVentanas = visInsert new model0.visVentanas }
 
                 else
                     model1
@@ -647,7 +637,7 @@ visible : Path -> Model -> Bool
 visible tp model =
     Just (ttab tp) == Dict.get ( tcolumn tp, trow tp ) model.visVentanas
 
-        
+
 {-| This will close a tab. If it was focused, it will focus the
 previous tab in the history, or the nearest tab, otherwise.
 -}
