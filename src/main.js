@@ -550,25 +550,32 @@ const command = (_event, envelope) => {
 }
 
 const init = async () => {
-  try {
-    await app.whenReady()
+  const gotLock = app.requestSingleInstanceLock()
 
-    ipcMain.handle('request-gconfig', openGlobalConf)
-    ipcMain.handle('update-project', updateProject)
-    ipcMain.handle('import-file', importFile)
-    ipcMain.handle('update-global-settings', updateGlobalSettings)
-    ipcMain.handle('command', command)
-    ipcMain.on('set-title', handleSetTitle)
-    createWindow()
+  // Ensure that only one instance is running.
+  if (!gotLock) {
+    app.quit()
+  } else {
+    try {
+      await app.whenReady()
 
-    // Open a window on MacOS when none are otherwise open.
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow()
-      }
-    })
-  } catch (err) {
-    console.log(err)
+      ipcMain.handle('request-gconfig', openGlobalConf)
+      ipcMain.handle('update-project', updateProject)
+      ipcMain.handle('import-file', importFile)
+      ipcMain.handle('update-global-settings', updateGlobalSettings)
+      ipcMain.handle('command', command)
+      ipcMain.on('set-title', handleSetTitle)
+      createWindow()
+
+      // Open a window on MacOS when none are otherwise open.
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          createWindow()
+        }
+      })
+    } catch (err) {
+      console.log(err)
+    }
   }
 }
 
