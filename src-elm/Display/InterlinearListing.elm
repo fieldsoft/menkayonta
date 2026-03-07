@@ -1,64 +1,83 @@
-module Display.InterlinearListing exposing (Params, view, viewInterlinear)
+module Display.InterlinearListing exposing
+    ( Model
+    , Msg
+    , view
+    , viewInterlinear
+    )
 
+import Dict
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Menkayonta exposing (Interlinear, Translation)
 import List.Extra as LE
+import Menkayonta
+    exposing
+        ( DocId(..)
+        , Identifier(..)
+        , Interlinear
+        , Translation
+        , Value(..)
+        )
+import Msg
 import UUID
-import Dict
 
 
-type alias Params msg =
+type alias Msg =
+    Msg.Msg
+
+
+type alias Model =
     { interlinears : List Interlinear
-    , viewEvent : UUID.UUID -> msg
-    , editEvent : Interlinear -> msg
+    , project : UUID.UUID
     }
 
 
-view : Params msg -> Html.Html msg
-view params =
+view : Model -> Html.Html Msg
+view model =
     Html.ul [ Attr.class "index-listing" ]
         (List.map
-            (viewItem params.viewEvent params.editEvent)
-            params.interlinears
+            (viewItem model)
+            model.interlinears
         )
 
 
-viewItem :
-    (UUID.UUID -> msg)
-    -> (Interlinear -> msg)
-    -> Interlinear
-    -> Html.Html msg
-viewItem viewEvent editEvent int =
+viewItem : Model -> Interlinear -> Html.Html Msg
+viewItem model int =
     Html.li []
         [ viewInterlinear int
         , Html.div [ Attr.class "gloss-controls" ]
             [ Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"
-                , Event.onClick (viewEvent int.id)
+                , Msg.ONoteFor
+                    (MyDocId <| InterlinearId int.id)
+                    (MyInterlinear int)
+                    |> Msg.Request model.project
+                    |> Msg.UserClick
+                    |> Event.onClick
                 ]
                 [ Html.text "View" ]
             , Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"
-                , Event.onClick (editEvent int)
+                , Msg.EditInterlinear model.project int
+                    |> Msg.UserClick
+                    |> Event.onClick
                 ]
                 [ Html.text "Edit" ]
             ]
         ]
 
 
-viewInterlinear : Interlinear -> Html.Html msg
+viewInterlinear : Interlinear -> Html.Html Msg
 viewInterlinear int =
     let
-        srcLine : Html.Html msg
+        srcLine : Html.Html Msg
         srcLine =
             Html.span [ Attr.class "gloss-source-text" ]
                 [ Html.text (int.ann.judgment ++ " " ++ int.text) ]
 
-        annLines : Html.Html msg
+        annLines : Html.Html Msg
         annLines =
             if int.ann.breaks /= "" then
                 viewAnn int.ann.breaks int.ann.glosses
@@ -76,7 +95,7 @@ viewInterlinear int =
                 , "'"
                 ]
 
-        transLines : List (Html.Html msg)
+        transLines : List (Html.Html Msg)
         transLines =
             List.map
                 (\t ->
@@ -92,7 +111,7 @@ viewInterlinear int =
         ]
 
 
-viewAnn : String -> String -> Html.Html msg
+viewAnn : String -> String -> Html.Html Msg
 viewAnn brk gls =
     let
         brk_ : List String
@@ -115,7 +134,7 @@ viewAnn brk gls =
         |> Html.p [ Attr.class "aligned-glosses" ]
 
 
-viewGlosses : ( String, String ) -> Html.Html msg
+viewGlosses : ( String, String ) -> Html.Html Msg
 viewGlosses ( a, b ) =
     Html.div [ Attr.class "gloss-column" ]
         [ Html.div [] [ Html.text a ]

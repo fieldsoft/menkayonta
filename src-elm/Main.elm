@@ -2233,9 +2233,6 @@ handleVista vista short full model =
             ( newmodel, sendMsg (Tab <| Tab.Focus tp) )
 
 
-
-
-
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     let
@@ -2245,7 +2242,7 @@ subscriptions _ =
 
         dtp : D.Decoder Tab.Path
         dtp =
-            D.map3 (\c r t -> (c, (r, t)))
+            D.map3 (\c r t -> ( c, ( r, t ) ))
                 (D.field "column" D.int)
                 (D.field "row" D.int)
                 (D.field "tab" D.int)
@@ -2253,7 +2250,7 @@ subscriptions _ =
         move : Direction -> E.Value -> Msg
         move d value =
             tabAct (Tab.Move d) value
-                
+
         tabAct : (Tab.Path -> Tab.Msg) -> E.Value -> Msg
         tabAct a value =
             case D.decodeValue dtp value of
@@ -2416,7 +2413,7 @@ viewTabHeader model tp =
                 ]
             , Attr.title ventana.fullTitle
             , Attr.attribute "role" "button"
-            , Attr.href <| "#tabnav#" ++ (pathToString tp)
+            , Attr.href <| "#tabnav#" ++ pathToString tp
             ]
             [ Html.text ventana.title ]
         , Html.a
@@ -2633,137 +2630,131 @@ viewVista model tp vista =
                     Html.text "Invalid project or non-interlinear"
 
         Content.ITS ints ->
-            let
-                params : VentanaParams
-                params =
-                    Dict.get tp model.tabs.ventanas
-                        |> Maybe.map .params
-                        |> Maybe.withDefault { defVParams | length = 20 }
-
-                ss : String
-                ss =
-                    params.searchString
-
-                searched : List M.Interlinear
-                searched =
+            case
+                UUID.fromString vista.project
+                    |> Result.toMaybe
+            of
+                Just project ->
                     let
-                        strings : M.Interlinear -> List ( String, String )
-                        strings int =
-                            Dict.foldl
-                                (\_ t acc ->
-                                    ( "translations.judgment"
-                                    , t.judgment
-                                    )
-                                        :: ( "translation"
-                                           , t.translation
-                                           )
-                                        :: acc
-                                )
-                                []
-                                int.translations
-                                |> List.append
-                                    [ ( "text", int.text )
-                                    , ( "judgment", int.ann.judgment )
-                                    , ( "phonemic", int.ann.phonemic )
-                                    , ( "glosses", int.ann.glosses )
-                                    , ( "breaks", int.ann.breaks )
-                                    ]
+                        params : VentanaParams
+                        params =
+                            Dict.get tp model.tabs.ventanas
+                                |> Maybe.map .params
+                                |> Maybe.withDefault
+                                    { defVParams | length = 20 }
+
+                        ss : String
+                        ss =
+                            params.searchString
+
+                        searched : List M.Interlinear
+                        searched =
+                            let
+                                strings :
+                                    M.Interlinear
+                                    -> List ( String, String )
+                                strings int =
+                                    Dict.foldl
+                                        (\_ t acc ->
+                                            ( "translations.judgment"
+                                            , t.judgment
+                                            )
+                                                :: ( "translation"
+                                                   , t.translation
+                                                   )
+                                                :: acc
+                                        )
+                                        []
+                                        int.translations
+                                        |> List.append
+                                            [ ( "text"
+                                              , int.text
+                                              )
+                                            , ( "judgment"
+                                              , int.ann.judgment
+                                              )
+                                            , ( "phonemic"
+                                              , int.ann.phonemic
+                                              )
+                                            , ( "glosses"
+                                              , int.ann.glosses
+                                              )
+                                            , ( "breaks"
+                                              , int.ann.breaks
+                                              )
+                                            ]
+                            in
+                            List.filter (\i -> search ss (strings i)) ints
+
+                        intTotal : Int
+                        intTotal =
+                            List.length searched
+
+                        is : List M.Interlinear
+                        is =
+                            List.take params.length searched
+
+                        len : String
+                        len =
+                            String.fromInt params.length
+
+                        imodel : Display.InterlinearListing.Model
+                        imodel =
+                            { interlinears = is
+                            , project = project
+                            }
                     in
-                    List.filter (\i -> search ss (strings i)) ints
-
-                intTotal : Int
-                intTotal =
-                    List.length searched
-
-                is : List M.Interlinear
-                is =
-                    List.take params.length searched
-
-                len : String
-                len =
-                    String.fromInt params.length
-
-                viewEvent : UUID.UUID -> Msg
-                viewEvent identifier =
-                    case UUID.fromString vista.project of
-                        Err _ ->
-                            Ms Msg.None
-
-                        Ok uuid ->
-                            [ "interlinear/", UUID.toString identifier ]
-                                |> String.concat
-                                |> OComposite
-                                |> Msg.Request uuid
-                                |> Msg.UserClick
-                                |> Ms
-
-                editEvent : M.Interlinear -> Msg
-                editEvent interlinear =
-                    case UUID.fromString vista.project of
-                        Err _ ->
-                            Ms Msg.None
-
-                        Ok uuid ->
-                            interlinear
-                                |> Msg.EditInterlinear uuid
-                                |> Msg.UserClick
-                                |> Ms
-
-                displayParams : Display.InterlinearListing.Params Msg
-                displayParams =
-                    { interlinears = is
-                    , viewEvent = viewEvent
-                    , editEvent = editEvent
-                    }
-            in
-            Html.div []
-                [ Html.div [ Attr.class "filters" ]
-                    [ Html.label []
-                        [ Html.text <|
-                            if params.length <= intTotal then
-                                let
-                                    -- For displaying
-                                    total : String
-                                    total =
-                                        intTotal |> String.fromInt
-                                in
-                                "Show (" ++ len ++ " of " ++ total ++ ")"
-
-                            else
-                                "Showing all items."
-                        , Html.input
-                            ([ Attr.type_ "text"
-                             , Attr.placeholder len
-                             , Event.onInput
-                                (\s ->
-                                    Tab.Change Tab.Length tp s
-                                        |> Tab
-                                )
-                             ]
-                                ++ (if params.length > 0 then
-                                        [ Attr.value len ]
+                    Html.div []
+                        [ Html.div [ Attr.class "filters" ]
+                            [ Html.label []
+                                [ Html.text <|
+                                    if params.length <= intTotal then
+                                        let
+                                            -- For displaying
+                                            total : String
+                                            total =
+                                                intTotal |> String.fromInt
+                                        in
+                                        "Show (" ++ len ++ " of " ++ total ++ ")"
 
                                     else
-                                        []
-                                   )
-                            )
-                            []
-                        , Html.input
-                            [ Attr.type_ "text"
-                            , Attr.value ss
-                            , Attr.placeholder "Search"
-                            , Attr.attribute "aria-label" "Search"
-                            , Event.onInput
-                                (\s ->
-                                    Tab.Change Tab.Search tp s
-                                        |> Tab
-                                )
+                                        "Showing all items."
+                                , Html.input
+                                    ([ Attr.type_ "text"
+                                     , Attr.placeholder len
+                                     , Event.onInput
+                                        (\s ->
+                                            Tab.Change Tab.Length tp s
+                                                |> Tab
+                                        )
+                                     ]
+                                        ++ (if params.length > 0 then
+                                                [ Attr.value len ]
+
+                                            else
+                                                []
+                                           )
+                                    )
+                                    []
+                                , Html.input
+                                    [ Attr.type_ "text"
+                                    , Attr.value ss
+                                    , Attr.placeholder "Search"
+                                    , Attr.attribute "aria-label" "Search"
+                                    , Event.onInput
+                                        (\s ->
+                                            Tab.Change Tab.Search tp s
+                                                |> Tab
+                                        )
+                                    ]
+                                    []
+                                ]
                             ]
-                            []
+                        , Display.InterlinearListing.view imodel |> Html.map Ms
                         ]
-                    ]
-                , Display.InterlinearListing.view displayParams
-                ]
+
+                Nothing ->
+                    Html.text "Missing project information"
 
         Content.PLS people ->
             let
