@@ -76,6 +76,35 @@ const startSync = async (url) => {
   }
 }
 
+const touchAllViews = () => {
+  // This is to force an update of the index
+  gvs.db.query('menkayonta/meta_reversals', {
+    include_docs: false,
+    startkey: '\ufff0',
+  })
+}
+
+const startChangeWatcher = () => {
+  gvs.changeCounter = 0
+
+  gvs.changes = gvs.db
+    .changes({ since: 'now', live: true })
+    .on('change', (change) => {
+      if (gvs.changeCounter < 100) {
+        gvs.changeCounter += 1
+      } else {
+        gvs.changeCounter = 0
+        touchAllViews()
+      }
+    })
+    .on('complete', (information) => {
+      info('change watcher stopped')
+    })
+    .on('error', (err) => {
+      error(err)
+    })
+}
+
 const handleInit = ({ identifier: i, projectsPath: pp, url: url }) => {
   gvs.identifier = i
   gvs.path = path.join(pp, i)
@@ -104,6 +133,8 @@ const handleInit = ({ identifier: i, projectsPath: pp, url: url }) => {
         error(err)
       }
     }
+
+    startChangeWatcher()
   })
 
   return gvs
