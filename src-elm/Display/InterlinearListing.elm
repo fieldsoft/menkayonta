@@ -17,6 +17,7 @@ import Menkayonta
         , Interlinear
         , Translation
         , Value(..)
+        , identifierToString
         )
 import Msg
 import UUID
@@ -49,9 +50,10 @@ viewItem model int =
             [ Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"
-                , Msg.ONoteFor
-                    (MyDocId <| InterlinearId int.id)
-                    (MyInterlinear int)
+                , InterlinearId int.id
+                    |> MyDocId
+                    |> identifierToString
+                    |> Msg.OComposite 
                     |> Msg.Request model.project
                     |> Msg.UserClick
                     |> Event.onClick
