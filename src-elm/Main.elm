@@ -57,7 +57,7 @@ type alias Model =
     , seeds : UUID.Seeds
     , sideBar : Bool
     , viewArea : Dimensions
-    , status : AL.Dict UUID.UUID (List String)
+    , status : AL.Dict ProjectId (Dict String Int)
     }
 
 
@@ -270,12 +270,59 @@ update msg model =
                             )
 
                         Ok stat ->
-                            ( { model
-                                  | status =
-                                    AL.insert env.project stat model.status
-                              }
-                            , Cmd.none
-                            )
+                            let
+                                curr : AL.Dict ProjectId (Dict String Int)
+                                curr =
+                                    model.status
+
+                                newmsgs : Dict String Int
+                                newmsgs =
+                                    stat
+                                        |> List.map (\s -> ( s, 2 ))
+                                        |> Dict.fromList
+
+                                natMinus1 : Int -> Int
+                                natMinus1 i =
+                                    if i <= 0 then
+                                        i
+
+                                    else
+                                        i - 1
+
+                                demote :
+                                    List String
+                                    -> Dict String Int
+                                    -> Dict String Int
+                                demote s mgs =
+                                    Dict.map
+                                        (\k v ->
+                                            if List.member k s then
+                                                2
+
+                                            else
+                                                natMinus1 v
+                                        )
+                                        mgs
+
+                                new : AL.Dict ProjectId (Dict String Int)
+                                new =
+                                    case AL.get env.project curr of
+                                        Nothing ->
+                                            AL.insert env.project
+                                                newmsgs
+                                                curr
+
+                                        Just smsgs ->
+                                            Dict.union newmsgs smsgs
+                                                |> demote stat
+                                                |> (\x ->
+                                                        AL.insert
+                                                            env.project
+                                                            x
+                                                            curr
+                                                   )
+                            in
+                            ( { model | status = new }, Cmd.none )
 
         Ms (Msg.ChangeNote vistaid str) ->
             case Dict.get vistaid model.tabs.vistas of
@@ -2525,23 +2572,24 @@ viewLoadingProject model p =
         , Html.text ": "
         , Html.b [] [ Html.text p.key ]
         , case AL.get p.identifier model.status of
-              Nothing ->
-                  Html.text ""
+            Nothing ->
+                Html.text ""
 
-              Just stat ->
-                  Html.span [] <|
-                      List.map
-                          ( \s ->
-                                case s of
-                                    "view_indexing" ->
-                                        Html.text " I "
+            Just stat ->
+                Html.span [] <|
+                    List.map
+                        (\s ->
+                            case s of
+                                "view_indexing" ->
+                                    Html.text " I "
 
-                                    "replication" ->
-                                        Html.text " R "
+                                "replication" ->
+                                    Html.text " R "
 
-                                    _ ->
-                                        Html.text ""
-                          ) stat
+                                _ ->
+                                    Html.text ""
+                        )
+                        (Dict.keys stat)
         ]
 
 
@@ -2554,54 +2602,54 @@ viewProject model p =
     in
     Html.li []
         [ Html.details []
-              [ viewLoadingProject model p
-              , Html.ul []
-                  [ Html.li []
-                        [ Html.a
-                              [ Attr.href "#"
-                              , Msg.EditProject pmodel
-                              |> Msg.UserClick
-                              |> Ms
-                              |> Event.onClick
-                              , Attr.class "secondary"
-                              ]
-                              [ Html.text "Settings" ]
+            [ viewLoadingProject model p
+            , Html.ul []
+                [ Html.li []
+                    [ Html.a
+                        [ Attr.href "#"
+                        , Msg.EditProject pmodel
+                            |> Msg.UserClick
+                            |> Ms
+                            |> Event.onClick
+                        , Attr.class "secondary"
                         ]
-                  , Html.li []
-                      [ Html.a
-                            [ Attr.href "#"
-                            , Msg.Request p.identifier OInterlinearListing
+                        [ Html.text "Settings" ]
+                    ]
+                , Html.li []
+                    [ Html.a
+                        [ Attr.href "#"
+                        , Msg.Request p.identifier OInterlinearListing
                             |> Msg.UserClick
                             |> Ms
                             |> Event.onClick
-                            , Attr.class "secondary"
-                            ]
-                            [ Html.text "Gloss Index" ]
-                      ]
-                  , Html.li []
-                      [ Html.a
-                            [ Attr.href "#"
-                            , Msg.Request p.identifier OPersonListing
+                        , Attr.class "secondary"
+                        ]
+                        [ Html.text "Gloss Index" ]
+                    ]
+                , Html.li []
+                    [ Html.a
+                        [ Attr.href "#"
+                        , Msg.Request p.identifier OPersonListing
                             |> Msg.UserClick
                             |> Ms
                             |> Event.onClick
-                            , Attr.class "secondary"
-                            ]
-                            [ Html.text "Person Index" ]
-                      ]
-                  , Html.li []
-                      [ Html.a
-                            [ Attr.href "#"
-                            , Msg.NewInterlinear p.identifier
+                        , Attr.class "secondary"
+                        ]
+                        [ Html.text "Person Index" ]
+                    ]
+                , Html.li []
+                    [ Html.a
+                        [ Attr.href "#"
+                        , Msg.NewInterlinear p.identifier
                             |> Msg.UserClick
                             |> Ms
                             |> Event.onClick
-                            , Attr.class "secondary"
-                            ]
-                            [ Html.text "Gloss New Item" ]
-                      ]
-                  ]
-              ]
+                        , Attr.class "secondary"
+                        ]
+                        [ Html.text "Gloss New Item" ]
+                    ]
+                ]
+            ]
         ]
 
 
