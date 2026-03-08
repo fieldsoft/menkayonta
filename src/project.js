@@ -35,6 +35,15 @@ const error = (e) => {
   })
 }
 
+const status = (msg) => {
+  process.parentPort.postMessage({
+    command: 'status',
+    content: msg,
+    project: gvs.identifier,
+    address: 'none',
+  })
+}
+
 const startSync = async (url) => {
   gvs.remotedb = new PouchDB(url, { adapter: 'http' })
 
@@ -105,6 +114,17 @@ const startChangeWatcher = () => {
     })
 }
 
+const startActiveTaskPolling = () => {
+  setInterval(() => {
+    const tasks = PouchDB.activeTasks.list()
+    const names = tasks.map((t) => {
+      return t.name
+    })
+
+    status(names)
+  }, 2000)
+}
+
 const handleInit = ({ identifier: i, projectsPath: pp, url: url }) => {
   gvs.identifier = i
   gvs.path = path.join(pp, i)
@@ -135,6 +155,7 @@ const handleInit = ({ identifier: i, projectsPath: pp, url: url }) => {
     }
 
     startChangeWatcher()
+    startActiveTaskPolling()
   })
 
   return gvs

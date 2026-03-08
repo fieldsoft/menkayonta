@@ -79,6 +79,9 @@ const handleProjectMessage = (m) => {
     case 'error':
       m.error.message = `Child ${m.identifier}: ${m.error.message}`
       throw m.error
+    case 'status':
+      gvs.webContents.send(m.command, m)
+      break
     case 'received-person-listing':
       gvs.webContents.send(m.command, m)
       break

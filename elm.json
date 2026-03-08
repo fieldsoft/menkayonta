@@ -23,6 +23,7 @@
             "elm-community/maybe-extra": "5.3.0",
             "elm-explorations/linear-algebra": "1.0.3",
             "miniBill/elm-unicode": "1.1.1",
+            "pzp1997/assoc-list": "1.0.0",
             "rtfeldman/elm-iso8601-date-strings": "1.1.4",
             "ryan-haskell/date-format": "1.0.0",
             "truqu/elm-md5": "1.1.0"

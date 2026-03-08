@@ -29,6 +29,7 @@ type Msg
     | ChangeProperty (Maybe Meta.PropertyField)
     | SaveProperty Meta.PropertyField
     | EditToggle
+    | Status E.Value
     | None
 
 

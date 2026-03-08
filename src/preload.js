@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
   setTitle: (title) => ipcRenderer.send('set-title', title),
+  onStatus: (callback) =>
+    ipcRenderer.on('status', (_event, data) => callback(data)),
   onMoveLeft: (callback) =>
     ipcRenderer.on('move-left', (_event, data) => callback(data)),
   onMoveRight: (callback) =>

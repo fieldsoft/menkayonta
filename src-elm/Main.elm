@@ -1,5 +1,6 @@
 port module Main exposing (Dimensions, Flags, Model, Msg, main)
 
+import AssocList as AL
 import Browser
 import Config exposing (GlobalConfig, ProjectInfo)
 import Content exposing (Content(..))
@@ -56,6 +57,7 @@ type alias Model =
     , seeds : UUID.Seeds
     , sideBar : Bool
     , viewArea : Dimensions
+    , status : AL.Dict UUID.UUID (List String)
     }
 
 
@@ -225,6 +227,7 @@ init flags =
       , seeds = seeds
       , sideBar = True
       , viewArea = flags.dimensions
+      , status = AL.empty
       }
     , Cmd.batch
         [ requestGlobalConfig ()
@@ -251,6 +254,28 @@ update msg model =
                     envelopePart time |> envelopeEncoder
             in
             ( model, cmd envelope )
+
+        Ms (Msg.Status envelope) ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    case D.decodeValue (D.list D.string) env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok stat ->
+                            ( { model
+                                  | status =
+                                    AL.insert env.project stat model.status
+                              }
+                            , Cmd.none
+                            )
 
         Ms (Msg.ChangeNote vistaid str) ->
             case Dict.get vistaid model.tabs.vistas of
@@ -2259,6 +2284,10 @@ subscriptions _ =
 
                 Ok tp ->
                     a tp |> Tab
+
+        ms : (E.Value -> Msg.Msg) -> E.Value -> Msg
+        ms m v =
+            Ms (m v)
     in
     Sub.batch
         [ receivedGlobalConfig <| rcvd IGlobalConfig
@@ -2280,6 +2309,7 @@ subscriptions _ =
         , closeTab <| tabAct Tab.Close
         , cloneTab <| tabAct Tab.Clone
         , toggleSidebar (\_ -> ToggleSidebar)
+        , status <| ms Msg.Status
         ]
 
 
@@ -2482,7 +2512,7 @@ viewTabListItem tp ventana =
 
 viewLoadingProject : Model -> ProjectInfo -> Html.Html Msg
 viewLoadingProject model p =
-    Html.span
+    Html.summary
         [ Attr.attribute "aria-busy"
             (if Set.member (UUID.toString p.identifier) model.loading then
                 "true"
@@ -2491,7 +2521,28 @@ viewLoadingProject model p =
                 "false"
             )
         ]
-        [ Html.text (p.title ++ ": " ++ p.key) ]
+        [ Html.span [] [ Html.text p.title ]
+        , Html.text ": "
+        , Html.b [] [ Html.text p.key ]
+        , case AL.get p.identifier model.status of
+              Nothing ->
+                  Html.text ""
+
+              Just stat ->
+                  Html.span [] <|
+                      List.map
+                          ( \s ->
+                                case s of
+                                    "view_indexing" ->
+                                        Html.text " I "
+
+                                    "replication" ->
+                                        Html.text " R "
+
+                                    _ ->
+                                        Html.text ""
+                          ) stat
+        ]
 
 
 viewProject : Model -> ProjectInfo -> Html.Html Msg
@@ -2502,53 +2553,55 @@ viewProject model p =
             Form.Project.fromProjectInfo p
     in
     Html.li []
-        [ viewLoadingProject model p
-        , Html.ul []
-            [ Html.li []
-                [ Html.a
-                    [ Attr.href "#"
-                    , Msg.EditProject pmodel
-                        |> Msg.UserClick
-                        |> Ms
-                        |> Event.onClick
-                    , Attr.class "secondary"
-                    ]
-                    [ Html.text "Settings" ]
-                ]
-            , Html.li []
-                [ Html.a
-                    [ Attr.href "#"
-                    , Msg.Request p.identifier OInterlinearListing
-                        |> Msg.UserClick
-                        |> Ms
-                        |> Event.onClick
-                    , Attr.class "secondary"
-                    ]
-                    [ Html.text "Gloss Index" ]
-                ]
-            , Html.li []
-                [ Html.a
-                    [ Attr.href "#"
-                    , Msg.Request p.identifier OPersonListing
-                        |> Msg.UserClick
-                        |> Ms
-                        |> Event.onClick
-                    , Attr.class "secondary"
-                    ]
-                    [ Html.text "Person Index" ]
-                ]
-            , Html.li []
-                [ Html.a
-                    [ Attr.href "#"
-                    , Msg.NewInterlinear p.identifier
-                        |> Msg.UserClick
-                        |> Ms
-                        |> Event.onClick
-                    , Attr.class "secondary"
-                    ]
-                    [ Html.text "Gloss New Item" ]
-                ]
-            ]
+        [ Html.details []
+              [ viewLoadingProject model p
+              , Html.ul []
+                  [ Html.li []
+                        [ Html.a
+                              [ Attr.href "#"
+                              , Msg.EditProject pmodel
+                              |> Msg.UserClick
+                              |> Ms
+                              |> Event.onClick
+                              , Attr.class "secondary"
+                              ]
+                              [ Html.text "Settings" ]
+                        ]
+                  , Html.li []
+                      [ Html.a
+                            [ Attr.href "#"
+                            , Msg.Request p.identifier OInterlinearListing
+                            |> Msg.UserClick
+                            |> Ms
+                            |> Event.onClick
+                            , Attr.class "secondary"
+                            ]
+                            [ Html.text "Gloss Index" ]
+                      ]
+                  , Html.li []
+                      [ Html.a
+                            [ Attr.href "#"
+                            , Msg.Request p.identifier OPersonListing
+                            |> Msg.UserClick
+                            |> Ms
+                            |> Event.onClick
+                            , Attr.class "secondary"
+                            ]
+                            [ Html.text "Person Index" ]
+                      ]
+                  , Html.li []
+                      [ Html.a
+                            [ Attr.href "#"
+                            , Msg.NewInterlinear p.identifier
+                            |> Msg.UserClick
+                            |> Ms
+                            |> Event.onClick
+                            , Attr.class "secondary"
+                            ]
+                            [ Html.text "Gloss New Item" ]
+                      ]
+                  ]
+              ]
         ]
 
 
@@ -3054,3 +3107,6 @@ port cloneTab : (E.Value -> msg) -> Sub msg
 
 
 port toggleSidebar : (() -> msg) -> Sub msg
+
+
+port status : (E.Value -> msg) -> Sub msg
