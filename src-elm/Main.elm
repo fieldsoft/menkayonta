@@ -313,8 +313,8 @@ update msg model =
                                                 curr
 
                                         Just smsgs ->
-                                            Dict.union newmsgs smsgs
-                                                |> demote stat
+                                            demote stat smsgs
+                                                |> Dict.union newmsgs
                                                 |> (\x ->
                                                         AL.insert
                                                             env.project
@@ -2578,10 +2578,14 @@ viewLoadingProject model p =
             Just stat ->
                 Html.span [] <|
                     List.map
-                        (\s ->
-                            case s of
+                        (\(k, v) ->
+                            case k of
                                 "view_indexing" ->
-                                    Html.text " I "
+                                    if v > 0 then
+                                        Html.text " I "
+
+                                    else
+                                        Html.text ""
 
                                 "replication" ->
                                     Html.text " R "
@@ -2589,7 +2593,7 @@ viewLoadingProject model p =
                                 _ ->
                                     Html.text ""
                         )
-                        (Dict.keys stat)
+                        (Dict.toList stat)
         ]
 
 
