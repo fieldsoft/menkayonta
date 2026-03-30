@@ -43,7 +43,23 @@ properties : UUID.UUID -> DocId -> List Property -> Html.Html Msg
 properties project docid props =
     case props of
         [] ->
-            Html.text ""
+            Html.article []
+                [ Html.a
+                    [ Attr.href "#"
+                    , Attr.title "Add a new property"
+                    , Attr.attribute "role" "button"
+                    , Attr.class "secondary"
+                    , Event.onClick <|
+                        Msg.ChangeProperty <|
+                            Just
+                                { kind = openval
+                                , value = openval
+                                , docids = [ docid ]
+                                , project = project
+                                }
+                    ]
+                    [ Html.text "Add Property" ]
+                ]
 
         _ ->
             Html.article []
@@ -356,7 +372,22 @@ tags : UUID.UUID -> DocId -> List Tag -> Html.Html Msg
 tags project docid ts =
     case ts of
         [] ->
-            Html.text ""
+            Html.article []
+                [ Html.a
+                      [ Attr.href "#"
+                      , Attr.title "Add a new tag"
+                      , Attr.attribute "role" "button"
+                      , Attr.class "secondary"
+                      , Event.onClick <|
+                          Msg.ChangeTag <|
+                              Just
+                              { kind = openval
+                              , docids = [ docid ]
+                              , project = project
+                              }
+                      ]
+                      [ Html.text "Add Tag" ]
+                ]
 
         _ :: _ ->
             Html.article []
