@@ -194,8 +194,28 @@ update msg model =
                 url : StringField
                 url =
                     model.url
+
+                urlstr =
+                    case String.split "@" str of
+                        _ :: [] ->
+                            str
+
+                        x :: y :: [] ->
+                            if String.startsWith "https://" x then
+                                "https://" ++ y
+
+                            else
+                                if String.startsWith "http://" x then
+                                    "http://" ++ y
+
+                                else
+                                    str
+
+                        _ ->
+                            str
+                        
             in
-            case ( String.isEmpty str, Url.fromString str ) of
+            case ( String.isEmpty str, Url.fromString urlstr ) of
                 ( False, Nothing ) ->
                     let
                         err : String
