@@ -159,25 +159,68 @@ update msg model =
                 key =
                     model.key
             in
-            case String.uncons str of
-                Just ( _, "" ) -> 
+            case Debug.log "emoji" (String.uncons <| String.trim str) of
+                Just ( _, "" ) ->
                     ( validate
-                          { model
-                              | key =
+                        { model
+                            | key =
                                 { key
                                     | value = str
                                     , valid = True
                                     , error = ""
                                     , changed = True
                                 }
-                          }
+                        }
                     , Cmd.none
                     )
 
-                _ ->
+                Just ( char, tl ) ->
+                    let
+                        isVariantSelector : String -> Bool
+                        isVariantSelector s =
+                            String.uncons s
+                                |> Maybe.map Tuple.first
+                                |> Maybe.map Char.toCode
+                                -- Variation Selector
+                                |> Maybe.map (\x -> x >= 65023 && x <= 65039)
+                                |> Maybe.withDefault False
+                    in
+                    if String.length tl == 1 && isVariantSelector tl then
+                        ( validate
+                            { model
+                                | key =
+                                    { key
+                                        | value = String.fromChar char
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+                        , Cmd.none
+                        )
+
+                    else
+                        ( validate
+                            { model
+                                | key =
+                                    { key
+                                        | value = str
+                                        , valid = False
+                                        , error =
+                                            "Keys are a single character."
+                                        , changed = True
+                                    }
+                            }
+                        , Cmd.none
+                        )
+
+                Nothing ->
+                    -- let
+                    --     r = Debug.log "the other" f
+                    -- in
                     ( validate
-                          { model
-                              | key =
+                        { model
+                            | key =
                                 { key
                                     | value = str
                                     , valid = False
@@ -185,7 +228,7 @@ update msg model =
                                         "Keys are a single character."
                                     , changed = True
                                 }
-                          }
+                        }
                     , Cmd.none
                     )
 
@@ -204,16 +247,14 @@ update msg model =
                             if String.startsWith "https://" x then
                                 "https://" ++ y
 
-                            else
-                                if String.startsWith "http://" x then
-                                    "http://" ++ y
+                            else if String.startsWith "http://" x then
+                                "http://" ++ y
 
-                                else
-                                    str
+                            else
+                                str
 
                         _ ->
                             str
-                        
             in
             case ( String.isEmpty str, Url.fromString urlstr ) of
                 ( False, Nothing ) ->
