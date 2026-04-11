@@ -8,6 +8,7 @@ import Display.Meta
         , properties
         , tags
         )
+import Display.SequenceListing
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
@@ -17,6 +18,7 @@ import Menkayonta
         , DocId(..)
         , Identifier(..)
         , Interlinear
+        , Sequence
         , Value(..)
         , identifierToString
         )
@@ -76,6 +78,45 @@ view model =
                 , viewInterlinear model int
                 ]
 
+        Just (MySequence seq) ->
+            let
+                id : Identifier
+                id =
+                    seq.id
+                        |> SequenceId
+                        |> MyDocId
+
+                doc : Value
+                doc =
+                    MySequence seq
+            in
+            Html.div []
+                [ Html.nav []
+                    [ Html.ul []
+                        [ Html.li []
+                            [ Html.a
+                                [ Attr.href "#"
+                                , Msg.EditSequence model.project seq
+                                    |> Msg.UserClick
+                                    |> Event.onClick
+                                ]
+                                [ Html.text "Edit" ]
+                            ]
+                        , Html.li []
+                            [ Html.a
+                                [ Attr.href "#"
+                                , Msg.ONoteFor id doc
+                                    |> Msg.Request model.project
+                                    |> Msg.UserClick
+                                    |> Event.onClick
+                                ]
+                                [ Html.text "Note" ]
+                            ]
+                        ]
+                    ]
+                , viewSequence model seq
+                ]
+
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
 
@@ -92,6 +133,56 @@ viewInterlinear model int =
             [ Html.text "Interlinear Gloss" ]
         , Html.article []
             [ Display.InterlinearListing.viewInterlinear int
+            , Html.footer []
+                [ intid
+                    |> MyDocId
+                    |> identifierToString
+                    |> (\x ->
+                            "ID: "
+                                ++ x
+                                |> Html.text
+                       )
+                ]
+            ]
+        , Html.h2 []
+            [ Html.text "Metadata" ]
+        , Html.div [ Attr.class "metaview" ]
+            [ tags model.project intid model.composite.tags
+            , properties model.project intid model.composite.properties
+            , if not (List.isEmpty model.composite.links) then
+                Html.article []
+                    [ Html.header []
+                        [ Html.h3 []
+                            [ Html.text "Links" ]
+                        ]
+                    , links model.composite.links
+                    ]
+
+              else
+                Html.text ""
+            , Html.article [ Attr.id "modification-view" ]
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Modifications" ]
+                    ]
+                , modifications model.composite.modifications
+                ]
+            ]
+        ]
+
+
+viewSequence : Model -> Sequence -> Html.Html Msg
+viewSequence model seq =
+    let
+        intid : DocId
+        intid =
+            SequenceId seq.id
+    in
+    Html.div [ Attr.class "docview" ]
+        [ Html.h2 []
+            [ Html.text "Sequence" ]
+        , Html.article []
+            [ Display.SequenceListing.viewSequence seq
             , Html.footer []
                 [ intid
                     |> MyDocId

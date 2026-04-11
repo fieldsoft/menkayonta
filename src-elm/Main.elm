@@ -15,6 +15,7 @@ import Form.Global
 import Form.Importer
 import Form.Interlinear
 import Form.Project
+import Form.Sequence
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Event
@@ -25,6 +26,7 @@ import Menkayonta as M
 import Meta
 import Msg exposing (ReceiveType(..), RequestType(..))
 import Random
+import Result.Extra as RE
 import Set exposing (Set)
 import Tab
     exposing
@@ -70,6 +72,7 @@ type Msg
     = GF Form.Global.Msg
     | IM Form.Importer.Msg
     | ITE UUID.UUID Form.Interlinear.Msg
+    | SQE UUID.UUID Form.Sequence.Msg
     | EditImporter String
     | MultiMsg (List Msg)
     | Ms Msg.Msg
@@ -425,6 +428,11 @@ update msg model =
                             ( model
                             , req OInterlinearListing
                             )
+                            
+                        [ "sequence" ] ->
+                            ( model
+                            , req OSequenceListing
+                            )
 
                         [ "person" ] ->
                             ( model
@@ -436,7 +444,17 @@ update msg model =
                             , req <| OComposite env.address
                             )
 
+                        "sequence" :: _ :: [] ->
+                            ( model
+                            , req <| OComposite env.address
+                            )
+
                         "interlinear" :: _ :: "note" :: [] ->
+                            ( model
+                            , req <| ONote env.address
+                            )
+
+                        "sequence" :: _ :: "note" :: [] ->
                             ( model
                             , req <| ONote env.address
                             )
@@ -949,6 +967,112 @@ update msg model =
 
                         _ ->
                             ( nmodel, Cmd.map (ITE id) i.cmd )
+
+        SQE id subMsg ->
+            let
+                id_ : String
+                id_ =
+                    "FORM::" ++ UUID.toString id
+
+                maybeData : Maybe ( Vista, Tab.Path, ProjectId )
+                maybeData =
+                    case
+                        ( Dict.get id_ model.tabs.vistas
+                        , getByVista id_ model.tabs.ventanas
+                        )
+                    of
+                        ( Just v, Just t ) ->
+                            case UUID.fromString v.project of
+                                Err _ ->
+                                    Nothing
+
+                                Ok uuid ->
+                                    Just ( v, t, uuid )
+
+                        _ ->
+                            Nothing
+            in
+            case maybeData of
+                Nothing ->
+                    -- Something is wrong. Ignore the message.
+                    ( model, Cmd.none )
+
+                Just ( vista_, tp, project ) ->
+                    let
+                        oldModel : Form.Sequence.Model
+                        oldModel =
+                            case vista_.content of
+                                Content.SQE model_ ->
+                                    model_
+
+                                _ ->
+                                    Form.Sequence.initData id
+
+                        s :
+                            { model : Form.Sequence.Model
+                            , cmd : Cmd Form.Sequence.Msg
+                            }
+                        s =
+                            subUpdate
+                                Form.Sequence.update
+                                subMsg
+                                oldModel
+
+                        vista : Vista
+                        vista =
+                            { vista_ | content = Content.SQE s.model }
+
+                        vistas : Dict String Vista
+                        vistas =
+                            Dict.insert id_ vista model.tabs.vistas
+
+                        tabs : Tab.Model
+                        tabs =
+                            model.tabs
+
+                        nmodel : Model
+                        nmodel =
+                            { model | tabs = { tabs | vistas = vistas } }
+                    in
+                    -- For most messages, a pass-through is
+                    -- sufficient. In some cases, there are side
+                    -- effects and UI events that need to be triggered
+                    -- outside the submodule.
+                    case subMsg of
+                        Form.Sequence.Cancel ->
+                            ( nmodel
+                            , Cmd.batch
+                                [ sendMsg (Tab (Tab.Close tp))
+                                , Cmd.map (SQE id) s.cmd
+                                ]
+                            )
+
+                        Form.Sequence.Save ->
+                            let
+                                envelopePart : Maybe (Time.Posix -> Envelope)
+                                envelopePart =
+                                    prepSequenceSave
+                                        s.model
+                                        project
+                                        model.me
+                            in
+                            case envelopePart of
+                                Just ep ->
+                                    ( nmodel
+                                    , Cmd.batch
+                                          [ sendMsg (Tab (Tab.Close tp))
+                                          , Task.perform
+                                                (Stamp ep send)
+                                                    Time.now
+                                          , Cmd.map (SQE id) s.cmd
+                                          ]
+                                    )
+
+                                Nothing ->
+                                    ( nmodel, Cmd.map (SQE id) s.cmd )
+
+                        _ ->
+                            ( nmodel, Cmd.map (SQE id) s.cmd )
 
         IM subMsg ->
             let
@@ -1685,6 +1809,40 @@ update msg model =
                                             }
                                     in
                                     handleVista vista short full model
+                                        
+                                Just (M.MySequence s) ->
+                                    let
+                                        full : String
+                                        full =
+                                            String.join " "
+                                                [ "Sequence:", s.title ]
+
+                                        short : String
+                                        short =
+                                            if String.length s.title > 7 then
+                                                String.concat
+                                                    [ "Sequence: "
+                                                    , String.left 7 s.title
+                                                    , "..."
+                                                    ]
+
+                                            else
+                                                full
+
+                                        vista : Vista
+                                        vista =
+                                            { project =
+                                                UUID.toString env.project
+                                            , path =
+                                                "sequence/"
+                                                    ++ UUID.toString s.id
+                                            , identifier =
+                                                UUID.toString s.id
+                                            , content =
+                                                Content.SQV doc_
+                                            }
+                                    in
+                                    handleVista vista short full model
 
                                 _ ->
                                     ( model, Cmd.none )
@@ -2154,6 +2312,111 @@ update msg model =
                         ]
                     )
 
+        Ms (Msg.EditSequence project seq) ->
+            let
+                id : String
+                id =
+                    "FORM::" ++ UUID.toString seq.id
+            in
+            case getByVista id model.tabs.ventanas of
+                -- The edit tab is already open.
+                Just tp ->
+                    ( model
+                    , sendMsg (Tab <| Tab.Goto tp)
+                    )
+
+                Nothing ->
+                    let
+                        s :
+                            { model : Form.Sequence.Model
+                            , cmd : Cmd Form.Sequence.Msg
+                            }
+                        s =
+                            let
+                                ( smodel, scmd ) =
+                                    Form.Sequence.init seq
+                            in
+                            { model = smodel, cmd = scmd }
+
+                        key : String
+                        key =
+                            getProjectKey (UUID.toString project) model
+                                |> Maybe.withDefault ""
+
+                        title : String
+                        title =
+                            getProjectTitle (UUID.toString project) model
+                                |> Maybe.withDefault ""
+
+                        full : String
+                        full =
+                            String.concat
+                                [ title
+                                , ": "
+                                , "Edit: "
+                                , seq.title
+                                ]
+
+                        short : String
+                        short =
+                            if String.length seq.title > 5 then
+                                String.concat
+                                    [ key
+                                    , ": "
+                                    , "Edit: "
+                                    , String.left 7 seq.title
+                                    , "..."
+                                    ]
+
+                            else
+                                String.concat
+                                    [ key
+                                    , ": "
+                                    , "Edit: "
+                                    , seq.title
+                                    ]
+
+                        vista : Vista
+                        vista =
+                            { identifier = id
+                            , path = "sequence/" ++ id
+                            , project = UUID.toString project
+                            , content = Content.SQE s.model
+                            }
+
+                        ventana : Ventana
+                        ventana =
+                            { title = short
+                            , fullTitle = full
+                            , vista = id
+                            , params = Tab.defVParams
+                            }
+
+                        vistas : Dict String Vista
+                        vistas =
+                            Dict.insert id vista model.tabs.vistas
+
+                        tabs : Tab.Model
+                        tabs =
+                            model.tabs
+
+                        newmodel : Model
+                        newmodel =
+                            { model
+                                | tabs =
+                                    { tabs
+                                        | vistas = vistas
+                                        , focusLock = Nothing
+                                    }
+                            }
+                    in
+                    ( newmodel
+                    , Cmd.batch
+                        [ sendMsg (Tab <| Tab.New ventana)
+                        , Cmd.map (SQE seq.id) s.cmd
+                        ]
+                    )
+
 
 subUpdate :
     (a -> b -> ( b, Cmd a ))
@@ -2232,6 +2495,102 @@ prepInterlinearSave int project me time =
         ]
             |> E.list M.encoder
     }
+
+
+prepSequenceSave :
+    Form.Sequence.Model
+     -> ProjectId
+     -> Maybe M.Person
+     -> Maybe (Time.Posix -> Envelope)
+prepSequenceSave seq project me =
+    let
+        kindVal : Maybe M.SequenceKind
+        kindVal =
+            case seq.kind.value of
+                "integer" ->
+                    Just M.Integer
+
+                "string" ->
+                    Just M.StringKey
+
+                _ ->
+                    Nothing
+
+        decodeValue : String -> Result UUID.Error UUID.UUID
+        decodeValue v =
+            case String.split "/" v of
+                "interlinear/" :: uustr :: [] ->
+                    UUID.fromString uustr
+
+                _ ->
+                    UUID.fromString ""
+                        
+
+        itemVals : Result UUID.Error (List UUID.UUID)
+        itemVals =
+            seq.items
+                |> List.map .value
+                |> List.map .value
+                |> List.map decodeValue
+                |> RE.combine
+    in
+    case (me, kindVal, itemVals) of
+        (Just me_, Just kind, Ok values) ->
+            let
+                sequence : M.Sequence
+                sequence =
+                    { id = seq.id
+                    , rev = seq.rev
+                    , version = seq.version
+                    , title = seq.title.value
+                    , description = seq.description.value
+                    , kind = kind
+                    , items =
+                        seq.items
+                            |> List.filter (\x -> not x.deleted)
+                            |> List.map2
+                               ( \uuid item ->
+                                     { key =
+                                           item.key.value
+                                     , value =
+                                         uuid
+                                     }
+                               ) values
+                    }
+
+                modification : Time.Posix -> M.Modification
+                modification =
+                    (\time ->
+                         { id =
+                               { kind = "update"
+                               , docid = M.SequenceId seq.id
+                               , time = time
+                               , person = M.PersonId me_.id
+                               , fragment = Nothing
+                               }
+                         , rev = Nothing
+                         , version = 1
+                         , comment = "No comment"
+                         , docversion = seq.version
+                         , value = M.encoder (M.MySequence sequence)
+                         }
+                    )
+            in
+            Just (\time -> { command = "update-doc"
+                           , project = project
+                           , address =
+                               M.identifierToString
+                                   (M.MyDocId <| M.SequenceId seq.id)
+                           , content =
+                                 [ M.MySequence sequence
+                                 , M.MyModification (modification time)
+                                 ]
+                           |> E.list M.encoder
+                           }
+                 )
+                
+        _ ->
+            Nothing
 
 
 handleReceivedNote : UUID.UUID -> Model -> M.Value -> M.Note -> ( Model, Cmd Msg )
@@ -2757,6 +3116,9 @@ viewVista model tp vista =
         Content.ITE imodel ->
             Form.Interlinear.view imodel |> Html.map (ITE imodel.id)
 
+        Content.SQE smodel ->
+            Form.Sequence.view smodel |> Html.map (SQE smodel.id)
+
         Content.PR pmodel ->
             Form.Project.view pmodel |> Html.map (PR pmodel.identifier)
 
@@ -2821,6 +3183,53 @@ viewVista model tp vista =
 
                 _ ->
                     Html.text "Invalid project or non-interlinear"
+
+        Content.SQV composite ->
+            case
+                UUID.fromString vista.project
+                    |> Result.toMaybe
+            of
+                Just project ->
+                    let
+                        cmodel : Display.Composite.Model
+                        cmodel =
+                            { composite = composite
+                            , project = project
+                            }
+
+                        display : Html.Html Msg
+                        display =
+                            Display.Composite.view cmodel
+                                |> Html.map Ms
+
+                        tagfield : Html.Html Msg
+                        tagfield =
+                            Dict.get tp model.tabs.ventanas
+                                |> Maybe.map .params
+                                |> Maybe.map .meta
+                                |> Maybe.andThen .tag
+                                |> Maybe.map Display.Meta.tagField
+                                |> Maybe.map (Html.map Ms)
+                                |> Maybe.withDefault (Html.text "")
+
+                        propfield : Html.Html Msg
+                        propfield =
+                            Dict.get tp model.tabs.ventanas
+                                |> Maybe.map .params
+                                |> Maybe.map .meta
+                                |> Maybe.andThen .property
+                                |> Maybe.map Display.Meta.propertyField
+                                |> Maybe.map (Html.map Ms)
+                                |> Maybe.withDefault (Html.text "")
+                    in
+                    Html.div []
+                        [ tagfield
+                        , propfield
+                        , display
+                        ]
+
+                _ ->
+                    Html.text "Invalid project or non-sequence"
 
         Content.ITS ints ->
             case

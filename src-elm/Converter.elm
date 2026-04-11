@@ -313,13 +313,13 @@ update msg model =
                             { id = uuid
                             , rev = Nothing
                             , version = 1
-                            , kind = "int"
+                            , kind = M.Integer
                             , title = "Imported Dative"
                             , description = "The imported values listed by their original ID"
                             , items =
                                 Dict.foldl
                                     (\k v acc ->
-                                        { key = E.int k
+                                        { key = String.fromInt k
                                         , value = v
                                         }
                                             :: acc

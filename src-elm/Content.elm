@@ -4,6 +4,7 @@ import Form.Global
 import Form.Importer
 import Form.Interlinear
 import Form.Project
+import Form.Sequence
 import Display.Note
 import Menkayonta
     exposing
@@ -32,7 +33,9 @@ type Content
     = ITS (List Interlinear)
     | SQS (List Sequence)
     | ITV Composite
+    | SQV Composite
     | ITE Form.Interlinear.Model
+    | SQE Form.Sequence.Model
     | PLS (List Person)
     | NTV Display.Note.Model
     | GF Form.Global.Model

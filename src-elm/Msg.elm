@@ -18,6 +18,7 @@ type Msg
     | Request ProjectId RequestType
     | NewInterlinear ProjectId
     | EditInterlinear ProjectId M.Interlinear
+    | EditSequence ProjectId M.Sequence
     | EditPerson ProjectId M.Person
     | NewProject
     | EditProject Form.Project.Model

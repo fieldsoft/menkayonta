@@ -15,6 +15,8 @@ module Menkayonta exposing
     , Property
     , PropertyId
     , Sequence
+    , SequenceItem
+    , SequenceKind(..)
     , Tag
     , TagId
     , Translation
@@ -126,14 +128,23 @@ type alias Page =
     }
 
 
+type SequenceKind
+    = Integer
+    | StringKey
+
+
+type alias SequenceItem =
+    { key : String, value : UUID.UUID }
+
+
 type alias Sequence =
     { id : UUID
     , rev : Maybe String
     , version : Int
-    , kind : String
+    , kind : SequenceKind
     , title : String
     , description : String
-    , items : List { key : E.Value, value : UUID.UUID }
+    , items : List SequenceItem
     }
 
 
@@ -707,17 +718,36 @@ pageDecoder id =
 sequenceDecoder : UUID -> D.Decoder Sequence
 sequenceDecoder id =
     let
-        itemDecoder : D.Decoder { key : E.Value, value : UUID.UUID }
+        itemDecoder : D.Decoder SequenceItem
         itemDecoder =
-            D.map2 (\k v -> { key = k, value = v })
-                (D.field "key" D.value)
+            D.map2 SequenceItem
+                (D.field "key" D.string)
                 (D.field "value" UUID.jsonDecoder)
+
+        kindHelper : String -> D.Decoder SequenceKind
+        kindHelper k =
+            case k of
+                "integer" ->
+                    D.succeed Integer
+
+                "string" ->
+                    D.succeed StringKey
+
+                _ ->
+                    D.fail <|
+                        String.concat
+                            [ "Trying to decode a sequence kind '"
+                            , k
+                            , "' is an invalid kind"
+                            ]
     in
     D.map7 Sequence
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
         (D.field "version" D.int)
-        (D.field "kind" D.string)
+        (D.field "kind" D.string
+            |> D.andThen kindHelper
+        )
         (D.field "title" D.string)
         (D.field "description" D.string)
         (D.field "items" (D.list itemDecoder))
@@ -857,16 +887,25 @@ personEncoder person =
 sequenceEncoder : Sequence -> E.Value
 sequenceEncoder seq =
     let
-        itemEncoder : { key : E.Value, value : UUID.UUID } -> E.Value
+        kindValue : SequenceKind -> E.Value
+        kindValue k =
+            case k of
+                Integer ->
+                    E.string "integer"
+
+                StringKey ->
+                    E.string "string"
+
+        itemEncoder : SequenceItem -> E.Value
         itemEncoder item =
             E.object
-                [ ( "key", item.key )
+                [ ( "key", E.string item.key )
                 , ( "value", E.string (UUID.toString item.value) )
                 ]
     in
     [ ( "_id", E.string (docIdToString <| SequenceId seq.id) )
     , ( "version", E.int seq.version )
-    , ( "kind", E.string seq.kind )
+    , ( "kind", kindValue seq.kind )
     , ( "title", E.string seq.title )
     , ( "description", E.string seq.description )
     , ( "items", E.list itemEncoder seq.items )
