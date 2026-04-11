@@ -88,6 +88,9 @@ const handleProjectMessage = (m) => {
     case 'received-interlinear-listing':
       gvs.webContents.send(m.command, m)
       break
+    case 'received-sequence-listing':
+      gvs.webContents.send(m.command, m)
+      break
     case 'received-composite':
       gvs.webContents.send(m.command, m)
       break

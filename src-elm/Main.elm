@@ -10,6 +10,7 @@ import Display.InterlinearListing
 import Display.Meta
 import Display.Note
 import Display.PersonListing
+import Display.SequenceListing
 import Form.Global
 import Form.Importer
 import Form.Interlinear
@@ -1307,7 +1308,26 @@ update msg model =
                     envelopeEncoder
                         { command = "request-interlinear-listing"
                         , project = project
-                        , address = "person"
+                        , address = "interlinear"
+                        , content = E.null
+                        }
+
+                project_ : String
+                project_ =
+                    UUID.toString project
+            in
+            ( { model | loading = Set.insert project_ model.loading }
+            , send envelope
+            )
+
+        Ms (Msg.Request project OSequenceListing) ->
+            let
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                        { command = "request-sequence-listing"
+                        , project = project
+                        , address = "sequence"
                         , content = E.null
                         }
 
@@ -1413,6 +1433,58 @@ update msg model =
                                 vista
                                 "Glosses"
                                 "Glosses"
+                                model
+
+        Ms (Msg.Received (ISequenceListing envelope)) ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    case D.decodeValue M.listDecoder env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok vals ->
+                            let
+                                filterSeq :
+                                    M.Value
+                                    -> List M.Sequence
+                                    -> List M.Sequence
+                                filterSeq val seqs =
+                                    case val of
+                                        M.MySequence seq ->
+                                            seq :: seqs
+
+                                        _ ->
+                                            seqs
+
+                                content : Content
+                                content =
+                                    SQS <|
+                                        List.foldl filterSeq [] vals
+
+                                vista : Vista
+                                vista =
+                                    { project =
+                                        UUID.toString env.project
+                                    , path =
+                                        "sequence"
+                                    , identifier =
+                                        "SEQUENCES::"
+                                            ++ UUID.toString env.project
+                                    , content =
+                                        content
+                                    }
+                            in
+                            handleVista
+                                vista
+                                "Sequences"
+                                "Sequences"
                                 model
 
         Ms (Msg.Received (IPersonListing envelope)) ->
@@ -2265,7 +2337,11 @@ handleVista vista short full model =
                 Set.remove vista.project model.loading
 
             else
-                model.loading
+                if String.startsWith "sequence" vista.path then
+                    Set.remove vista.project model.loading
+
+                 else
+                     model.loading
 
         tabs : Tab.Model
         tabs =
@@ -2339,6 +2415,7 @@ subscriptions _ =
     Sub.batch
         [ receivedGlobalConfig <| rcvd IGlobalConfig
         , receivedInterlinearListing <| rcvd IInterlinearListing
+        , receivedSequenceListing <| rcvd ISequenceListing
         , receivedPersonListing <| rcvd IPersonListing
         , receivedInterlinearReversals <| rcvd IReversal
         , receivedComposite <| rcvd IComposite
@@ -2633,6 +2710,17 @@ viewProject model p =
                 , Html.li []
                     [ Html.a
                         [ Attr.href "#"
+                        , Msg.Request p.identifier OSequenceListing
+                            |> Msg.UserClick
+                            |> Ms
+                            |> Event.onClick
+                        , Attr.class "secondary"
+                        ]
+                        [ Html.text "Sequence Index" ]
+                    ]
+                , Html.li []
+                    [ Html.a
+                        [ Attr.href "#"
                         , Msg.Request p.identifier OPersonListing
                             |> Msg.UserClick
                             |> Ms
@@ -2861,6 +2949,111 @@ viewVista model tp vista =
                 Nothing ->
                     Html.text "Missing project information"
 
+        Content.SQS seqs ->
+            case
+                UUID.fromString vista.project
+                    |> Result.toMaybe
+            of
+                Just project ->
+                    let
+                        params : VentanaParams
+                        params =
+                            Dict.get tp model.tabs.ventanas
+                                |> Maybe.map .params
+                                |> Maybe.withDefault
+                                    { defVParams | length = 20 }
+
+                        ss : String
+                        ss =
+                            params.searchString
+
+                        searched : List M.Sequence
+                        searched =
+                            let
+                                strings :
+                                    M.Sequence
+                                    -> List ( String, String )
+                                strings seq =
+                                    [ ( "title"
+                                      , seq.title
+                                      )
+                                    , ( "description"
+                                      , seq.description
+                                      )
+                                    ]
+                            in
+                            List.filter (\i -> search ss (strings i)) seqs
+
+                        intTotal : Int
+                        intTotal =
+                            List.length searched
+
+                        is : List M.Sequence
+                        is =
+                            List.take params.length searched
+
+                        len : String
+                        len =
+                            String.fromInt params.length
+
+                        imodel : Display.SequenceListing.Model
+                        imodel =
+                            { sequences = is
+                            , project = project
+                            }
+                    in
+                    Html.div []
+                        [ Html.div [ Attr.class "filters" ]
+                            [ Html.label []
+                                [ Html.text <|
+                                    if params.length <= intTotal then
+                                        let
+                                            -- For displaying
+                                            total : String
+                                            total =
+                                                intTotal |> String.fromInt
+                                        in
+                                        "Show (" ++ len ++ " of " ++ total ++ ")"
+
+                                    else
+                                        "Showing all items."
+                                , Html.input
+                                    ([ Attr.type_ "text"
+                                     , Attr.placeholder len
+                                     , Event.onInput
+                                        (\s ->
+                                            Tab.Change Tab.Length tp s
+                                                |> Tab
+                                        )
+                                     ]
+                                        ++ (if params.length > 0 then
+                                                [ Attr.value len ]
+
+                                            else
+                                                []
+                                           )
+                                    )
+                                    []
+                                , Html.input
+                                    [ Attr.type_ "text"
+                                    , Attr.value ss
+                                    , Attr.placeholder "Search"
+                                    , Attr.attribute "aria-label" "Search"
+                                    , Event.onInput
+                                        (\s ->
+                                            Tab.Change Tab.Search tp s
+                                                |> Tab
+                                        )
+                                    ]
+                                    []
+                                ]
+                            ]
+                        , Display.SequenceListing.view imodel |> Html.map Ms
+                        ]
+
+                Nothing ->
+                    Html.text "Missing project information"
+
         Content.PLS people ->
             let
                 params : VentanaParams
@@ -3084,6 +3277,9 @@ port receivedGlobalConfig : (E.Value -> msg) -> Sub msg
 
 
 port receivedInterlinearListing : (E.Value -> msg) -> Sub msg
+
+
+port receivedSequenceListing : (E.Value -> msg) -> Sub msg
 
 
 port receivedPersonListing : (E.Value -> msg) -> Sub msg

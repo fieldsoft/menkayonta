@@ -10,6 +10,7 @@ import Menkayonta
         ( Composite
         , Interlinear
         , Person
+        , Sequence
         )
 
 
@@ -29,6 +30,7 @@ file import form; and 'PL', a person object.
 -}
 type Content
     = ITS (List Interlinear)
+    | SQS (List Sequence)
     | ITV Composite
     | ITE Form.Interlinear.Model
     | PLS (List Person)

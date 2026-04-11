@@ -245,6 +245,33 @@ const handleRequestInterlinears = async () => {
   }
 }
 
+const handleRequestSequences = async () => {
+  try {
+    const all = await gvs.db.allDocs({
+      include_docs: true,
+      startkey: 'sequence/',
+      endkey: 'sequence/\ufff0',
+    })
+
+    const onlyDocs = all.rows.reduce((acc, row) => {
+      if (row.key.length === 45) {
+        acc.push(row.doc)
+      }
+
+      return acc
+    }, [])
+
+    process.parentPort.postMessage({
+      command: 'received-sequence-listing',
+      content: onlyDocs,
+      project: gvs.identifier,
+      address: 'sequence',
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleRequestPeople = async () => {
   try {
     const all = await gvs.db.allDocs({
@@ -403,6 +430,11 @@ const handleMainMessage = (m) => {
 
     case 'request-interlinear-listing': {
       handleRequestInterlinears()
+      break
+    }
+
+    case 'request-sequence-listing': {
+      handleRequestSequences()
       break
     }
 

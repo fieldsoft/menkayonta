@@ -47,6 +47,7 @@ type ReceiveType
     | IGlobalConfig E.Value
     | IReversal E.Value
     | IInterlinearListing E.Value
+    | ISequenceListing E.Value
     | IPersonListing E.Value
     | IReload E.Value
     | INoteFor E.Value
@@ -56,6 +57,7 @@ type ReceiveType
 type RequestType
     = OReversal (Maybe String)
     | OInterlinearListing
+    | OSequenceListing
     | OComposite String
     | OPersonListing
     | ODelete Revision String
