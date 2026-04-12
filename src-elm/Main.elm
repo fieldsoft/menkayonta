@@ -3130,7 +3130,7 @@ viewProject model p =
                             |> Event.onClick
                         , Attr.class "secondary"
                         ]
-                        [ Html.text "Gloss Index" ]
+                        [ Html.text "Interlinear Glosses" ]
                     ]
                 , Html.li []
                     [ Html.a
@@ -3141,7 +3141,7 @@ viewProject model p =
                             |> Event.onClick
                         , Attr.class "secondary"
                         ]
-                        [ Html.text "Sequence Index" ]
+                        [ Html.text "Sequences" ]
                     ]
                 , Html.li []
                     [ Html.a
@@ -3152,7 +3152,7 @@ viewProject model p =
                             |> Event.onClick
                         , Attr.class "secondary"
                         ]
-                        [ Html.text "Person Index" ]
+                        [ Html.text "People" ]
                     ]
                 , Html.li []
                     [ Html.a
