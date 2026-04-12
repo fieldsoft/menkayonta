@@ -57,15 +57,15 @@ viewItem model sequence =
             --         |> Msg.UserClick
             --         |> Event.onClick
             --     ]
-            --     [ Html.text "View Glosses" ]
-            -- , Html.a
-            --     [ Attr.href "#"
-            --     , Attr.class "nav-link"
-            --     , Msg.EditSequence model.project sequence
-            --         |> Msg.UserClick
-            --         |> Event.onClick
-            --     ]
-            --     [ Html.text "Edit" ]
+            --     [ Html.text "View Interlinear Glosses" ]
+            , Html.a
+                [ Attr.href "#"
+                , Attr.class "nav-link"
+                , Msg.EditSequence model.project sequence
+                    |> Msg.UserClick
+                    |> Event.onClick
+                ]
+                [ Html.text "Edit" ]
             ]
         ]
 
