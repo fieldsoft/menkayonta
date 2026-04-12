@@ -159,7 +159,7 @@ update msg model =
                 key =
                     model.key
             in
-            case Debug.log "emoji" (String.uncons <| String.trim str) of
+            case String.uncons <| String.trim str of
                 Just ( _, "" ) ->
                     ( validate
                         { model
@@ -215,9 +215,6 @@ update msg model =
                         )
 
                 Nothing ->
-                    -- let
-                    --     r = Debug.log "the other" f
-                    -- in
                     ( validate
                         { model
                             | key =
