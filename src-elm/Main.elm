@@ -428,7 +428,7 @@ update msg model =
                             ( model
                             , req OInterlinearListing
                             )
-                            
+
                         [ "sequence" ] ->
                             ( model
                             , req OSequenceListing
@@ -1060,12 +1060,12 @@ update msg model =
                                 Just ep ->
                                     ( nmodel
                                     , Cmd.batch
-                                          [ sendMsg (Tab (Tab.Close tp))
-                                          , Task.perform
-                                                (Stamp ep send)
-                                                    Time.now
-                                          , Cmd.map (SQE id) s.cmd
-                                          ]
+                                        [ sendMsg (Tab (Tab.Close tp))
+                                        , Task.perform
+                                            (Stamp ep send)
+                                            Time.now
+                                        , Cmd.map (SQE id) s.cmd
+                                        ]
                                     )
 
                                 Nothing ->
@@ -1809,7 +1809,7 @@ update msg model =
                                             }
                                     in
                                     handleVista vista short full model
-                                        
+
                                 Just (M.MySequence s) ->
                                     let
                                         full : String
@@ -2204,6 +2204,72 @@ update msg model =
             , sendMsg (Tab <| Tab.New ventana)
             )
 
+        Ms (Msg.NewSequence project) ->
+            let
+                step :
+                    { uuid : UUID.UUID
+                    , seeds : UUID.Seeds
+                    }
+                step =
+                    let
+                        ( uuid, seeds ) =
+                            UUID.step model.seeds
+                    in
+                    { uuid = uuid, seeds = seeds }
+
+                int : Form.Sequence.Model
+                int =
+                    Form.Sequence.initData step.uuid
+
+                id : String
+                id =
+                    "FORM::" ++ UUID.toString step.uuid
+
+                vista : Vista
+                vista =
+                    { identifier = id
+                    , path = "sequence/" ++ UUID.toString step.uuid
+                    , project = UUID.toString project
+                    , content = Content.SQE int
+                    }
+
+                key : String
+                key =
+                    getProjectKey (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
+                title : String
+                title =
+                    getProjectTitle (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
+                ventana : Ventana
+                ventana =
+                    { title = key ++ ": New Sequence"
+                    , fullTitle = title ++ ": New Sequence"
+                    , vista = id
+                    , params = Tab.defVParams
+                    }
+
+                tabs : Tab.Model
+                tabs =
+                    model.tabs
+
+                vistas : Dict String Vista
+                vistas =
+                    Dict.insert id vista model.tabs.vistas
+
+                newmodel : Model
+                newmodel =
+                    { model
+                        | seeds = step.seeds
+                        , tabs = { tabs | vistas = vistas }
+                    }
+            in
+            ( newmodel
+            , sendMsg (Tab <| Tab.New ventana)
+            )
+
         Ms (Msg.EditPerson project person) ->
             ( model, Cmd.none )
 
@@ -2499,9 +2565,9 @@ prepInterlinearSave int project me time =
 
 prepSequenceSave :
     Form.Sequence.Model
-     -> ProjectId
-     -> Maybe M.Person
-     -> Maybe (Time.Posix -> Envelope)
+    -> ProjectId
+    -> Maybe M.Person
+    -> Maybe (Time.Posix -> Envelope)
 prepSequenceSave seq project me =
     let
         kindVal : Maybe M.SequenceKind
@@ -2519,12 +2585,11 @@ prepSequenceSave seq project me =
         decodeValue : String -> Result UUID.Error UUID.UUID
         decodeValue v =
             case String.split "/" v of
-                "interlinear/" :: uustr :: [] ->
+                "interlinear" :: uustr :: [] ->
                     UUID.fromString uustr
 
                 _ ->
                     UUID.fromString ""
-                        
 
         itemVals : Result UUID.Error (List UUID.UUID)
         itemVals =
@@ -2534,8 +2599,8 @@ prepSequenceSave seq project me =
                 |> List.map decodeValue
                 |> RE.combine
     in
-    case (me, kindVal, itemVals) of
-        (Just me_, Just kind, Ok values) ->
+    case ( me, kindVal, itemVals ) of
+        ( Just me_, Just kind, Ok values ) ->
             let
                 sequence : M.Sequence
                 sequence =
@@ -2549,46 +2614,48 @@ prepSequenceSave seq project me =
                         seq.items
                             |> List.filter (\x -> not x.deleted)
                             |> List.map2
-                               ( \uuid item ->
-                                     { key =
-                                           item.key.value
-                                     , value =
-                                         uuid
-                                     }
-                               ) values
+                                (\uuid item ->
+                                    { key =
+                                        item.key.value
+                                    , value =
+                                        uuid
+                                    }
+                                )
+                                values
                     }
 
                 modification : Time.Posix -> M.Modification
                 modification =
-                    (\time ->
-                         { id =
-                               { kind = "update"
-                               , docid = M.SequenceId seq.id
-                               , time = time
-                               , person = M.PersonId me_.id
-                               , fragment = Nothing
-                               }
-                         , rev = Nothing
-                         , version = 1
-                         , comment = "No comment"
-                         , docversion = seq.version
-                         , value = M.encoder (M.MySequence sequence)
-                         }
-                    )
+                    \time ->
+                        { id =
+                            { kind = "update"
+                            , docid = M.SequenceId seq.id
+                            , time = time
+                            , person = M.PersonId me_.id
+                            , fragment = Nothing
+                            }
+                        , rev = Nothing
+                        , version = 1
+                        , comment = "No comment"
+                        , docversion = seq.version
+                        , value = M.encoder (M.MySequence sequence)
+                        }
             in
-            Just (\time -> { command = "update-doc"
-                           , project = project
-                           , address =
-                               M.identifierToString
-                                   (M.MyDocId <| M.SequenceId seq.id)
-                           , content =
-                                 [ M.MySequence sequence
-                                 , M.MyModification (modification time)
-                                 ]
-                           |> E.list M.encoder
-                           }
-                 )
-                
+            Just
+                (\time ->
+                    { command = "update-doc"
+                    , project = project
+                    , address =
+                        M.identifierToString
+                            (M.MyDocId <| M.SequenceId seq.id)
+                    , content =
+                        [ M.MySequence sequence
+                        , M.MyModification (modification time)
+                        ]
+                            |> E.list M.encoder
+                    }
+                )
+
         _ ->
             Nothing
 
@@ -2695,12 +2762,11 @@ handleVista vista short full model =
             if String.startsWith "interlinear" vista.path then
                 Set.remove vista.project model.loading
 
-            else
-                if String.startsWith "sequence" vista.path then
-                    Set.remove vista.project model.loading
+            else if String.startsWith "sequence" vista.path then
+                Set.remove vista.project model.loading
 
-                 else
-                     model.loading
+            else
+                model.loading
 
         tabs : Tab.Model
         tabs =
@@ -3014,7 +3080,7 @@ viewLoadingProject model p =
             Just stat ->
                 Html.span [] <|
                     List.map
-                        (\(k, v) ->
+                        (\( k, v ) ->
                             case k of
                                 "view_indexing" ->
                                     if v > 0 then
@@ -3097,7 +3163,18 @@ viewProject model p =
                             |> Event.onClick
                         , Attr.class "secondary"
                         ]
-                        [ Html.text "Gloss New Item" ]
+                        [ Html.text "New Interlinear Gloss" ]
+                    ]
+                , Html.li []
+                    [ Html.a
+                        [ Attr.href "#"
+                        , Msg.NewSequence p.identifier
+                            |> Msg.UserClick
+                            |> Ms
+                            |> Event.onClick
+                        , Attr.class "secondary"
+                        ]
+                        [ Html.text "New Sequence" ]
                     ]
                 ]
             ]

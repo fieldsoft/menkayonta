@@ -17,6 +17,7 @@ type Msg
     = Received ReceiveType
     | Request ProjectId RequestType
     | NewInterlinear ProjectId
+    | NewSequence ProjectId
     | EditInterlinear ProjectId M.Interlinear
     | EditSequence ProjectId M.Sequence
     | EditPerson ProjectId M.Person
