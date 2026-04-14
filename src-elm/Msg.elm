@@ -50,6 +50,7 @@ type ReceiveType
     | IReversal E.Value
     | IInterlinearListing E.Value
     | ISequenceListing E.Value
+    | ISequence E.Value
     | IPersonListing E.Value
     | IReload E.Value
     | INoteFor E.Value
@@ -60,6 +61,7 @@ type RequestType
     = OReversal (Maybe String)
     | OInterlinearListing
     | OSequenceListing
+    | OSequence String
     | OComposite String
     | OPersonListing
     | ODelete Revision String

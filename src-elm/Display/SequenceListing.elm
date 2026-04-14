@@ -46,18 +46,18 @@ viewItem model sequence =
                     |> Event.onClick
                 ]
                 [ Html.text "View Metadata" ]
-            -- , Html.a
-            --     [ Attr.href "#"
-            --     , Attr.class "nav-link"
-            --     , SequenceId sequence.id
-            --         |> MyDocId
-            --         |> identifierToString
-            --         |> Msg.OSequence
-            --         |> Msg.Request model.project
-            --         |> Msg.UserClick
-            --         |> Event.onClick
-            --     ]
-            --     [ Html.text "View Interlinear Glosses" ]
+            , Html.a
+                [ Attr.href "#"
+                , Attr.class "nav-link"
+                , SequenceId sequence.id
+                    |> MyDocId
+                    |> identifierToString
+                    |> Msg.OSequence
+                    |> Msg.Request model.project
+                    |> Msg.UserClick
+                    |> Event.onClick
+                ]
+                [ Html.text "View Interlinear Glosses" ]
             , Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"

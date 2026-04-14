@@ -218,6 +218,37 @@ const handleRequestReversal = async (queryString) => {
   }
 }
 
+const handleRequestSequence = async (docid) => {
+  try {
+    const sequence = await gvs.db.query('menkayonta/sequence', {
+      include_docs: true,
+      startkey: [docid],
+      endkey: [docid, {}],
+    })
+
+    const keyed = sequence.rows.reduce((acc, row) => {
+      acc.push({
+        id: row.id,
+        key: row.key[2],
+        kind: row.key[1],
+        title: row.key[3],
+        doc: row.doc,
+      })
+
+      return acc
+    }, [])
+
+    process.parentPort.postMessage({
+      command: 'received-sequence-items',
+      content: keyed,
+      project: gvs.identifier,
+      address: docid,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleRequestInterlinears = async () => {
   try {
     const all = await gvs.db.allDocs({
@@ -465,6 +496,11 @@ const handleMainMessage = (m) => {
 
     case 'request-note': {
       handleRequestNote(m.data.address)
+      break
+    }
+
+    case 'request-sequence': {
+      handleRequestSequence(m.data.address)
       break
     }
 

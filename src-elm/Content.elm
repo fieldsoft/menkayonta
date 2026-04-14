@@ -6,6 +6,7 @@ import Form.Interlinear
 import Form.Project
 import Form.Sequence
 import Display.Note
+import Keyed
 import Menkayonta
     exposing
         ( Composite
@@ -34,6 +35,7 @@ type Content
     | SQS (List Sequence)
     | ITV Composite
     | SQV Composite
+    | SDV Keyed.SeqData
     | ITE Form.Interlinear.Model
     | SQE Form.Sequence.Model
     | PLS (List Person)

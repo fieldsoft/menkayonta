@@ -7,6 +7,7 @@ import Content exposing (Content(..))
 import Dict exposing (Dict)
 import Display.Composite
 import Display.InterlinearListing
+import Display.KeyedInterlinearListing
 import Display.Meta
 import Display.Note
 import Display.PersonListing
@@ -21,6 +22,7 @@ import Html.Attributes as Attr
 import Html.Events as Event
 import Json.Decode as D
 import Json.Encode as E
+import Keyed as K
 import List.Extra as LE
 import Menkayonta as M
 import Meta
@@ -1476,6 +1478,19 @@ update msg model =
             in
             ( model, send envelope )
 
+        Ms (Msg.Request project (OSequence id)) ->
+            let
+                envelope : E.Value
+                envelope =
+                    envelopeEncoder
+                        { command = "request-sequence"
+                        , project = project
+                        , address = id
+                        , content = E.null
+                        }
+            in
+            ( model, send envelope )
+
         Ms (Msg.Request project OPersonListing) ->
             let
                 envelope : E.Value
@@ -1610,6 +1625,55 @@ update msg model =
                                 "Sequences"
                                 "Sequences"
                                 model
+
+        Ms (Msg.Received (ISequence envelope)) ->
+            case D.decodeValue envelopeDecoder envelope of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok env ->
+                    case D.decodeValue (D.list K.valueDecoder) env.content of
+                        Err e ->
+                            ( { model | error = D.errorToString e }
+                            , Cmd.none
+                            )
+
+                        Ok kvals ->
+                            case K.valuesToSeqData kvals of
+                                Nothing ->
+                                    ( { model
+                                        | error =
+                                            "Keyed values did not resolve to valid SeqData"
+                                      }
+                                    , Cmd.none
+                                    )
+
+                                Just seqData ->
+                                    let
+                                        content : Content
+                                        content =
+                                            Content.SDV seqData
+
+                                        vista : Vista
+                                        vista =
+                                            { project =
+                                                UUID.toString env.project
+                                            , path =
+                                                "seqdata"
+                                            , identifier =
+                                                "SEQDATA::"
+                                                    ++ UUID.toString env.project
+                                            , content =
+                                                content
+                                            }
+                                    in
+                                    handleVista
+                                        vista
+                                        "Seq. Data"
+                                        "Seq. Data"
+                                        model
 
         Ms (Msg.Received (IPersonListing envelope)) ->
             case D.decodeValue envelopeDecoder envelope of
@@ -2841,6 +2905,7 @@ subscriptions _ =
         [ receivedGlobalConfig <| rcvd IGlobalConfig
         , receivedInterlinearListing <| rcvd IInterlinearListing
         , receivedSequenceListing <| rcvd ISequenceListing
+        , receivedSequence <| rcvd ISequence
         , receivedPersonListing <| rcvd IPersonListing
         , receivedInterlinearReversals <| rcvd IReversal
         , receivedComposite <| rcvd IComposite
@@ -3200,419 +3265,206 @@ viewVista model tp vista =
             Form.Project.view pmodel |> Html.map (PR pmodel.identifier)
 
         Content.NTV note ->
-            let
-                edit : Bool
-                edit =
-                    Dict.get tp model.tabs.ventanas
-                        |> Maybe.map .params
-                        |> Maybe.map .edit
-                        |> Maybe.withDefault False
-            in
-            if edit then
-                Display.Note.edit note |> Html.map Ms
-
-            else
-                Display.Note.view note |> Html.map Ms
+            ntvContent model tp vista note
 
         Content.ITV composite ->
-            case
-                UUID.fromString vista.project
-                    |> Result.toMaybe
-            of
-                Just project ->
-                    let
-                        cmodel : Display.Composite.Model
-                        cmodel =
-                            { composite = composite
-                            , project = project
-                            }
-
-                        display : Html.Html Msg
-                        display =
-                            Display.Composite.view cmodel
-                                |> Html.map Ms
-
-                        tagfield : Html.Html Msg
-                        tagfield =
-                            Dict.get tp model.tabs.ventanas
-                                |> Maybe.map .params
-                                |> Maybe.map .meta
-                                |> Maybe.andThen .tag
-                                |> Maybe.map Display.Meta.tagField
-                                |> Maybe.map (Html.map Ms)
-                                |> Maybe.withDefault (Html.text "")
-
-                        propfield : Html.Html Msg
-                        propfield =
-                            Dict.get tp model.tabs.ventanas
-                                |> Maybe.map .params
-                                |> Maybe.map .meta
-                                |> Maybe.andThen .property
-                                |> Maybe.map Display.Meta.propertyField
-                                |> Maybe.map (Html.map Ms)
-                                |> Maybe.withDefault (Html.text "")
-                    in
-                    Html.div []
-                        [ tagfield
-                        , propfield
-                        , display
-                        ]
-
-                _ ->
-                    Html.text "Invalid project or non-interlinear"
+            itvContent model tp vista composite
 
         Content.SQV composite ->
-            case
-                UUID.fromString vista.project
-                    |> Result.toMaybe
-            of
-                Just project ->
-                    let
-                        cmodel : Display.Composite.Model
-                        cmodel =
-                            { composite = composite
-                            , project = project
-                            }
-
-                        display : Html.Html Msg
-                        display =
-                            Display.Composite.view cmodel
-                                |> Html.map Ms
-
-                        tagfield : Html.Html Msg
-                        tagfield =
-                            Dict.get tp model.tabs.ventanas
-                                |> Maybe.map .params
-                                |> Maybe.map .meta
-                                |> Maybe.andThen .tag
-                                |> Maybe.map Display.Meta.tagField
-                                |> Maybe.map (Html.map Ms)
-                                |> Maybe.withDefault (Html.text "")
-
-                        propfield : Html.Html Msg
-                        propfield =
-                            Dict.get tp model.tabs.ventanas
-                                |> Maybe.map .params
-                                |> Maybe.map .meta
-                                |> Maybe.andThen .property
-                                |> Maybe.map Display.Meta.propertyField
-                                |> Maybe.map (Html.map Ms)
-                                |> Maybe.withDefault (Html.text "")
-                    in
-                    Html.div []
-                        [ tagfield
-                        , propfield
-                        , display
-                        ]
-
-                _ ->
-                    Html.text "Invalid project or non-sequence"
+            sqvContent model tp vista composite
 
         Content.ITS ints ->
-            case
-                UUID.fromString vista.project
-                    |> Result.toMaybe
-            of
-                Just project ->
-                    let
-                        params : VentanaParams
-                        params =
-                            Dict.get tp model.tabs.ventanas
-                                |> Maybe.map .params
-                                |> Maybe.withDefault
-                                    { defVParams | length = 20 }
-
-                        ss : String
-                        ss =
-                            params.searchString
-
-                        searched : List M.Interlinear
-                        searched =
-                            let
-                                strings :
-                                    M.Interlinear
-                                    -> List ( String, String )
-                                strings int =
-                                    Dict.foldl
-                                        (\_ t acc ->
-                                            ( "translations.judgment"
-                                            , t.judgment
-                                            )
-                                                :: ( "translation"
-                                                   , t.translation
-                                                   )
-                                                :: acc
-                                        )
-                                        []
-                                        int.translations
-                                        |> List.append
-                                            [ ( "text"
-                                              , int.text
-                                              )
-                                            , ( "judgment"
-                                              , int.ann.judgment
-                                              )
-                                            , ( "phonemic"
-                                              , int.ann.phonemic
-                                              )
-                                            , ( "glosses"
-                                              , int.ann.glosses
-                                              )
-                                            , ( "breaks"
-                                              , int.ann.breaks
-                                              )
-                                            ]
-                            in
-                            List.filter (\i -> search ss (strings i)) ints
-
-                        intTotal : Int
-                        intTotal =
-                            List.length searched
-
-                        is : List M.Interlinear
-                        is =
-                            List.take params.length searched
-
-                        len : String
-                        len =
-                            String.fromInt params.length
-
-                        imodel : Display.InterlinearListing.Model
-                        imodel =
-                            { interlinears = is
-                            , project = project
-                            }
-                    in
-                    Html.div []
-                        [ Html.div [ Attr.class "filters" ]
-                            [ Html.label []
-                                [ Html.text <|
-                                    if params.length <= intTotal then
-                                        let
-                                            -- For displaying
-                                            total : String
-                                            total =
-                                                intTotal |> String.fromInt
-                                        in
-                                        "Show (" ++ len ++ " of " ++ total ++ ")"
-
-                                    else
-                                        "Showing all items."
-                                , Html.input
-                                    ([ Attr.type_ "text"
-                                     , Attr.placeholder len
-                                     , Event.onInput
-                                        (\s ->
-                                            Tab.Change Tab.Length tp s
-                                                |> Tab
-                                        )
-                                     ]
-                                        ++ (if params.length > 0 then
-                                                [ Attr.value len ]
-
-                                            else
-                                                []
-                                           )
-                                    )
-                                    []
-                                , Html.input
-                                    [ Attr.type_ "text"
-                                    , Attr.value ss
-                                    , Attr.placeholder "Search"
-                                    , Attr.attribute "aria-label" "Search"
-                                    , Event.onInput
-                                        (\s ->
-                                            Tab.Change Tab.Search tp s
-                                                |> Tab
-                                        )
-                                    ]
-                                    []
-                                ]
-                            ]
-                        , Display.InterlinearListing.view imodel |> Html.map Ms
-                        ]
-
-                Nothing ->
-                    Html.text "Missing project information"
+            itsContent model tp vista ints
 
         Content.SQS seqs ->
-            case
-                UUID.fromString vista.project
-                    |> Result.toMaybe
-            of
-                Just project ->
-                    let
-                        params : VentanaParams
-                        params =
-                            Dict.get tp model.tabs.ventanas
-                                |> Maybe.map .params
-                                |> Maybe.withDefault
-                                    { defVParams | length = 20 }
-
-                        ss : String
-                        ss =
-                            params.searchString
-
-                        searched : List M.Sequence
-                        searched =
-                            let
-                                strings :
-                                    M.Sequence
-                                    -> List ( String, String )
-                                strings seq =
-                                    [ ( "title"
-                                      , seq.title
-                                      )
-                                    , ( "description"
-                                      , seq.description
-                                      )
-                                    ]
-                            in
-                            List.filter (\i -> search ss (strings i)) seqs
-
-                        intTotal : Int
-                        intTotal =
-                            List.length searched
-
-                        is : List M.Sequence
-                        is =
-                            List.take params.length searched
-
-                        len : String
-                        len =
-                            String.fromInt params.length
-
-                        imodel : Display.SequenceListing.Model
-                        imodel =
-                            { sequences = is
-                            , project = project
-                            }
-                    in
-                    Html.div []
-                        [ Html.div [ Attr.class "filters" ]
-                            [ Html.label []
-                                [ Html.text <|
-                                    if params.length <= intTotal then
-                                        let
-                                            -- For displaying
-                                            total : String
-                                            total =
-                                                intTotal |> String.fromInt
-                                        in
-                                        "Show (" ++ len ++ " of " ++ total ++ ")"
-
-                                    else
-                                        "Showing all items."
-                                , Html.input
-                                    ([ Attr.type_ "text"
-                                     , Attr.placeholder len
-                                     , Event.onInput
-                                        (\s ->
-                                            Tab.Change Tab.Length tp s
-                                                |> Tab
-                                        )
-                                     ]
-                                        ++ (if params.length > 0 then
-                                                [ Attr.value len ]
-
-                                            else
-                                                []
-                                           )
-                                    )
-                                    []
-                                , Html.input
-                                    [ Attr.type_ "text"
-                                    , Attr.value ss
-                                    , Attr.placeholder "Search"
-                                    , Attr.attribute "aria-label" "Search"
-                                    , Event.onInput
-                                        (\s ->
-                                            Tab.Change Tab.Search tp s
-                                                |> Tab
-                                        )
-                                    ]
-                                    []
-                                ]
-                            ]
-                        , Display.SequenceListing.view imodel |> Html.map Ms
-                        ]
-
-                Nothing ->
-                    Html.text "Missing project information"
+            sqsContent model tp vista seqs
 
         Content.PLS people ->
+            plsContent model tp vista people
+
+        Content.SDV seqData ->
+            sdvContent model tp vista seqData
+
+
+ntvContent : Model -> Tab.Path -> Vista -> Display.Note.Model -> Html Msg
+ntvContent model tp vista note =
+    let
+        edit : Bool
+        edit =
+            Dict.get tp model.tabs.ventanas
+                |> Maybe.map .params
+                |> Maybe.map .edit
+                |> Maybe.withDefault False
+    in
+    if edit then
+        Display.Note.edit note |> Html.map Ms
+
+    else
+        Display.Note.view note |> Html.map Ms
+
+
+itvContent : Model -> Tab.Path -> Vista -> M.Composite -> Html Msg
+itvContent model tp vista composite =
+    case
+        UUID.fromString vista.project
+            |> Result.toMaybe
+    of
+        Just project ->
+            let
+                cmodel : Display.Composite.Model
+                cmodel =
+                    { composite = composite
+                    , project = project
+                    }
+
+                display : Html.Html Msg
+                display =
+                    Display.Composite.view cmodel
+                        |> Html.map Ms
+
+                tagfield : Html.Html Msg
+                tagfield =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.map .meta
+                        |> Maybe.andThen .tag
+                        |> Maybe.map Display.Meta.tagField
+                        |> Maybe.map (Html.map Ms)
+                        |> Maybe.withDefault (Html.text "")
+
+                propfield : Html.Html Msg
+                propfield =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.map .meta
+                        |> Maybe.andThen .property
+                        |> Maybe.map Display.Meta.propertyField
+                        |> Maybe.map (Html.map Ms)
+                        |> Maybe.withDefault (Html.text "")
+            in
+            Html.div []
+                [ tagfield
+                , propfield
+                , display
+                ]
+
+        _ ->
+            Html.text "Invalid project or non-interlinear"
+
+
+sqvContent : Model -> Tab.Path -> Vista -> M.Composite -> Html Msg
+sqvContent model tp vista composite =
+    case
+        UUID.fromString vista.project
+            |> Result.toMaybe
+    of
+        Just project ->
+            let
+                cmodel : Display.Composite.Model
+                cmodel =
+                    { composite = composite
+                    , project = project
+                    }
+
+                display : Html.Html Msg
+                display =
+                    Display.Composite.view cmodel
+                        |> Html.map Ms
+
+                tagfield : Html.Html Msg
+                tagfield =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.map .meta
+                        |> Maybe.andThen .tag
+                        |> Maybe.map Display.Meta.tagField
+                        |> Maybe.map (Html.map Ms)
+                        |> Maybe.withDefault (Html.text "")
+
+                propfield : Html.Html Msg
+                propfield =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.map .meta
+                        |> Maybe.andThen .property
+                        |> Maybe.map Display.Meta.propertyField
+                        |> Maybe.map (Html.map Ms)
+                        |> Maybe.withDefault (Html.text "")
+            in
+            Html.div []
+                [ tagfield
+                , propfield
+                , display
+                ]
+
+        _ ->
+            Html.text "Invalid project or non-sequence"
+
+
+itsContent : Model -> Tab.Path -> Vista -> List M.Interlinear -> Html Msg
+itsContent model tp vista ints =
+    case
+        UUID.fromString vista.project
+            |> Result.toMaybe
+    of
+        Just project ->
             let
                 params : VentanaParams
                 params =
                     Dict.get tp model.tabs.ventanas
                         |> Maybe.map .params
-                        |> Maybe.withDefault { defVParams | length = 20 }
+                        |> Maybe.withDefault
+                            { defVParams | length = 20 }
 
                 ss : String
                 ss =
                     params.searchString
 
-                searched : List M.Person
+                searched : List M.Interlinear
                 searched =
                     let
-                        strings : M.Person -> List ( String, String )
-                        strings person =
+                        strings :
+                            M.Interlinear
+                            -> List ( String, String )
+                        strings int =
                             Dict.foldl
-                                (\_ n acc ->
-                                    ( "name", n ) :: acc
+                                (\_ t acc ->
+                                    ( "translations.judgment"
+                                    , t.judgment
+                                    )
+                                        :: ( "translation"
+                                           , t.translation
+                                           )
+                                        :: acc
                                 )
                                 []
-                                person.names
+                                int.translations
                                 |> List.append
-                                    [ ( "id", person.id ) ]
+                                    [ ( "text", int.text )
+                                    , ( "judgment", int.ann.judgment )
+                                    , ( "phonemic", int.ann.phonemic )
+                                    , ( "glosses", int.ann.glosses )
+                                    , ( "breaks", int.ann.breaks )
+                                    ]
                     in
-                    List.filter
-                        (\p -> search ss (strings p))
-                        people
+                    List.filter (\i -> search ss (strings i)) ints
 
                 intTotal : Int
                 intTotal =
                     List.length searched
 
-                ps : List M.Person
-                ps =
+                is : List M.Interlinear
+                is =
                     List.take params.length searched
 
                 len : String
                 len =
                     String.fromInt params.length
 
-                viewEvent : String -> Msg
-                viewEvent identifier =
-                    case UUID.fromString vista.project of
-                        Err _ ->
-                            Ms Msg.None
-
-                        Ok uuid ->
-                            [ "person/", identifier ]
-                                |> String.concat
-                                |> OComposite
-                                |> Msg.Request uuid
-                                |> Msg.UserClick
-                                |> Ms
-
-                editEvent : M.Person -> Msg
-                editEvent person =
-                    case UUID.fromString vista.project of
-                        Err _ ->
-                            Ms Msg.None
-
-                        Ok uuid ->
-                            person
-                                |> Msg.EditPerson uuid
-                                |> Msg.UserClick
-                                |> Ms
-
-                displayParams : Display.PersonListing.Params Msg
-                displayParams =
-                    { people = ps
-                    , viewEvent = viewEvent
-                    , editEvent = editEvent
+                imodel : Display.InterlinearListing.Model
+                imodel =
+                    { interlinears = is
+                    , project = project
                     }
             in
             Html.div []
@@ -3661,8 +3513,375 @@ viewVista model tp vista =
                             []
                         ]
                     ]
-                , Display.PersonListing.view displayParams
+                , Display.InterlinearListing.view imodel |> Html.map Ms
                 ]
+
+        Nothing ->
+            Html.text "Missing project information"
+
+
+sqsContent : Model -> Tab.Path -> Vista -> List M.Sequence -> Html Msg
+sqsContent model tp vista seqs =
+    case
+        UUID.fromString vista.project
+            |> Result.toMaybe
+    of
+        Just project ->
+            let
+                params : VentanaParams
+                params =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.withDefault
+                            { defVParams | length = 20 }
+
+                ss : String
+                ss =
+                    params.searchString
+
+                searched : List M.Sequence
+                searched =
+                    let
+                        strings :
+                            M.Sequence
+                            -> List ( String, String )
+                        strings seq =
+                            [ ( "title"
+                              , seq.title
+                              )
+                            , ( "description"
+                              , seq.description
+                              )
+                            ]
+                    in
+                    List.filter (\i -> search ss (strings i)) seqs
+
+                intTotal : Int
+                intTotal =
+                    List.length searched
+
+                is : List M.Sequence
+                is =
+                    List.take params.length searched
+
+                len : String
+                len =
+                    String.fromInt params.length
+
+                imodel : Display.SequenceListing.Model
+                imodel =
+                    { sequences = is
+                    , project = project
+                    }
+            in
+            Html.div []
+                [ Html.div [ Attr.class "filters" ]
+                    [ Html.label []
+                        [ Html.text <|
+                            if params.length <= intTotal then
+                                let
+                                    -- For displaying
+                                    total : String
+                                    total =
+                                        intTotal |> String.fromInt
+                                in
+                                "Show (" ++ len ++ " of " ++ total ++ ")"
+
+                            else
+                                "Showing all items."
+                        , Html.input
+                            ([ Attr.type_ "text"
+                             , Attr.placeholder len
+                             , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Length tp s
+                                        |> Tab
+                                )
+                             ]
+                                ++ (if params.length > 0 then
+                                        [ Attr.value len ]
+
+                                    else
+                                        []
+                                   )
+                            )
+                            []
+                        , Html.input
+                            [ Attr.type_ "text"
+                            , Attr.value ss
+                            , Attr.placeholder "Search"
+                            , Attr.attribute "aria-label" "Search"
+                            , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Search tp s
+                                        |> Tab
+                                )
+                            ]
+                            []
+                        ]
+                    ]
+                , Display.SequenceListing.view imodel |> Html.map Ms
+                ]
+
+        Nothing ->
+            Html.text "Missing project information"
+
+
+plsContent : Model -> Tab.Path -> Vista -> List M.Person -> Html Msg
+plsContent model tp vista people =
+    let
+        params : VentanaParams
+        params =
+            Dict.get tp model.tabs.ventanas
+                |> Maybe.map .params
+                |> Maybe.withDefault { defVParams | length = 20 }
+
+        ss : String
+        ss =
+            params.searchString
+
+        searched : List M.Person
+        searched =
+            let
+                strings : M.Person -> List ( String, String )
+                strings person =
+                    Dict.foldl
+                        (\_ n acc ->
+                            ( "name", n ) :: acc
+                        )
+                        []
+                        person.names
+                        |> List.append
+                            [ ( "id", person.id ) ]
+            in
+            List.filter
+                (\p -> search ss (strings p))
+                people
+
+        intTotal : Int
+        intTotal =
+            List.length searched
+
+        ps : List M.Person
+        ps =
+            List.take params.length searched
+
+        len : String
+        len =
+            String.fromInt params.length
+
+        viewEvent : String -> Msg
+        viewEvent identifier =
+            case UUID.fromString vista.project of
+                Err _ ->
+                    Ms Msg.None
+
+                Ok uuid ->
+                    [ "person/", identifier ]
+                        |> String.concat
+                        |> OComposite
+                        |> Msg.Request uuid
+                        |> Msg.UserClick
+                        |> Ms
+
+        editEvent : M.Person -> Msg
+        editEvent person =
+            case UUID.fromString vista.project of
+                Err _ ->
+                    Ms Msg.None
+
+                Ok uuid ->
+                    person
+                        |> Msg.EditPerson uuid
+                        |> Msg.UserClick
+                        |> Ms
+
+        displayParams : Display.PersonListing.Params Msg
+        displayParams =
+            { people = ps
+            , viewEvent = viewEvent
+            , editEvent = editEvent
+            }
+    in
+    Html.div []
+        [ Html.div [ Attr.class "filters" ]
+            [ Html.label []
+                [ Html.text <|
+                    if params.length <= intTotal then
+                        let
+                            -- For displaying
+                            total : String
+                            total =
+                                intTotal |> String.fromInt
+                        in
+                        "Show (" ++ len ++ " of " ++ total ++ ")"
+
+                    else
+                        "Showing all items."
+                , Html.input
+                    ([ Attr.type_ "text"
+                     , Attr.placeholder len
+                     , Event.onInput
+                        (\s ->
+                            Tab.Change Tab.Length tp s
+                                |> Tab
+                        )
+                     ]
+                        ++ (if params.length > 0 then
+                                [ Attr.value len ]
+
+                            else
+                                []
+                           )
+                    )
+                    []
+                , Html.input
+                    [ Attr.type_ "text"
+                    , Attr.value ss
+                    , Attr.placeholder "Search"
+                    , Attr.attribute "aria-label" "Search"
+                    , Event.onInput
+                        (\s ->
+                            Tab.Change Tab.Search tp s
+                                |> Tab
+                        )
+                    ]
+                    []
+                ]
+            ]
+        , Display.PersonListing.view displayParams
+        ]
+
+
+sdvContent : Model -> Tab.Path -> Vista -> K.SeqData -> Html Msg
+sdvContent model tp vista seqd =
+    case
+        UUID.fromString vista.project
+            |> Result.toMaybe
+    of
+        Just project ->
+            let
+                params : VentanaParams
+                params =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.withDefault
+                            { defVParams | length = 20 }
+
+                ss : String
+                ss =
+                    params.searchString
+
+                
+                searched : List (String, M.Interlinear)
+                searched =
+                    let
+                        strings : String -> M.Interlinear -> List ( String, String )
+                        strings key int =
+                            Dict.foldl
+                                (\_ t acc ->
+                                    ( "translations.judgment"
+                                    , t.judgment
+                                    )
+                                        :: ( "translation"
+                                           , t.translation
+                                           )
+                                        :: acc
+                                )
+                                []
+                                int.translations
+                                |> List.append
+                                    [ ( "key", key )
+                                    , ( "text", int.text )
+                                    , ( "judgment", int.ann.judgment )
+                                    , ( "phonemic", int.ann.phonemic )
+                                    , ( "glosses", int.ann.glosses )
+                                    , ( "breaks", int.ann.breaks )
+                                    ]
+
+                        filterByValue : List (String, M.Interlinear) -> List (String, M.Interlinear)
+                        filterByValue =
+                            List.filter (\(k, v) -> search ss (strings k v))
+                    in
+                    case seqd.docs of
+                        K.IKey docs ->
+                            Dict.toList docs
+                                |> List.map (\(k, v) -> (String.fromInt k, v))
+                                |> filterByValue
+
+                        K.SKey docs ->
+                            Dict.toList docs
+                                |> filterByValue
+
+                intTotal : Int
+                intTotal =
+                    List.length searched
+
+                is : List (String, M.Interlinear)
+                is =
+                    List.take params.length searched
+
+                len : String
+                len =
+                    String.fromInt params.length
+
+                imodel : Display.KeyedInterlinearListing.Model
+                imodel =
+                    { interlinears = is
+                    , project = project
+                    }
+            in
+            Html.div []
+                [ Html.div [ Attr.class "filters" ]
+                    [ Html.label []
+                        [ Html.text <|
+                            if params.length <= intTotal then
+                                let
+                                    -- For displaying
+                                    total : String
+                                    total =
+                                        intTotal |> String.fromInt
+                                in
+                                "Show (" ++ len ++ " of " ++ total ++ ")"
+
+                            else
+                                "Showing all items."
+                        , Html.input
+                            ([ Attr.type_ "text"
+                             , Attr.placeholder len
+                             , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Length tp s
+                                        |> Tab
+                                )
+                             ]
+                                ++ (if params.length > 0 then
+                                        [ Attr.value len ]
+
+                                    else
+                                        []
+                                   )
+                            )
+                            []
+                        , Html.input
+                            [ Attr.type_ "text"
+                            , Attr.value ss
+                            , Attr.placeholder "Search"
+                            , Attr.attribute "aria-label" "Search"
+                            , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Search tp s
+                                        |> Tab
+                                )
+                            ]
+                            []
+                        ]
+                    ]
+                , Display.KeyedInterlinearListing.view imodel |> Html.map Ms
+                ]
+
+        Nothing ->
+            Html.text "Missing project information"
 
 
 getProjectTitle : String -> Model -> Maybe String
@@ -3766,6 +3985,9 @@ port receivedInterlinearListing : (E.Value -> msg) -> Sub msg
 
 
 port receivedSequenceListing : (E.Value -> msg) -> Sub msg
+
+
+port receivedSequence : (E.Value -> msg) -> Sub msg
 
 
 port receivedPersonListing : (E.Value -> msg) -> Sub msg

@@ -6,6 +6,36 @@ const menkayonta_dd = {
   _id: design_id,
   version: design_version,
   views: {
+    sequence: {
+      map: ((doc) => {
+        if (doc._deleted !== true) {
+          const [pathPart, ...frag] = doc._id.split('#')
+          const path = pathPart.split('/')
+
+          if (path[0] === 'sequence' && path[1] && path[1].length === 36) {
+            if (doc.items) {
+              doc.items.forEach((item) => {
+                if (doc.kind === 'integer') {
+                  emit([doc._id, doc.kind, item.key, doc.title], {
+                    _id: `interlinear/${item.value}`,
+                  })
+                  return true
+                } else {
+                  return false
+                }
+              })
+              return true
+            } else {
+              return false
+            }
+          } else {
+            return false
+          }
+        } else {
+          return false
+        }
+      }).toString(),
+    },
     meta_reversals: {
       map: ((doc) => {
         if (doc._deleted !== true) {
