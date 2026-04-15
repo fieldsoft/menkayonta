@@ -3729,8 +3729,7 @@ sdvContent model tp vista seqd =
                 ss =
                     params.searchString
 
-                
-                searched : List (String, M.Interlinear)
+                searched : List ( String, M.Interlinear )
                 searched =
                     let
                         strings : String -> M.Interlinear -> List ( String, String )
@@ -3756,14 +3755,14 @@ sdvContent model tp vista seqd =
                                     , ( "breaks", int.ann.breaks )
                                     ]
 
-                        filterByValue : List (String, M.Interlinear) -> List (String, M.Interlinear)
+                        filterByValue : List ( String, M.Interlinear ) -> List ( String, M.Interlinear )
                         filterByValue =
-                            List.filter (\(k, v) -> search ss (strings k v))
+                            List.filter (\( k, v ) -> search ss (strings k v))
                     in
                     case seqd.docs of
                         K.IKey docs ->
                             Dict.toList docs
-                                |> List.map (\(k, v) -> (String.fromInt k, v))
+                                |> List.map (\( k, v ) -> ( String.fromInt k, v ))
                                 |> filterByValue
 
                         K.SKey docs ->
@@ -3774,7 +3773,7 @@ sdvContent model tp vista seqd =
                 intTotal =
                     List.length searched
 
-                is : List (String, M.Interlinear)
+                is : List ( String, M.Interlinear )
                 is =
                     List.take params.length searched
 
@@ -3835,28 +3834,31 @@ sdvContent model tp vista seqd =
                         ]
                     ]
                 , Html.article []
-                    [ Html.header [] [ Html.h2 [] [ Html.text seqd.title ] ]
+                    [ Html.header []
+                        [ Html.h2 []
+                            [ Html.text ("Sequence: " ++ seqd.title) ]
+                        ]
                     , Html.p [] [ Html.text seqd.description ]
                     , case M.stringToIdentifier seqd.id of
-                          Just id ->
-                              Html.footer []
-                                  [ Html.a
-                                        [ Attr.href "#"
-                                        , Msg.ONoteFor
-                                              { id = id
-                                              , title = seqd.title
-                                              , description = seqd.description
-                                              }
+                        Just id ->
+                            Html.footer []
+                                [ Html.a
+                                    [ Attr.href "#"
+                                    , Msg.ONoteFor
+                                        { id = id
+                                        , title = seqd.title
+                                        , description = seqd.description
+                                        }
                                         |> Msg.Request project
                                         |> Msg.UserClick
                                         |> Ms
                                         |> Event.onClick
-                                        ]
-                                        [ Html.text "Note" ]
-                                     ]
-                                      
-                          Nothing ->
-                              Html.text ""
+                                    ]
+                                    [ Html.text "Note" ]
+                                ]
+
+                        Nothing ->
+                            Html.text ""
                     ]
                 , Display.KeyedInterlinearListing.view imodel |> Html.map Ms
                 ]
