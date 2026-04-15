@@ -495,19 +495,19 @@ update msg model =
                         ndecoder :
                             D.Decoder
                                 { note : M.Note
-                                , doc : M.Value
+                                , desc : M.GenericDesc
                                 }
                         ndecoder =
                             D.map2
                                 (\n d ->
                                     { note = n
-                                    , doc = d
+                                    , desc = d
                                     }
                                 )
                                 (D.field "note" M.decoder
                                     |> D.andThen dnote
                                 )
-                                (D.field "doc" M.decoder)
+                                (D.field "desc" M.genericDescDecoder)
                     in
                     case D.decodeValue ndecoder env.content of
                         Err e ->
@@ -518,7 +518,7 @@ update msg model =
                         Ok c ->
                             handleReceivedNote env.project
                                 model
-                                c.doc
+                                c.desc
                                 c.note
 
         Ms (Msg.Received (INote envelope)) ->
@@ -598,15 +598,15 @@ update msg model =
                         _ ->
                             ( model, Cmd.none )
 
-        Ms (Msg.Request project (ONoteFor id value)) ->
+        Ms (Msg.Request project (ONoteFor gd)) ->
             let
                 envelope : E.Value
                 envelope =
                     envelopeEncoder
                         { command = "request-note-for"
                         , project = project
-                        , address = M.identifierToString id
-                        , content = M.encoder value
+                        , address = M.identifierToString gd.id
+                        , content = M.genericDescEncoder gd
                         }
             in
             ( model, send envelope )
@@ -2724,66 +2724,23 @@ prepSequenceSave seq project me =
             Nothing
 
 
-handleReceivedNote : UUID.UUID -> Model -> M.Value -> M.Note -> ( Model, Cmd Msg )
-handleReceivedNote project model doc note =
+handleReceivedNote : UUID.UUID -> Model -> M.GenericDesc -> M.Note -> ( Model, Cmd Msg )
+handleReceivedNote project model gd note =
     let
         projectStr : String
         projectStr =
             UUID.toString project
 
-        titlepart : String
-        titlepart =
-            case doc of
-                M.MyInterlinear int ->
-                    int.text
-
-                M.MyPerson person ->
-                    person.id
-
-                M.MySequence seq ->
-                    seq.title
-
-                M.MyPage page ->
-                    page.title
-
-                _ ->
-                    ""
-
-        desc : String
-        desc =
-            case doc of
-                M.MyInterlinear int ->
-                    int.translations
-                        |> Dict.values
-                        |> List.head
-                        |> Maybe.map .translation
-                        |> Maybe.withDefault ""
-
-                M.MyPerson person ->
-                    person.names
-                        |> Dict.values
-                        |> List.head
-                        |> Maybe.withDefault person.id
-
-                M.MySequence seq ->
-                    seq.title
-
-                M.MyPage page ->
-                    page.title
-
-                _ ->
-                    ""
-
         full : String
         full =
-            String.concat [ "Note: ", titlepart ]
+            String.concat [ "Note: ", gd.title ]
 
         short : String
         short =
-            if String.length titlepart > 7 then
+            if String.length gd.title > 7 then
                 String.concat
                     [ "Note: "
-                    , String.left 7 titlepart
+                    , String.left 7 gd.title
                     , "..."
                     ]
 
@@ -2793,8 +2750,8 @@ handleReceivedNote project model doc note =
         content : Content
         content =
             Content.NTV
-                { title = titlepart
-                , description = desc
+                { title = gd.title
+                , description = gd.description
                 , note = note
                 , original = note.note
                 }
@@ -3878,8 +3835,28 @@ sdvContent model tp vista seqd =
                         ]
                     ]
                 , Html.article []
-                    [ Html.header [] [ Html.text seqd.title ]
-                    , Html.text seqd.description
+                    [ Html.header [] [ Html.h2 [] [ Html.text seqd.title ] ]
+                    , Html.p [] [ Html.text seqd.description ]
+                    , case M.stringToIdentifier seqd.id of
+                          Just id ->
+                              Html.footer []
+                                  [ Html.a
+                                        [ Attr.href "#"
+                                        , Msg.ONoteFor
+                                              { id = id
+                                              , title = seqd.title
+                                              , description = seqd.description
+                                              }
+                                        |> Msg.Request project
+                                        |> Msg.UserClick
+                                        |> Ms
+                                        |> Event.onClick
+                                        ]
+                                        [ Html.text "Note" ]
+                                     ]
+                                      
+                          Nothing ->
+                              Html.text ""
                     ]
                 , Display.KeyedInterlinearListing.view imodel |> Html.map Ms
                 ]

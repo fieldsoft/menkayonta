@@ -370,7 +370,7 @@ const handleRequestNoteFor = async (docid, context) => {
 
     process.parentPort.postMessage({
       command: 'received-note-for',
-      content: { note: note, doc: context },
+      content: { note: note, desc: context },
       project: gvs.identifier,
       address: docid,
     })
@@ -382,7 +382,7 @@ const handleRequestNoteFor = async (docid, context) => {
         command: 'received-note-for',
         content: {
           note: { _id: `${docid}/note`, version: 1, note: 'Nothing yet.' },
-          doc: context,
+          desc: context,
         },
         project: gvs.identifier,
         address: docid,

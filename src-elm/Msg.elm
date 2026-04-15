@@ -65,5 +65,5 @@ type RequestType
     | OComposite String
     | OPersonListing
     | ODelete Revision String
-    | ONoteFor M.Identifier M.Value
+    | ONoteFor M.GenericDesc
     | ONote String

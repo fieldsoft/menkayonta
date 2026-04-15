@@ -2,6 +2,7 @@ module Menkayonta exposing
     ( Annotations
     , Composite
     , DocId(..)
+    , GenericDesc
     , Identifier(..)
     , Interlinear
     , Link
@@ -25,11 +26,15 @@ module Menkayonta exposing
     , Value(..)
     , compositeBuilder
     , decoder
+    , description
     , encoder
+    , genericDescDecoder
+    , genericDescEncoder
     , identifierToReverse
     , identifierToString
     , listDecoder
     , stringToIdentifier
+    , title
     )
 
 import Dict exposing (Dict)
@@ -92,6 +97,13 @@ type alias Composite =
     , properties : List Property
     , modifications : List Modification
     , links : List Link
+    }
+
+
+type alias GenericDesc =
+    { id : Identifier
+    , title : String
+    , description : String
     }
 
 
@@ -831,6 +843,26 @@ utilityDecoder id =
         (D.field "value" D.value)
 
 
+genericDescDecoder : D.Decoder GenericDesc
+genericDescDecoder =
+    let
+        idDecoder : String -> D.Decoder Identifier
+        idDecoder id =
+            case stringToIdentifier id of
+                Just id_ ->
+                    D.succeed id_
+
+                Nothing ->
+                    D.fail "invalid id string"
+    in
+    D.map3 GenericDesc
+        (D.field "id" D.string
+            |> D.andThen idDecoder
+        )
+        (D.field "title" D.string)
+        (D.field "description" D.string)
+
+
 
 {- JSON Encoder functions -}
 
@@ -1009,6 +1041,15 @@ modificationEncoder modification =
         |> addRev modification.rev
 
 
+genericDescEncoder : GenericDesc -> E.Value
+genericDescEncoder gd =
+    E.object
+        [ ( "id", E.string (identifierToString gd.id) )
+        , ( "title", E.string gd.title )
+        , ( "description", E.string gd.description )
+        ]
+
+
 
 {- Utility functions -}
 
@@ -1060,3 +1101,48 @@ compositeBuilder v comp =
 
         MyPage p ->
             { comp | doc = Just (MyPage p) }
+
+
+title : Value -> String
+title doc =
+    case doc of
+        MyInterlinear int ->
+            int.text
+
+        MyPerson person ->
+            person.id
+
+        MySequence seq ->
+            seq.title
+
+        MyPage page ->
+            page.title
+
+        _ ->
+            ""
+
+
+description : Value -> String
+description doc =
+    case doc of
+        MyInterlinear int ->
+            int.translations
+                |> Dict.values
+                |> List.head
+                |> Maybe.map .translation
+                |> Maybe.withDefault ""
+
+        MyPerson person ->
+            person.names
+                |> Dict.values
+                |> List.head
+                |> Maybe.withDefault person.id
+
+        MySequence seq ->
+            seq.title
+
+        MyPage page ->
+            page.title
+
+        _ ->
+            ""

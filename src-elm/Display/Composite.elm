@@ -1,5 +1,6 @@
 module Display.Composite exposing (Model, Msg, view)
 
+import Dict
 import Display.InterlinearListing
 import Display.Meta
     exposing
@@ -66,7 +67,11 @@ view model =
                         , Html.li []
                             [ Html.a
                                 [ Attr.href "#"
-                                , Msg.ONoteFor id doc
+                                , Msg.ONoteFor
+                                    { id = id
+                                    , title = Menkayonta.title doc
+                                    , description = Menkayonta.description doc
+                                    }
                                     |> Msg.Request model.project
                                     |> Msg.UserClick
                                     |> Event.onClick
@@ -105,7 +110,11 @@ view model =
                         , Html.li []
                             [ Html.a
                                 [ Attr.href "#"
-                                , Msg.ONoteFor id doc
+                                , Msg.ONoteFor
+                                    { id = id
+                                    , title = Menkayonta.title doc
+                                    , description = Menkayonta.description doc
+                                    }
                                     |> Msg.Request model.project
                                     |> Msg.UserClick
                                     |> Event.onClick
