@@ -1,5 +1,5 @@
 /* global emit */
-const design_version = 1
+const design_version = 2
 const design_id = '_design/menkayonta'
 
 const menkayonta_dd = {
@@ -12,17 +12,17 @@ const menkayonta_dd = {
           const [pathPart, ...frag] = doc._id.split('#')
           const path = pathPart.split('/')
 
-          if (path[0] === 'sequence' && path[1] && path[1].length === 36) {
+          if (
+            path[0] === 'sequence' &&
+            path[1] &&
+            path[1].length === 36 &&
+            !path[2]
+          ) {
             if (doc.items) {
               doc.items.forEach((item) => {
-                if (doc.kind === 'integer') {
-                  emit([doc._id, doc.kind, item.key, doc.title], {
-                    _id: `interlinear/${item.value}`,
-                  })
-                  return true
-                } else {
-                  return false
-                }
+                emit([doc._id, doc.kind, item.key, doc.title], {
+                  _id: `interlinear/${item.value}`,
+                })
               })
               return true
             } else {

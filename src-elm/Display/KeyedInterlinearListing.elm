@@ -28,7 +28,7 @@ type alias Msg =
 
 
 type alias Model =
-    { interlinears : List (String, Interlinear)
+    { interlinears : List ( String, Interlinear )
     , project : UUID.UUID
     }
 
@@ -42,10 +42,10 @@ view model =
         )
 
 
-viewItem : Model -> (String, Interlinear) -> Html.Html Msg
-viewItem model (key, int) =
+viewItem : Model -> ( String, Interlinear ) -> Html.Html Msg
+viewItem model ( key, int ) =
     Html.li []
-        [ viewInterlinear int
+        [ viewInterlinear key int
         , Html.div [ Attr.class "gloss-controls" ]
             [ Html.a
                 [ Attr.href "#"
@@ -53,7 +53,7 @@ viewItem model (key, int) =
                 , InterlinearId int.id
                     |> MyDocId
                     |> identifierToString
-                    |> Msg.OComposite 
+                    |> Msg.OComposite
                     |> Msg.Request model.project
                     |> Msg.UserClick
                     |> Event.onClick
@@ -71,13 +71,20 @@ viewItem model (key, int) =
         ]
 
 
-viewInterlinear : Interlinear -> Html.Html Msg
-viewInterlinear int =
+viewInterlinear : String -> Interlinear -> Html.Html Msg
+viewInterlinear key int =
     let
         srcLine : Html.Html Msg
         srcLine =
             Html.span [ Attr.class "gloss-source-text" ]
-                [ Html.text (int.ann.judgment ++ " " ++ int.text) ]
+                [ Html.text
+                    ([ key ++ ")"
+                     , int.ann.judgment
+                     , int.text
+                     ]
+                        |> String.join " "
+                    )
+                ]
 
         annLines : Html.Html Msg
         annLines =
