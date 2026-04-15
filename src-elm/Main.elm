@@ -3877,6 +3877,10 @@ sdvContent model tp vista seqd =
                             []
                         ]
                     ]
+                , Html.article []
+                    [ Html.header [] [ Html.text seqd.title ]
+                    , Html.text seqd.description
+                    ]
                 , Display.KeyedInterlinearListing.view imodel |> Html.map Ms
                 ]
 

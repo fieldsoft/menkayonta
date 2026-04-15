@@ -232,6 +232,7 @@ const handleRequestSequence = async (docid) => {
         key: row.key[2],
         kind: row.key[1],
         title: row.key[3],
+        description: row.key[4],
         doc: row.doc,
       })
 

@@ -11,6 +11,7 @@ import UUID
 type alias Value =
     { id : M.Identifier
     , title : String
+    , description : String
     , key : String
     , kind : M.SequenceKind
     , doc : M.Value
@@ -20,6 +21,7 @@ type alias Value =
 type alias SeqData =
     { id : String
     , title : String
+    , description : String
     , docs : KeyedDocs
     }
 
@@ -72,16 +74,20 @@ valuesToSeqData vals =
         valsKind =
             firstH
                 |> Maybe.map .kind
+
+        seqData : Value -> KeyedDocs -> SeqData
+        seqData first docs =
+            { id = M.identifierToString first.id
+            , title = first.title
+            , description = first.description
+            , docs = docs
+            }
     in
     case ( firstH, valsKind ) of
         ( Just first, Just M.Integer ) ->
             case intKeys of
                 Just docs ->
-                    Just
-                        { id = M.identifierToString first.id
-                        , title = first.title
-                        , docs = docs
-                        }
+                    Just (seqData first docs)
 
                 Nothing ->
                     Nothing
@@ -89,11 +95,7 @@ valuesToSeqData vals =
         ( Just first, Just M.StringKey ) ->
             case stringKeys of
                 Just docs ->
-                    Just
-                        { id = M.identifierToString first.id
-                        , title = first.title
-                        , docs = docs
-                        }
+                    Just (seqData first docs)
 
                 Nothing ->
                     Nothing
@@ -131,11 +133,12 @@ valueDecoder =
                             , "' is an invalid kind"
                             ]
     in
-    D.map5 Value
+    D.map6 Value
         (D.field "id" D.string
             |> D.andThen decodeId
         )
         (D.field "title" D.string)
+        (D.field "description" D.string)
         (D.field "key" D.string)
         (D.field "kind" D.string
             |> D.andThen kindHelper

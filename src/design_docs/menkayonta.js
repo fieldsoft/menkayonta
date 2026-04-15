@@ -1,5 +1,5 @@
 /* global emit */
-const design_version = 2
+const design_version = 1
 const design_id = '_design/menkayonta'
 
 const menkayonta_dd = {
@@ -20,9 +20,12 @@ const menkayonta_dd = {
           ) {
             if (doc.items) {
               doc.items.forEach((item) => {
-                emit([doc._id, doc.kind, item.key, doc.title], {
-                  _id: `interlinear/${item.value}`,
-                })
+                emit(
+                  [doc._id, doc.kind, item.key, doc.title, doc.description],
+                  {
+                    _id: `interlinear/${item.value}`,
+                  },
+                )
               })
               return true
             } else {
