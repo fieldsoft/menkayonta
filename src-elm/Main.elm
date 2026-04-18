@@ -261,121 +261,11 @@ update msg model =
             in
             ( model, cmd envelope )
 
-        Ms (Msg.Status envelope) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    case D.decodeValue (D.list D.string) env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok stat ->
-                            let
-                                curr : AL.Dict ProjectId (Dict String Int)
-                                curr =
-                                    model.status
-
-                                newmsgs : Dict String Int
-                                newmsgs =
-                                    stat
-                                        |> List.map (\s -> ( s, 2 ))
-                                        |> Dict.fromList
-
-                                natMinus1 : Int -> Int
-                                natMinus1 i =
-                                    if i <= 0 then
-                                        i
-
-                                    else
-                                        i - 1
-
-                                demote :
-                                    List String
-                                    -> Dict String Int
-                                    -> Dict String Int
-                                demote s mgs =
-                                    Dict.map
-                                        (\k v ->
-                                            if List.member k s then
-                                                2
-
-                                            else
-                                                natMinus1 v
-                                        )
-                                        mgs
-
-                                new : AL.Dict ProjectId (Dict String Int)
-                                new =
-                                    case AL.get env.project curr of
-                                        Nothing ->
-                                            AL.insert env.project
-                                                newmsgs
-                                                curr
-
-                                        Just smsgs ->
-                                            demote stat smsgs
-                                                |> Dict.union newmsgs
-                                                |> (\x ->
-                                                        AL.insert
-                                                            env.project
-                                                            x
-                                                            curr
-                                                   )
-                            in
-                            ( { model | status = new }, Cmd.none )
+        Ms (Msg.Status envelopeJson) ->
+            handleStatus model envelopeJson
 
         Ms (Msg.ChangeNote vistaid str) ->
-            case Dict.get vistaid model.tabs.vistas of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just vista ->
-                    case vista.content of
-                        NTV nmodel ->
-                            let
-                                note : M.Note
-                                note =
-                                    nmodel.note
-
-                                nmodel_ : Display.Note.Model
-                                nmodel_ =
-                                    { nmodel | note = { note | note = str } }
-
-                                content_ : Content
-                                content_ =
-                                    NTV nmodel_
-
-                                vista_ : Tab.Vista
-                                vista_ =
-                                    { vista | content = content_ }
-
-                                tabs : Tab.Model
-                                tabs =
-                                    model.tabs
-
-                                vistas : Dict String Vista
-                                vistas =
-                                    Dict.insert vistaid
-                                        vista_
-                                        model.tabs.vistas
-                            in
-                            ( { model
-                                | tabs =
-                                    { tabs
-                                        | vistas = vistas
-                                    }
-                              }
-                            , Cmd.none
-                            )
-
-                        _ ->
-                            ( model, Cmd.none )
+            handleNoteChange model vistaid str
 
         Ms Msg.EditToggle ->
             case model.tabs.focused of
@@ -401,10 +291,7 @@ update msg model =
 
         Tab subMsg ->
             let
-                t :
-                    { model : Tab.Model
-                    , cmd : Cmd Tab.Msg
-                    }
+                t : { model : Tab.Model, cmd : Cmd Tab.Msg }
                 t =
                     subUpdate Tab.update subMsg model.tabs
             in
@@ -412,191 +299,8 @@ update msg model =
             , Cmd.map Tab t.cmd
             )
 
-        Ms (Msg.Received (IReload envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    let
-                        req : RequestType -> Cmd Msg
-                        req rt =
-                            rt |> Msg.Request env.project |> Ms |> sendMsg
-                    in
-                    case String.split "/" env.address of
-                        [ "interlinear" ] ->
-                            ( model
-                            , req OInterlinearListing
-                            )
-
-                        [ "sequence" ] ->
-                            ( model
-                            , req OSequenceListing
-                            )
-
-                        [ "person" ] ->
-                            ( model
-                            , req OPersonListing
-                            )
-
-                        "interlinear" :: _ :: [] ->
-                            ( model
-                            , req <| OComposite env.address
-                            )
-
-                        "sequence" :: _ :: [] ->
-                            ( model
-                            , req <| OComposite env.address
-                            )
-
-                        "interlinear" :: _ :: "note" :: [] ->
-                            ( model
-                            , req <| ONote env.address
-                            )
-
-                        "sequence" :: _ :: "note" :: [] ->
-                            ( model
-                            , req <| ONote env.address
-                            )
-
-                        "tag" :: _ :: [] ->
-                            ( model
-                            , req <| OReversal (Just env.address)
-                            )
-
-                        "property" :: _ :: _ :: [] ->
-                            ( model
-                            , req <| OReversal (Just env.address)
-                            )
-
-                        _ ->
-                            ( model, Cmd.none )
-
-        Ms (Msg.Received (INoteFor envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    let
-                        dnote : M.Value -> D.Decoder M.Note
-                        dnote n =
-                            case n of
-                                M.MyNote note ->
-                                    D.succeed note
-
-                                _ ->
-                                    D.fail "Expected a Note"
-
-                        ndecoder :
-                            D.Decoder
-                                { note : M.Note
-                                , desc : M.GenericDesc
-                                }
-                        ndecoder =
-                            D.map2
-                                (\n d ->
-                                    { note = n
-                                    , desc = d
-                                    }
-                                )
-                                (D.field "note" M.decoder
-                                    |> D.andThen dnote
-                                )
-                                (D.field "desc" M.genericDescDecoder)
-                    in
-                    case D.decodeValue ndecoder env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok c ->
-                            handleReceivedNote env.project
-                                model
-                                c.desc
-                                c.note
-
-        Ms (Msg.Received (INote envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    case D.decodeValue M.decoder env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok (M.MyNote note) ->
-                            let
-                                vid : String
-                                vid =
-                                    "NOTE::"
-                                        ++ M.identifierToString
-                                            (M.MyNoteId note.id)
-                            in
-                            case Dict.get vid model.tabs.vistas of
-                                Nothing ->
-                                    ( model, Cmd.none )
-
-                                Just vista ->
-                                    case vista.content of
-                                        NTV nmodel ->
-                                            let
-                                                nmodel_ : Display.Note.Model
-                                                nmodel_ =
-                                                    { nmodel
-                                                        | note =
-                                                            note
-                                                        , original =
-                                                            note.note
-                                                    }
-
-                                                content_ : Content
-                                                content_ =
-                                                    NTV nmodel_
-
-                                                vista_ : Tab.Vista
-                                                vista_ =
-                                                    { vista
-                                                        | content =
-                                                            content_
-                                                    }
-
-                                                tabs : Tab.Model
-                                                tabs =
-                                                    model.tabs
-
-                                                vistas : Tab.Vistas
-                                                vistas =
-                                                    Dict.insert
-                                                        vid
-                                                        vista_
-                                                        tabs.vistas
-                                            in
-                                            ( { model
-                                                | tabs =
-                                                    { tabs
-                                                        | vistas =
-                                                            vistas
-                                                    }
-                                              }
-                                            , Cmd.none
-                                            )
-
-                                        _ ->
-                                            ( model, Cmd.none )
-
-                        _ ->
-                            ( model, Cmd.none )
+        Ms (Msg.Received rt) ->
+            handleReceived model rt
 
         Ms (Msg.Request project (ONoteFor gd)) ->
             let
@@ -1371,62 +1075,6 @@ update msg model =
                         _ ->
                             ( nmodel, Cmd.map (PR id) p.cmd )
 
-        Ms (Msg.Received (IViewArea jsonValue)) ->
-            case D.decodeValue dimensionsDecoder jsonValue of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok dimensions ->
-                    ( { model | viewArea = dimensions }
-                    , Cmd.none
-                    )
-
-        Ms (Msg.Received (IGlobalConfig gc)) ->
-            case D.decodeValue Config.globalConfigDecoder gc of
-                Err err ->
-                    ( { model | error = D.errorToString err }
-                    , Cmd.none
-                    )
-
-                Ok gc_ ->
-                    let
-                        invalidPerson : Bool
-                        invalidPerson =
-                            String.isEmpty gc_.name
-                                || String.isEmpty gc_.email
-
-                        newmodel : Model
-                        newmodel =
-                            { model
-                                | gconfig = gc_
-                                , me =
-                                    if invalidPerson then
-                                        Nothing
-
-                                    else
-                                        Just
-                                            { id = gc_.email
-                                            , rev = Nothing
-                                            , version = 1
-                                            , names =
-                                                Dict.singleton 0 gc_.name
-                                            }
-                            }
-
-                        -- When the data is incomplete, open the form
-                        -- so the user can add their name and email.
-                        command : Cmd Msg
-                        command =
-                            if invalidPerson then
-                                sendMsg (ShowGlobalSettings gc)
-
-                            else
-                                Cmd.none
-                    in
-                    ( newmodel, command )
-
         Ms (Msg.Request project OInterlinearListing) ->
             let
                 envelope : E.Value
@@ -1521,400 +1169,6 @@ update msg model =
                                 }
                     in
                     ( model, send envelope )
-
-        Ms (Msg.Received (IInterlinearListing envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    case D.decodeValue M.listDecoder env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok vals ->
-                            let
-                                filterInter :
-                                    M.Value
-                                    -> List M.Interlinear
-                                    -> List M.Interlinear
-                                filterInter val ints =
-                                    case val of
-                                        M.MyInterlinear int ->
-                                            int :: ints
-
-                                        _ ->
-                                            ints
-
-                                content : Content
-                                content =
-                                    ITS <|
-                                        List.foldl filterInter [] vals
-
-                                vista : Vista
-                                vista =
-                                    { project =
-                                        UUID.toString env.project
-                                    , path =
-                                        "interlinear"
-                                    , identifier =
-                                        "GLOSSES::"
-                                            ++ UUID.toString env.project
-                                    , content =
-                                        content
-                                    }
-                            in
-                            handleVista
-                                vista
-                                "Glosses"
-                                "Glosses"
-                                model
-
-        Ms (Msg.Received (ISequenceListing envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    case D.decodeValue M.listDecoder env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok vals ->
-                            let
-                                filterSeq :
-                                    M.Value
-                                    -> List M.Sequence
-                                    -> List M.Sequence
-                                filterSeq val seqs =
-                                    case val of
-                                        M.MySequence seq ->
-                                            seq :: seqs
-
-                                        _ ->
-                                            seqs
-
-                                content : Content
-                                content =
-                                    SQS <|
-                                        List.foldl filterSeq [] vals
-
-                                vista : Vista
-                                vista =
-                                    { project =
-                                        UUID.toString env.project
-                                    , path =
-                                        "sequence"
-                                    , identifier =
-                                        "SEQUENCES::"
-                                            ++ UUID.toString env.project
-                                    , content =
-                                        content
-                                    }
-                            in
-                            handleVista
-                                vista
-                                "Sequences"
-                                "Sequences"
-                                model
-
-        Ms (Msg.Received (ISequence envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    case D.decodeValue (D.list K.valueDecoder) env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok kvals ->
-                            case K.valuesToSeqData kvals of
-                                Nothing ->
-                                    ( { model
-                                        | error =
-                                            "Keyed values did not resolve to valid SeqData"
-                                      }
-                                    , Cmd.none
-                                    )
-
-                                Just seqData ->
-                                    let
-                                        content : Content
-                                        content =
-                                            Content.SDV seqData
-
-                                        vista : Vista
-                                        vista =
-                                            { project =
-                                                UUID.toString env.project
-                                            , path =
-                                                "seqdata"
-                                            , identifier =
-                                                "SEQDATA::"
-                                                    ++ UUID.toString env.project
-                                            , content =
-                                                content
-                                            }
-                                    in
-                                    handleVista
-                                        vista
-                                        "Seq. Data"
-                                        "Seq. Data"
-                                        model
-
-        Ms (Msg.Received (IPersonListing envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    case D.decodeValue M.listDecoder env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok vals ->
-                            let
-                                filterPerson :
-                                    M.Value
-                                    -> List M.Person
-                                    -> List M.Person
-                                filterPerson val people =
-                                    case val of
-                                        M.MyPerson person ->
-                                            person :: people
-
-                                        _ ->
-                                            people
-
-                                content : Content
-                                content =
-                                    PLS <|
-                                        List.foldl filterPerson [] vals
-
-                                vista : Vista
-                                vista =
-                                    { project =
-                                        UUID.toString env.project
-                                    , path =
-                                        "person"
-                                    , identifier =
-                                        "PEOPLE::"
-                                            ++ UUID.toString env.project
-                                    , content =
-                                        content
-                                    }
-                            in
-                            handleVista
-                                vista
-                                "People"
-                                "People"
-                                model
-
-        Ms (Msg.Received (IReversal envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    case D.decodeValue M.listDecoder env.content of
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
-
-                        Ok vals ->
-                            let
-                                filterInter :
-                                    M.Value
-                                    -> List M.Interlinear
-                                    -> List M.Interlinear
-                                filterInter val ints =
-                                    case val of
-                                        M.MyInterlinear int ->
-                                            int :: ints
-
-                                        _ ->
-                                            ints
-
-                                content : Content
-                                content =
-                                    ITS <|
-                                        List.foldl filterInter [] vals
-
-                                full : String
-                                full =
-                                    env.address
-                                        |> Url.percentDecode
-                                        |> Maybe.withDefault env.address
-
-                                kindOrValue : Maybe String
-                                kindOrValue =
-                                    case String.split "/" env.address of
-                                        [ "tag", x ] ->
-                                            Just x
-
-                                        [ "description", x ] ->
-                                            Just x
-
-                                        [ "property", _, y ] ->
-                                            Just y
-
-                                        [ "modification", x, _ ] ->
-                                            Just x
-
-                                        _ ->
-                                            Nothing
-
-                                shortString : String
-                                shortString =
-                                    kindOrValue
-                                        |> Maybe.andThen Url.percentDecode
-                                        |> Maybe.withDefault env.address
-
-                                short : String -> String
-                                short str =
-                                    if String.length str > 7 then
-                                        String.concat
-                                            [ "Glosses: "
-                                            , String.left 7 str
-                                            , "..."
-                                            ]
-
-                                    else
-                                        str
-
-                                vista : Vista
-                                vista =
-                                    { project =
-                                        UUID.toString env.project
-                                    , path =
-                                        env.address
-                                    , identifier =
-                                        String.concat
-                                            [ full
-                                            , "::"
-                                            , UUID.toString env.project
-                                            ]
-                                    , content =
-                                        content
-                                    }
-                            in
-                            handleVista
-                                vista
-                                (short shortString)
-                                full
-                                model
-
-        Ms (Msg.Received (IComposite envelope)) ->
-            case D.decodeValue envelopeDecoder envelope of
-                Err e ->
-                    ( { model | error = D.errorToString e }
-                    , Cmd.none
-                    )
-
-                Ok env ->
-                    let
-                        doc : Result.Result D.Error M.Composite
-                        doc =
-                            reduceDoc env
-                    in
-                    case doc of
-                        Ok doc_ ->
-                            case doc_.doc of
-                                Just (M.MyInterlinear i) ->
-                                    let
-                                        full : String
-                                        full =
-                                            String.join " "
-                                                [ "Gloss:", i.text ]
-
-                                        short : String
-                                        short =
-                                            if String.length i.text > 7 then
-                                                String.concat
-                                                    [ "Gloss: "
-                                                    , String.left 7 i.text
-                                                    , "..."
-                                                    ]
-
-                                            else
-                                                full
-
-                                        vista : Vista
-                                        vista =
-                                            { project =
-                                                UUID.toString env.project
-                                            , path =
-                                                "interlinear/"
-                                                    ++ UUID.toString i.id
-                                            , identifier =
-                                                UUID.toString i.id
-                                            , content =
-                                                Content.ITV doc_
-                                            }
-                                    in
-                                    handleVista vista short full model
-
-                                Just (M.MySequence s) ->
-                                    let
-                                        full : String
-                                        full =
-                                            String.join " "
-                                                [ "Sequence:", s.title ]
-
-                                        short : String
-                                        short =
-                                            if String.length s.title > 7 then
-                                                String.concat
-                                                    [ "Sequence: "
-                                                    , String.left 7 s.title
-                                                    , "..."
-                                                    ]
-
-                                            else
-                                                full
-
-                                        vista : Vista
-                                        vista =
-                                            { project =
-                                                UUID.toString env.project
-                                            , path =
-                                                "sequence/"
-                                                    ++ UUID.toString s.id
-                                            , identifier =
-                                                UUID.toString s.id
-                                            , content =
-                                                Content.SQV doc_
-                                            }
-                                    in
-                                    handleVista vista short full model
-
-                                _ ->
-                                    ( model, Cmd.none )
-
-                        Err e ->
-                            ( { model | error = D.errorToString e }
-                            , Cmd.none
-                            )
 
         -- Open or focus the Import Options form with a filename.
         EditImporter filepath ->
@@ -3934,6 +3188,699 @@ search query strings =
                 List.map (\( x, y ) -> ( x, String.toLower y )) strings
     in
     List.any (\( _, y ) -> String.contains query y) strings_
+
+
+handleReceived : Model -> ReceiveType -> ( Model, Cmd Msg )
+handleReceived model rt =
+    case rt of
+        IReload envelopeJson ->
+            handleReload model envelopeJson
+
+        INoteFor envelopeJson ->
+            handleNoteFor model envelopeJson
+
+        INote envelopeJson ->
+            handleNote model envelopeJson
+
+        IViewArea jsonValue ->
+            handleViewArea model jsonValue
+
+        IGlobalConfig gcJson ->
+            handleReceivedGlobalConfig model gcJson
+
+        IInterlinearListing envelopeJson ->
+            handleInterlinearListing model envelopeJson
+
+        ISequenceListing envelopeJson ->
+            handleSequenceListing model envelopeJson
+
+        ISequence envelopeJson ->
+            handleSequence model envelopeJson
+
+        IPersonListing envelopeJson ->
+            handlePersonListing model envelopeJson
+
+
+        IReversal envelopeJson ->
+            handleReversal model envelopeJson
+
+        IComposite envelopeJson ->
+            handleComposite model envelopeJson
+
+handleSequenceComposite : Model -> Envelope -> M.Composite -> M.Sequence -> ( Model, Cmd Msg)
+handleSequenceComposite model env doc seq =
+    let
+        full : String
+        full =
+            String.join " " [ "Sequence:", seq.title ]
+
+        short : String
+        short =
+            if String.length seq.title > 7 then
+                String.concat
+                    [ "Sequence: "
+                    , String.left 7 seq.title
+                    , "..."
+                    ]
+
+            else
+                full
+
+        vista : Vista
+        vista =
+            { project = UUID.toString env.project
+            , path = "sequence/" ++ UUID.toString seq.id
+            , identifier = UUID.toString seq.id
+            , content = Content.SQV doc
+            }
+    in
+    handleVista vista short full model
+    
+handleInterlinearComposite : Model -> Envelope -> M.Composite -> M.Interlinear -> ( Model, Cmd Msg)
+handleInterlinearComposite model env doc int =
+    let
+        full : String
+        full =
+            String.join " " [ "Gloss:", int.text ]
+
+        short : String
+        short =
+            if String.length int.text > 7 then
+                String.concat
+                    [ "Gloss: "
+                    , String.left 7 int.text
+                    , "..."
+                    ]
+
+            else
+                full
+
+        vista : Vista
+        vista =
+            { project = UUID.toString env.project
+            , path = "interlinear/" ++ UUID.toString int.id
+            , identifier = UUID.toString int.id
+            , content = Content.ITV doc
+            }
+    in
+    handleVista vista short full model
+
+handleComposite : Model -> E.Value -> ( Model, Cmd Msg )
+handleComposite model envelopeJson =
+    case D.decodeValue envelopeDecoder envelopeJson of
+        Err e ->
+            ( { model | error = D.errorToString e }
+            , Cmd.none
+            )
+
+        Ok env ->
+            let
+                doc : Result.Result D.Error M.Composite
+                doc =
+                    reduceDoc env
+            in
+            case doc of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+                    
+                Ok doc_ ->
+                    case doc_.doc of
+                        Just (M.MyInterlinear i) ->
+                            handleInterlinearComposite model env doc_ i
+
+                        Just (M.MySequence s) ->
+                            handleSequenceComposite model env doc_ s
+
+                        _ ->
+                            ( model, Cmd.none )
+
+
+handleReversal : Model -> E.Value -> ( Model, Cmd Msg )
+handleReversal model envelopeJson =
+    case openEnvelope model envelopeJson M.listDecoder of
+        Err m ->
+            ( m, Cmd.none )
+
+        Ok ( env, vals ) ->
+            handleReversal_ model env vals
+
+
+handleReversal_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handleReversal_ model env vals =
+    let
+        filterInter : M.Value -> List M.Interlinear -> List M.Interlinear
+        filterInter val ints =
+            case val of
+                M.MyInterlinear int ->
+                    int :: ints
+
+                _ ->
+                    ints
+
+        content : Content
+        content =
+            ITS <| List.foldl filterInter [] vals
+
+        full : String
+        full =
+            env.address
+                |> Url.percentDecode
+                |> Maybe.withDefault env.address
+
+        kindOrValue : Maybe String
+        kindOrValue =
+            case String.split "/" env.address of
+                [ "tag", x ] ->
+                    Just x
+
+                [ "description", x ] ->
+                    Just x
+
+                [ "property", _, y ] ->
+                    Just y
+
+                [ "modification", x, _ ] ->
+                    Just x
+
+                _ ->
+                    Nothing
+
+        shortString : String
+        shortString =
+            kindOrValue
+                |> Maybe.andThen Url.percentDecode
+                |> Maybe.withDefault env.address
+
+        short : String -> String
+        short str =
+            if String.length str > 7 then
+                String.concat
+                    [ "Glosses: "
+                    , String.left 7 str
+                    , "..."
+                    ]
+                    
+            else
+                str
+
+        vista : Vista
+        vista =
+            { project = UUID.toString env.project
+            , path = env.address
+            , identifier = String.concat
+                           [ full
+                           , "::"
+                           , UUID.toString env.project
+                           ]
+            , content = content
+            }
+    in
+    handleVista vista (short shortString) full model
+    
+
+
+handlePersonListing : Model -> E.Value -> ( Model, Cmd Msg )
+handlePersonListing model envelopeJson =
+    case openEnvelope model envelopeJson M.listDecoder of
+        Err m ->
+            ( m, Cmd.none )
+
+        Ok ( env, vals ) ->
+            handlePersonListing_ model env vals
+
+handlePersonListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handlePersonListing_ model env vals =
+    let
+        filterPerson : M.Value -> List M.Person -> List M.Person
+        filterPerson val people =
+            case val of
+                M.MyPerson person ->
+                    person :: people
+
+                _ ->
+                    people
+
+        content : Content
+        content =
+            PLS <| List.foldl filterPerson [] vals
+
+        vista : Vista
+        vista =
+            { project = UUID.toString env.project
+            , path = "person"
+            , identifier = "PEOPLE::" ++ UUID.toString env.project
+            , content = content
+            }
+    in
+    handleVista vista "People" "People" model
+    
+
+handleSequence : Model -> E.Value -> ( Model, Cmd Msg )
+handleSequence model envelopeJson =
+    case openEnvelope model envelopeJson (D.list K.valueDecoder) of
+        Err m ->
+            ( m, Cmd.none )
+
+        Ok ( env, kvals ) ->
+            handleSequence_ model env kvals
+
+
+handleSequence_ : Model -> Envelope -> List K.Value -> ( Model, Cmd Msg )
+handleSequence_ model env kvals =
+    case K.valuesToSeqData kvals of
+        Nothing ->
+            ( { model | error = "Keyed values did not resolve to valid SeqData" }
+            , Cmd.none
+            )
+
+        Just seqData ->
+            let
+                content : Content
+                content =
+                    Content.SDV seqData
+
+                vista : Vista
+                vista =
+                    { project = UUID.toString env.project
+                    , path = "seqdata"
+                    , identifier = "SEQDATA::" ++ UUID.toString env.project
+                    , content = content
+                    }
+            in
+            handleVista vista "Seq. Data" "Seq. Data" model
+    
+                
+handleSequenceListing : Model -> E.Value -> ( Model, Cmd Msg )
+handleSequenceListing model envelopeJson =
+    case openEnvelope model envelopeJson M.listDecoder of
+        Err m ->
+            ( m, Cmd.none )
+
+        Ok ( env, vals ) ->
+            handleSequenceListing_ model env vals
+ 
+handleSequenceListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handleSequenceListing_ model env vals =
+    let
+        filterSeq : M.Value -> List M.Sequence -> List M.Sequence
+        filterSeq val seqs =
+            case val of
+                M.MySequence seq ->
+                    seq :: seqs
+
+                _ ->
+                    seqs
+
+        content : Content
+        content =
+            SQS <| List.foldl filterSeq [] vals
+
+        vista : Vista
+        vista =
+            { project = UUID.toString env.project
+            , path = "sequence"
+            , identifier = "SEQUENCES::" ++ UUID.toString env.project
+            , content = content
+            }
+    in
+    handleVista vista "Sequences" "Sequences" model
+
+
+handleInterlinearListing : Model -> E.Value -> ( Model, Cmd Msg )
+handleInterlinearListing model envelopeJson =
+    case openEnvelope model envelopeJson M.listDecoder of
+        Err m ->
+            ( m, Cmd.none )
+
+        Ok ( env, vals ) ->
+            handleInterlinearListing_ model env vals
+
+
+handleInterlinearListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handleInterlinearListing_ model env vals =
+    let
+        filterInter : M.Value -> List M.Interlinear -> List M.Interlinear
+        filterInter val ints =
+            case val of
+                M.MyInterlinear int ->
+                    int :: ints
+
+                _ ->
+                    ints
+
+        content : Content
+        content =
+            ITS <| List.foldl filterInter [] vals
+
+        vista : Vista
+        vista =
+            { project =
+                  UUID.toString env.project
+            , path =
+                  "interlinear"
+            , identifier =
+                  "GLOSSES::"
+                  ++ UUID.toString env.project
+            , content =
+                content
+            }
+    in
+    handleVista vista "Glosses" "Glosses" model
+    
+
+
+handleViewArea : Model -> E.Value -> ( Model, Cmd Msg )
+handleViewArea model jsonValue =
+    case D.decodeValue dimensionsDecoder jsonValue of
+        Err e ->
+            ( { model | error = D.errorToString e }
+            , Cmd.none
+            )
+
+        Ok dimensions ->
+            ( { model | viewArea = dimensions }
+            , Cmd.none
+            )
+
+
+handleReceivedGlobalConfig : Model -> E.Value -> ( Model, Cmd Msg )
+handleReceivedGlobalConfig model gcJson =
+    case D.decodeValue Config.globalConfigDecoder gcJson of
+        Err err ->
+            ( { model | error = D.errorToString err }
+            , Cmd.none
+            )
+
+        Ok gc ->
+            let
+                invalidPerson : Bool
+                invalidPerson = String.isEmpty gc.name || String.isEmpty gc.email
+
+                newmodel : Model
+                newmodel =
+                    { model
+                        | gconfig = gc
+                        , me =
+                          if invalidPerson then
+                              Nothing
+
+                          else
+                              Just
+                              { id = gc.email
+                              , rev = Nothing
+                              , version = 1
+                              , names =
+                                  Dict.singleton 0 gc.name
+                              }
+                    }
+
+                -- When the data is incomplete, open the form
+                -- so the user can add their name and email.
+                command : Cmd Msg
+                command =
+                    if invalidPerson then
+                        sendMsg (ShowGlobalSettings gcJson)
+
+                    else
+                        Cmd.none
+            in
+            ( newmodel, command )
+
+
+handleNote : Model -> E.Value -> ( Model, Cmd Msg )
+handleNote model envelopeJson =
+    case openEnvelope model envelopeJson M.decoder of
+        Err m ->
+            ( m, Cmd.none )
+
+        Ok ( env, M.MyNote note ) ->
+            handleNote_ model env note
+
+        _ ->
+            ( model, Cmd.none )
+
+
+handleNote_ : Model -> Envelope -> M.Note -> ( Model, Cmd Msg )
+handleNote_ model env note =
+    let
+        vid : String
+        vid =
+            "NOTE::" ++ M.identifierToString (M.MyNoteId note.id)
+    in
+    case Dict.get vid model.tabs.vistas of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just vista ->
+            case vista.content of
+                NTV nmodel ->
+                    let
+                        nmodel_ : Display.Note.Model
+                        nmodel_ =
+                            { nmodel | note = note, original = note.note }
+
+                        content_ : Content
+                        content_ =
+                            NTV nmodel_
+
+                        vista_ : Tab.Vista
+                        vista_ =
+                            { vista | content = content_ }
+
+                        tabs : Tab.Model
+                        tabs =
+                            model.tabs
+
+                        vistas : Tab.Vistas
+                        vistas =
+                            Dict.insert vid vista_ tabs.vistas
+                    in
+                    ( { model | tabs = { tabs | vistas = vistas } }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+
+handleNoteFor : Model -> E.Value -> ( Model, Cmd Msg )
+handleNoteFor model envelopeJson =
+    case D.decodeValue envelopeDecoder envelopeJson of
+        Err e ->
+            ( { model | error = D.errorToString e }
+            , Cmd.none
+            )
+
+        Ok env ->
+            let
+                dnote : M.Value -> D.Decoder M.Note
+                dnote n =
+                    case n of
+                        M.MyNote note ->
+                            D.succeed note
+
+                        _ ->
+                            D.fail "Expected a Note"
+
+                ndecoder : D.Decoder { note : M.Note, desc : M.GenericDesc }
+                ndecoder =
+                    D.map2
+                        (\n d -> { note = n, desc = d })
+                        (D.field "note" M.decoder |> D.andThen dnote)
+                        (D.field "desc" M.genericDescDecoder)
+            in
+            case D.decodeValue ndecoder env.content of
+                Err e ->
+                    ( { model | error = D.errorToString e }
+                    , Cmd.none
+                    )
+
+                Ok c ->
+                    handleReceivedNote env.project model c.desc c.note
+
+
+handleReload : Model -> E.Value -> ( Model, Cmd Msg )
+handleReload model envelopeJson =
+    case D.decodeValue envelopeDecoder envelopeJson of
+        Err e ->
+            ( { model | error = D.errorToString e }
+            , Cmd.none
+            )
+
+        Ok env ->
+            let
+                req : RequestType -> Cmd Msg
+                req rt =
+                    rt |> Msg.Request env.project |> Ms |> sendMsg
+            in
+            case String.split "/" env.address of
+                [ "interlinear" ] ->
+                    ( model
+                    , req OInterlinearListing
+                    )
+
+                [ "sequence" ] ->
+                    ( model
+                    , req OSequenceListing
+                    )
+
+                [ "person" ] ->
+                    ( model
+                    , req OPersonListing
+                    )
+
+                "interlinear" :: _ :: [] ->
+                    ( model
+                    , req <| OComposite env.address
+                    )
+
+                "sequence" :: _ :: [] ->
+                    ( model
+                    , req <| OComposite env.address
+                    )
+
+                "interlinear" :: _ :: "note" :: [] ->
+                    ( model
+                    , req <| ONote env.address
+                    )
+
+                "sequence" :: _ :: "note" :: [] ->
+                    ( model
+                    , req <| ONote env.address
+                    )
+
+                "tag" :: _ :: [] ->
+                    ( model
+                    , req <| OReversal (Just env.address)
+                    )
+
+                "property" :: _ :: _ :: [] ->
+                    ( model
+                    , req <| OReversal (Just env.address)
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+
+handleStatus : Model -> E.Value -> ( Model, Cmd Msg )
+handleStatus model envelopeJson =
+    case openEnvelope model envelopeJson (D.list D.string) of
+        Err m ->
+            ( m, Cmd.none )
+
+        Ok ( env, stat ) ->
+            handleStatus_ model env stat
+
+
+handleStatus_ : Model -> Envelope -> List String -> ( Model, Cmd Msg )
+handleStatus_ model env stat =
+    let
+        curr : AL.Dict ProjectId (Dict String Int)
+        curr =
+            model.status
+
+        newmsgs : Dict String Int
+        newmsgs =
+            stat
+                |> List.map (\s -> ( s, 2 ))
+                |> Dict.fromList
+
+        natMinus1 : Int -> Int
+        natMinus1 i =
+            if i <= 0 then
+                i
+
+            else
+                i - 1
+
+        demote : List String -> Dict String Int -> Dict String Int
+        demote s mgs =
+            Dict.map
+                (\k v ->
+                    if List.member k s then
+                        2
+
+                    else
+                        natMinus1 v
+                )
+                mgs
+
+        new : AL.Dict ProjectId (Dict String Int)
+        new =
+            case AL.get env.project curr of
+                Nothing ->
+                    AL.insert env.project
+                        newmsgs
+                        curr
+
+                Just smsgs ->
+                    demote stat smsgs
+                        |> Dict.union newmsgs
+                        |> (\x -> AL.insert env.project x curr)
+    in
+    ( { model | status = new }, Cmd.none )
+
+
+handleNoteChange : Model -> String -> String -> ( Model, Cmd Msg )
+handleNoteChange model vistaid str =
+    case Dict.get vistaid model.tabs.vistas of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just vista ->
+            case vista.content of
+                NTV nmodel ->
+                    let
+                        note : M.Note
+                        note =
+                            nmodel.note
+
+                        nmodel_ : Display.Note.Model
+                        nmodel_ =
+                            { nmodel | note = { note | note = str } }
+
+                        content_ : Content
+                        content_ =
+                            NTV nmodel_
+
+                        vista_ : Tab.Vista
+                        vista_ =
+                            { vista | content = content_ }
+
+                        tabs : Tab.Model
+                        tabs =
+                            model.tabs
+
+                        vistas : Dict String Vista
+                        vistas =
+                            Dict.insert vistaid
+                                vista_
+                                model.tabs.vistas
+                    in
+                    ( { model | tabs = { tabs | vistas = vistas } }
+                    , Cmd.none
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
+
+
+openEnvelope : Model -> E.Value -> D.Decoder a -> Result Model ( Envelope, a )
+openEnvelope model envelopeJson decoder =
+    case D.decodeValue envelopeDecoder envelopeJson of
+        Err e ->
+            Err { model | error = D.errorToString e }
+
+        Ok env ->
+            case D.decodeValue decoder env.content of
+                Err e ->
+                    Err { model | error = D.errorToString e }
+
+                Ok content ->
+                    Ok ( env, content )
 
 
 
