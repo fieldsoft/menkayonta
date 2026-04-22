@@ -23,7 +23,7 @@ import Menkayonta
         , Value(..)
         , identifierToString
         )
-import Msg
+import Msg exposing (EditType(..))
 import UUID
 
 
@@ -58,7 +58,8 @@ view model =
                         [ Html.li []
                             [ Html.a
                                 [ Attr.href "#"
-                                , Msg.EditInterlinear model.project int
+                                , EInterlinear model.project int
+                                    |> Msg.Edit
                                     |> Msg.UserClick
                                     |> Event.onClick
                                 ]
@@ -101,7 +102,8 @@ view model =
                         [ Html.li []
                             [ Html.a
                                 [ Attr.href "#"
-                                , Msg.EditSequence model.project seq
+                                , ESequence model.project seq
+                                    |> Msg.Edit
                                     |> Msg.UserClick
                                     |> Event.onClick
                                 ]

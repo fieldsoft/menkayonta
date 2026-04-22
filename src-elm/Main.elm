@@ -26,7 +26,7 @@ import Keyed as K
 import List.Extra as LE
 import Menkayonta as M
 import Meta
-import Msg exposing (ReceiveType(..), RequestType(..))
+import Msg exposing (EditType(..), ReceiveType(..), RequestType(..))
 import Random
 import Result.Extra as RE
 import Set exposing (Set)
@@ -1456,357 +1456,70 @@ update msg model =
                         ]
                     )
 
-        Ms (Msg.NewInterlinear project) ->
-            let
-                step :
-                    { uuid : UUID.UUID
-                    , seeds : UUID.Seeds
-                    }
-                step =
-                    let
-                        ( uuid, seeds ) =
-                            UUID.step model.seeds
-                    in
-                    { uuid = uuid, seeds = seeds }
+        Ms (Msg.Edit editType) ->
+            handleEditType model editType
 
-                int : Form.Interlinear.Model
-                int =
-                    Form.Interlinear.initData step.uuid
 
-                id : String
-                id =
-                    "FORM::" ++ UUID.toString step.uuid
-
-                vista : Vista
-                vista =
-                    { identifier = id
-                    , path = "interlinear/" ++ UUID.toString step.uuid
-                    , project = UUID.toString project
-                    , content = Content.ITE int
-                    }
-
-                key : String
-                key =
-                    getProjectKey (UUID.toString project) model
-                        |> Maybe.withDefault ""
-
-                title : String
-                title =
-                    getProjectTitle (UUID.toString project) model
-                        |> Maybe.withDefault ""
-
-                ventana : Ventana
-                ventana =
-                    { title = key ++ ": New Gloss"
-                    , fullTitle = title ++ ": New Gloss"
-                    , vista = id
-                    , params = Tab.defVParams
-                    }
-
-                tabs : Tab.Model
-                tabs =
-                    model.tabs
-
-                vistas : Dict String Vista
-                vistas =
-                    Dict.insert id vista model.tabs.vistas
-
-                newmodel : Model
-                newmodel =
-                    { model
-                        | seeds = step.seeds
-                        , tabs = { tabs | vistas = vistas }
-                    }
-            in
-            ( newmodel
-            , sendMsg (Tab <| Tab.New ventana)
-            )
-
-        Ms (Msg.NewSequence project) ->
-            let
-                step :
-                    { uuid : UUID.UUID
-                    , seeds : UUID.Seeds
-                    }
-                step =
-                    let
-                        ( uuid, seeds ) =
-                            UUID.step model.seeds
-                    in
-                    { uuid = uuid, seeds = seeds }
-
-                int : Form.Sequence.Model
-                int =
-                    Form.Sequence.initData step.uuid
-
-                id : String
-                id =
-                    "FORM::" ++ UUID.toString step.uuid
-
-                vista : Vista
-                vista =
-                    { identifier = id
-                    , path = "sequence/" ++ UUID.toString step.uuid
-                    , project = UUID.toString project
-                    , content = Content.SQE int
-                    }
-
-                key : String
-                key =
-                    getProjectKey (UUID.toString project) model
-                        |> Maybe.withDefault ""
-
-                title : String
-                title =
-                    getProjectTitle (UUID.toString project) model
-                        |> Maybe.withDefault ""
-
-                ventana : Ventana
-                ventana =
-                    { title = key ++ ": New Sequence"
-                    , fullTitle = title ++ ": New Sequence"
-                    , vista = id
-                    , params = Tab.defVParams
-                    }
-
-                tabs : Tab.Model
-                tabs =
-                    model.tabs
-
-                vistas : Dict String Vista
-                vistas =
-                    Dict.insert id vista model.tabs.vistas
-
-                newmodel : Model
-                newmodel =
-                    { model
-                        | seeds = step.seeds
-                        , tabs = { tabs | vistas = vistas }
-                    }
-            in
-            ( newmodel
-            , sendMsg (Tab <| Tab.New ventana)
-            )
-
-        Ms (Msg.EditPerson project person) ->
+handleEditType : Model -> EditType -> ( Model, Cmd Msg )
+handleEditType model et =
+    case et of
+        EPerson project person ->
             ( model, Cmd.none )
 
-        Ms (Msg.EditInterlinear project int) ->
-            let
-                id : String
-                id =
-                    "FORM::" ++ UUID.toString int.id
-            in
-            case getByVista id model.tabs.ventanas of
-                -- The edit tab is already open.
-                Just tp ->
-                    ( model
-                    , sendMsg (Tab <| Tab.Goto tp)
-                    )
+        NPerson project ->
+            ( model, Cmd.none )
 
-                Nothing ->
-                    let
-                        i :
-                            { model : Form.Interlinear.Model
-                            , cmd : Cmd Form.Interlinear.Msg
-                            }
-                        i =
-                            let
-                                ( imodel, icmd ) =
-                                    Form.Interlinear.init int
-                            in
-                            { model = imodel, cmd = icmd }
+        EInterlinear project int ->
+            handleEditInterlinear model project int
 
-                        key : String
-                        key =
-                            getProjectKey (UUID.toString project) model
-                                |> Maybe.withDefault ""
+        NInterlinear project ->
+            handleNewInterlinear model project
 
-                        title : String
-                        title =
-                            getProjectTitle (UUID.toString project) model
-                                |> Maybe.withDefault ""
+        ESequence project seq ->
+            handleEditSequence model project seq
 
-                        full : String
-                        full =
-                            String.concat
-                                [ title
-                                , ": "
-                                , "Edit: "
-                                , int.text
-                                ]
-
-                        short : String
-                        short =
-                            if String.length int.text > 5 then
-                                String.concat
-                                    [ key
-                                    , ": "
-                                    , "Edit: "
-                                    , String.left 7 int.text
-                                    , "..."
-                                    ]
-
-                            else
-                                String.concat
-                                    [ key
-                                    , ": "
-                                    , "Edit: "
-                                    , int.text
-                                    ]
-
-                        vista : Vista
-                        vista =
-                            { identifier = id
-                            , path = "interlinear/" ++ id
-                            , project = UUID.toString project
-                            , content = Content.ITE i.model
-                            }
-
-                        ventana : Ventana
-                        ventana =
-                            { title = short
-                            , fullTitle = full
-                            , vista = id
-                            , params = Tab.defVParams
-                            }
-
-                        vistas : Dict String Vista
-                        vistas =
-                            Dict.insert id vista model.tabs.vistas
-
-                        tabs : Tab.Model
-                        tabs =
-                            model.tabs
-
-                        newmodel : Model
-                        newmodel =
-                            { model
-                                | tabs =
-                                    { tabs
-                                        | vistas = vistas
-                                        , focusLock = Nothing
-                                    }
-                            }
-                    in
-                    ( newmodel
-                    , Cmd.batch
-                        [ sendMsg (Tab <| Tab.New ventana)
-                        , Cmd.map (ITE int.id) i.cmd
-                        ]
-                    )
-
-        Ms (Msg.EditSequence project seq) ->
-            let
-                id : String
-                id =
-                    "FORM::" ++ UUID.toString seq.id
-            in
-            case getByVista id model.tabs.ventanas of
-                -- The edit tab is already open.
-                Just tp ->
-                    ( model
-                    , sendMsg (Tab <| Tab.Goto tp)
-                    )
-
-                Nothing ->
-                    let
-                        s :
-                            { model : Form.Sequence.Model
-                            , cmd : Cmd Form.Sequence.Msg
-                            }
-                        s =
-                            let
-                                ( smodel, scmd ) =
-                                    Form.Sequence.init seq
-                            in
-                            { model = smodel, cmd = scmd }
-
-                        key : String
-                        key =
-                            getProjectKey (UUID.toString project) model
-                                |> Maybe.withDefault ""
-
-                        title : String
-                        title =
-                            getProjectTitle (UUID.toString project) model
-                                |> Maybe.withDefault ""
-
-                        full : String
-                        full =
-                            String.concat
-                                [ title
-                                , ": "
-                                , "Edit: "
-                                , seq.title
-                                ]
-
-                        short : String
-                        short =
-                            if String.length seq.title > 5 then
-                                String.concat
-                                    [ key
-                                    , ": "
-                                    , "Edit: "
-                                    , String.left 7 seq.title
-                                    , "..."
-                                    ]
-
-                            else
-                                String.concat
-                                    [ key
-                                    , ": "
-                                    , "Edit: "
-                                    , seq.title
-                                    ]
-
-                        vista : Vista
-                        vista =
-                            { identifier = id
-                            , path = "sequence/" ++ id
-                            , project = UUID.toString project
-                            , content = Content.SQE s.model
-                            }
-
-                        ventana : Ventana
-                        ventana =
-                            { title = short
-                            , fullTitle = full
-                            , vista = id
-                            , params = Tab.defVParams
-                            }
-
-                        vistas : Dict String Vista
-                        vistas =
-                            Dict.insert id vista model.tabs.vistas
-
-                        tabs : Tab.Model
-                        tabs =
-                            model.tabs
-
-                        newmodel : Model
-                        newmodel =
-                            { model
-                                | tabs =
-                                    { tabs
-                                        | vistas = vistas
-                                        , focusLock = Nothing
-                                    }
-                            }
-                    in
-                    ( newmodel
-                    , Cmd.batch
-                        [ sendMsg (Tab <| Tab.New ventana)
-                        , Cmd.map (SQE seq.id) s.cmd
-                        ]
-                    )
+        NSequence project ->
+            handleNewSequence model project
 
 
-subUpdate :
-    (a -> b -> ( b, Cmd a ))
-    -> a
-    -> b
-    -> { model : b, cmd : Cmd a }
+handleReceived : Model -> ReceiveType -> ( Model, Cmd Msg )
+handleReceived model rt =
+    case rt of
+        IReload envelopeJson ->
+            handleReload model envelopeJson
+
+        INoteFor envelopeJson ->
+            handleNoteFor model envelopeJson
+
+        INote envelopeJson ->
+            handleNote model envelopeJson
+
+        IViewArea jsonValue ->
+            handleViewArea model jsonValue
+
+        IGlobalConfig gcJson ->
+            handleReceivedGlobalConfig model gcJson
+
+        IInterlinearListing envelopeJson ->
+            handleInterlinearListing model envelopeJson
+
+        ISequenceListing envelopeJson ->
+            handleSequenceListing model envelopeJson
+
+        ISequence envelopeJson ->
+            handleSequence model envelopeJson
+
+        IPersonListing envelopeJson ->
+            handlePersonListing model envelopeJson
+
+        IReversal envelopeJson ->
+            handleReversal model envelopeJson
+
+        IComposite envelopeJson ->
+            handleComposite model envelopeJson
+
+
+subUpdate : (a -> b -> ( b, Cmd a )) -> a -> b -> { model : b, cmd : Cmd a }
 subUpdate subupdate submsg submodel =
     subupdate submsg submodel
         |> (\x -> { model = Tuple.first x, cmd = Tuple.second x })
@@ -2433,7 +2146,8 @@ viewProject model p =
                 , Html.li []
                     [ Html.a
                         [ Attr.href "#"
-                        , Msg.NewInterlinear p.identifier
+                        , NInterlinear p.identifier
+                            |> Msg.Edit
                             |> Msg.UserClick
                             |> Ms
                             |> Event.onClick
@@ -2444,7 +2158,8 @@ viewProject model p =
                 , Html.li []
                     [ Html.a
                         [ Attr.href "#"
-                        , Msg.NewSequence p.identifier
+                        , NSequence p.identifier
+                            |> Msg.Edit
                             |> Msg.UserClick
                             |> Ms
                             |> Event.onClick
@@ -2901,9 +2616,10 @@ plsContent model tp vista people =
                 Err _ ->
                     Ms Msg.None
 
-                Ok uuid ->
+                Ok projectid ->
                     person
-                        |> Msg.EditPerson uuid
+                        |> EPerson projectid
+                        |> Msg.Edit
                         |> Msg.UserClick
                         |> Ms
 
@@ -3190,44 +2906,347 @@ search query strings =
     List.any (\( _, y ) -> String.contains query y) strings_
 
 
-handleReceived : Model -> ReceiveType -> ( Model, Cmd Msg )
-handleReceived model rt =
-    case rt of
-        IReload envelopeJson ->
-            handleReload model envelopeJson
+handleNewSequence : Model -> UUID.UUID -> ( Model, Cmd Msg )
+handleNewSequence model project =
+    let
+        step :
+            { uuid : UUID.UUID
+            , seeds : UUID.Seeds
+            }
+        step =
+            let
+                ( uuid, seeds ) =
+                    UUID.step model.seeds
+            in
+            { uuid = uuid, seeds = seeds }
 
-        INoteFor envelopeJson ->
-            handleNoteFor model envelopeJson
+        int : Form.Sequence.Model
+        int =
+            Form.Sequence.initData step.uuid
 
-        INote envelopeJson ->
-            handleNote model envelopeJson
+        id : String
+        id =
+            "FORM::" ++ UUID.toString step.uuid
 
-        IViewArea jsonValue ->
-            handleViewArea model jsonValue
+        vista : Vista
+        vista =
+            { identifier = id
+            , path = "sequence/" ++ UUID.toString step.uuid
+            , project = UUID.toString project
+            , content = Content.SQE int
+            }
 
-        IGlobalConfig gcJson ->
-            handleReceivedGlobalConfig model gcJson
+        key : String
+        key =
+            getProjectKey (UUID.toString project) model
+                |> Maybe.withDefault ""
 
-        IInterlinearListing envelopeJson ->
-            handleInterlinearListing model envelopeJson
+        title : String
+        title =
+            getProjectTitle (UUID.toString project) model
+                |> Maybe.withDefault ""
 
-        ISequenceListing envelopeJson ->
-            handleSequenceListing model envelopeJson
+        ventana : Ventana
+        ventana =
+            { title = key ++ ": New Sequence"
+            , fullTitle = title ++ ": New Sequence"
+            , vista = id
+            , params = Tab.defVParams
+            }
 
-        ISequence envelopeJson ->
-            handleSequence model envelopeJson
+        tabs : Tab.Model
+        tabs =
+            model.tabs
 
-        IPersonListing envelopeJson ->
-            handlePersonListing model envelopeJson
+        vistas : Dict String Vista
+        vistas =
+            Dict.insert id vista model.tabs.vistas
+
+        newmodel : Model
+        newmodel =
+            { model
+                | seeds = step.seeds
+                , tabs = { tabs | vistas = vistas }
+            }
+    in
+    ( newmodel
+    , sendMsg (Tab <| Tab.New ventana)
+    )
 
 
-        IReversal envelopeJson ->
-            handleReversal model envelopeJson
+handleEditSequence : Model -> UUID.UUID -> M.Sequence -> ( Model, Cmd Msg )
+handleEditSequence model project seq =
+    let
+        id : String
+        id =
+            "FORM::" ++ UUID.toString seq.id
+    in
+    case getByVista id model.tabs.ventanas of
+        -- The edit tab is already open.
+        Just tp ->
+            ( model, sendMsg (Tab <| Tab.Goto tp) )
 
-        IComposite envelopeJson ->
-            handleComposite model envelopeJson
+        Nothing ->
+            let
+                s : { model : Form.Sequence.Model, cmd : Cmd Form.Sequence.Msg }
+                s =
+                    let
+                        ( smodel, scmd ) =
+                            Form.Sequence.init seq
+                    in
+                    { model = smodel, cmd = scmd }
 
-handleSequenceComposite : Model -> Envelope -> M.Composite -> M.Sequence -> ( Model, Cmd Msg)
+                key : String
+                key =
+                    getProjectKey (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
+                title : String
+                title =
+                    getProjectTitle (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
+                full : String
+                full =
+                    String.concat
+                        [ title
+                        , ": "
+                        , "Edit: "
+                        , seq.title
+                        ]
+
+                short : String
+                short =
+                    if String.length seq.title > 5 then
+                        String.concat
+                            [ key
+                            , ": "
+                            , "Edit: "
+                            , String.left 7 seq.title
+                            , "..."
+                            ]
+
+                    else
+                        String.concat
+                            [ key
+                            , ": "
+                            , "Edit: "
+                            , seq.title
+                            ]
+
+                vista : Vista
+                vista =
+                    { identifier = id
+                    , path = "sequence/" ++ id
+                    , project = UUID.toString project
+                    , content = Content.SQE s.model
+                    }
+
+                ventana : Ventana
+                ventana =
+                    { title = short
+                    , fullTitle = full
+                    , vista = id
+                    , params = Tab.defVParams
+                    }
+
+                vistas : Dict String Vista
+                vistas =
+                    Dict.insert id vista model.tabs.vistas
+
+                tabs : Tab.Model
+                tabs =
+                    model.tabs
+
+                newmodel : Model
+                newmodel =
+                    { model
+                        | tabs =
+                            { tabs
+                                | vistas = vistas
+                                , focusLock = Nothing
+                            }
+                    }
+            in
+            ( newmodel
+            , Cmd.batch
+                [ sendMsg (Tab <| Tab.New ventana)
+                , Cmd.map (SQE seq.id) s.cmd
+                ]
+            )
+
+
+handleNewInterlinear : Model -> UUID.UUID -> ( Model, Cmd Msg )
+handleNewInterlinear model project =
+    let
+        step :
+            { uuid : UUID.UUID
+            , seeds : UUID.Seeds
+            }
+        step =
+            let
+                ( uuid, seeds ) =
+                    UUID.step model.seeds
+            in
+            { uuid = uuid, seeds = seeds }
+
+        int : Form.Interlinear.Model
+        int =
+            Form.Interlinear.initData step.uuid
+
+        id : String
+        id =
+            "FORM::" ++ UUID.toString step.uuid
+
+        vista : Vista
+        vista =
+            { identifier = id
+            , path = "interlinear/" ++ UUID.toString step.uuid
+            , project = UUID.toString project
+            , content = Content.ITE int
+            }
+
+        key : String
+        key =
+            getProjectKey (UUID.toString project) model
+                |> Maybe.withDefault ""
+
+        title : String
+        title =
+            getProjectTitle (UUID.toString project) model
+                |> Maybe.withDefault ""
+
+        ventana : Ventana
+        ventana =
+            { title = key ++ ": New Gloss"
+            , fullTitle = title ++ ": New Gloss"
+            , vista = id
+            , params = Tab.defVParams
+            }
+
+        tabs : Tab.Model
+        tabs =
+            model.tabs
+
+        vistas : Dict String Vista
+        vistas =
+            Dict.insert id vista model.tabs.vistas
+
+        newmodel : Model
+        newmodel =
+            { model
+                | seeds = step.seeds
+                , tabs = { tabs | vistas = vistas }
+            }
+    in
+    ( newmodel
+    , sendMsg (Tab <| Tab.New ventana)
+    )
+
+
+handleEditInterlinear : Model -> UUID.UUID -> M.Interlinear -> ( Model, Cmd Msg )
+handleEditInterlinear model project int =
+    let
+        id : String
+        id =
+            "FORM::" ++ UUID.toString int.id
+    in
+    case getByVista id model.tabs.ventanas of
+        -- The edit tab is already open.
+        Just tp ->
+            ( model, sendMsg (Tab <| Tab.Goto tp) )
+
+        Nothing ->
+            let
+                i : { model : Form.Interlinear.Model, cmd : Cmd Form.Interlinear.Msg }
+                i =
+                    let
+                        ( imodel, icmd ) =
+                            Form.Interlinear.init int
+                    in
+                    { model = imodel, cmd = icmd }
+
+                key : String
+                key =
+                    getProjectKey (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
+                title : String
+                title =
+                    getProjectTitle (UUID.toString project) model
+                        |> Maybe.withDefault ""
+
+                full : String
+                full =
+                    String.concat
+                        [ title
+                        , ": "
+                        , "Edit: "
+                        , int.text
+                        ]
+
+                short : String
+                short =
+                    if String.length int.text > 5 then
+                        String.concat
+                            [ key
+                            , ": "
+                            , "Edit: "
+                            , String.left 7 int.text
+                            , "..."
+                            ]
+
+                    else
+                        String.concat
+                            [ key
+                            , ": "
+                            , "Edit: "
+                            , int.text
+                            ]
+
+                vista : Vista
+                vista =
+                    { identifier = id
+                    , path = "interlinear/" ++ id
+                    , project = UUID.toString project
+                    , content = Content.ITE i.model
+                    }
+
+                ventana : Ventana
+                ventana =
+                    { title = short
+                    , fullTitle = full
+                    , vista = id
+                    , params = Tab.defVParams
+                    }
+
+                vistas : Dict String Vista
+                vistas =
+                    Dict.insert id vista model.tabs.vistas
+
+                tabs : Tab.Model
+                tabs =
+                    model.tabs
+
+                newmodel : Model
+                newmodel =
+                    { model
+                        | tabs =
+                            { tabs
+                                | vistas = vistas
+                                , focusLock = Nothing
+                            }
+                    }
+            in
+            ( newmodel
+            , Cmd.batch
+                [ sendMsg (Tab <| Tab.New ventana)
+                , Cmd.map (ITE int.id) i.cmd
+                ]
+            )
+
+
+handleSequenceComposite : Model -> Envelope -> M.Composite -> M.Sequence -> ( Model, Cmd Msg )
 handleSequenceComposite model env doc seq =
     let
         full : String
@@ -3255,8 +3274,9 @@ handleSequenceComposite model env doc seq =
             }
     in
     handleVista vista short full model
-    
-handleInterlinearComposite : Model -> Envelope -> M.Composite -> M.Interlinear -> ( Model, Cmd Msg)
+
+
+handleInterlinearComposite : Model -> Envelope -> M.Composite -> M.Interlinear -> ( Model, Cmd Msg )
 handleInterlinearComposite model env doc int =
     let
         full : String
@@ -3285,6 +3305,7 @@ handleInterlinearComposite model env doc int =
     in
     handleVista vista short full model
 
+
 handleComposite : Model -> E.Value -> ( Model, Cmd Msg )
 handleComposite model envelopeJson =
     case D.decodeValue envelopeDecoder envelopeJson of
@@ -3304,7 +3325,7 @@ handleComposite model envelopeJson =
                     ( { model | error = D.errorToString e }
                     , Cmd.none
                     )
-                    
+
                 Ok doc_ ->
                     case doc_.doc of
                         Just (M.MyInterlinear i) ->
@@ -3381,7 +3402,7 @@ handleReversal_ model env vals =
                     , String.left 7 str
                     , "..."
                     ]
-                    
+
             else
                 str
 
@@ -3389,16 +3410,16 @@ handleReversal_ model env vals =
         vista =
             { project = UUID.toString env.project
             , path = env.address
-            , identifier = String.concat
-                           [ full
-                           , "::"
-                           , UUID.toString env.project
-                           ]
+            , identifier =
+                String.concat
+                    [ full
+                    , "::"
+                    , UUID.toString env.project
+                    ]
             , content = content
             }
     in
     handleVista vista (short shortString) full model
-    
 
 
 handlePersonListing : Model -> E.Value -> ( Model, Cmd Msg )
@@ -3409,6 +3430,7 @@ handlePersonListing model envelopeJson =
 
         Ok ( env, vals ) ->
             handlePersonListing_ model env vals
+
 
 handlePersonListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
 handlePersonListing_ model env vals =
@@ -3435,7 +3457,7 @@ handlePersonListing_ model env vals =
             }
     in
     handleVista vista "People" "People" model
-    
+
 
 handleSequence : Model -> E.Value -> ( Model, Cmd Msg )
 handleSequence model envelopeJson =
@@ -3470,8 +3492,8 @@ handleSequence_ model env kvals =
                     }
             in
             handleVista vista "Seq. Data" "Seq. Data" model
-    
-                
+
+
 handleSequenceListing : Model -> E.Value -> ( Model, Cmd Msg )
 handleSequenceListing model envelopeJson =
     case openEnvelope model envelopeJson M.listDecoder of
@@ -3480,7 +3502,8 @@ handleSequenceListing model envelopeJson =
 
         Ok ( env, vals ) ->
             handleSequenceListing_ model env vals
- 
+
+
 handleSequenceListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
 handleSequenceListing_ model env vals =
     let
@@ -3537,18 +3560,17 @@ handleInterlinearListing_ model env vals =
         vista : Vista
         vista =
             { project =
-                  UUID.toString env.project
+                UUID.toString env.project
             , path =
-                  "interlinear"
+                "interlinear"
             , identifier =
-                  "GLOSSES::"
-                  ++ UUID.toString env.project
+                "GLOSSES::"
+                    ++ UUID.toString env.project
             , content =
                 content
             }
     in
     handleVista vista "Glosses" "Glosses" model
-    
 
 
 handleViewArea : Model -> E.Value -> ( Model, Cmd Msg )
@@ -3576,24 +3598,25 @@ handleReceivedGlobalConfig model gcJson =
         Ok gc ->
             let
                 invalidPerson : Bool
-                invalidPerson = String.isEmpty gc.name || String.isEmpty gc.email
+                invalidPerson =
+                    String.isEmpty gc.name || String.isEmpty gc.email
 
                 newmodel : Model
                 newmodel =
                     { model
                         | gconfig = gc
                         , me =
-                          if invalidPerson then
-                              Nothing
+                            if invalidPerson then
+                                Nothing
 
-                          else
-                              Just
-                              { id = gc.email
-                              , rev = Nothing
-                              , version = 1
-                              , names =
-                                  Dict.singleton 0 gc.name
-                              }
+                            else
+                                Just
+                                    { id = gc.email
+                                    , rev = Nothing
+                                    , version = 1
+                                    , names =
+                                        Dict.singleton 0 gc.name
+                                    }
                     }
 
                 -- When the data is incomplete, open the form

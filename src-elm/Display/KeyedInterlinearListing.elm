@@ -19,7 +19,7 @@ import Menkayonta
         , Value(..)
         , identifierToString
         )
-import Msg
+import Msg exposing (EditType(..))
 import UUID
 
 
@@ -62,7 +62,8 @@ viewItem model ( key, int ) =
             , Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"
-                , Msg.EditInterlinear model.project int
+                , EInterlinear model.project int
+                    |> Msg.Edit
                     |> Msg.UserClick
                     |> Event.onClick
                 ]

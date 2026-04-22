@@ -2,6 +2,7 @@ module Msg exposing
     ( Msg(..)
     , ReceiveType(..)
     , RequestType(..)
+    , EditType(..)
     , Revision
     , ProjectId
     )
@@ -16,11 +17,7 @@ import UUID
 type Msg
     = Received ReceiveType
     | Request ProjectId RequestType
-    | NewInterlinear ProjectId
-    | NewSequence ProjectId
-    | EditInterlinear ProjectId M.Interlinear
-    | EditSequence ProjectId M.Sequence
-    | EditPerson ProjectId M.Person
+    | Edit EditType
     | NewProject
     | EditProject Form.Project.Model
     | UserClick Msg
@@ -67,3 +64,13 @@ type RequestType
     | ODelete Revision String
     | ONoteFor M.GenericDesc
     | ONote String
+
+
+type EditType
+    = ESequence ProjectId M.Sequence
+    | EInterlinear ProjectId M.Interlinear
+    | EPerson ProjectId M.Person
+    | NInterlinear ProjectId
+    | NSequence ProjectId
+    | NPerson ProjectId
+      

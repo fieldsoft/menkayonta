@@ -5,7 +5,7 @@ import Html
 import Html.Attributes as Attr
 import Html.Events as Event
 import Menkayonta exposing (Sequence, DocId(..), Identifier(..), identifierToString)
-import Msg
+import Msg exposing (EditType(..))
 import UUID
 import Url exposing (percentDecode)
 
@@ -61,7 +61,8 @@ viewItem model sequence =
             , Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"
-                , Msg.EditSequence model.project sequence
+                , ESequence model.project sequence
+                    |> Msg.Edit
                     |> Msg.UserClick
                     |> Event.onClick
                 ]
