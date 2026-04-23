@@ -1,8 +1,22 @@
 # Menkayonta
 
+**If you are viewing this on Github, this is a mirror.**
+
+To interact with the repository (make pull requests or add issues), visit the Codeberg site:
+
+https://codeberg.org/fieldsoft/menkayonta
+
 For announcements, join the following group:
 
 https://groups.google.com/g/menkayonta-announce
+
+The main web site with information aimed at non-developers is at:
+
+https://menkayonta.org
+
+Documentation for end users is at:
+
+https://wiki.menkayonta.org
 
 ## The Name
 
