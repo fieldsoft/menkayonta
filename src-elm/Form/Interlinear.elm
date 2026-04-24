@@ -573,7 +573,10 @@ update msg model =
                                     |> (::) trans
                                     |> List.reverse
                         in
-                        ( validate { model | translations = ntranslations }
+                        ( validate { model
+                                       | translations = ntranslations
+                                       , counter = counter
+                                   }
                         , Cmd.none
                         )
 
@@ -857,7 +860,7 @@ view model =
         , Html.fieldset [] <|
             List.concat
                 [ [ Html.legend [] [ Html.text "Translations" ] ]
-                , List.map viewTrans model.translations
+                , List.map viewTrans (List.reverse model.translations)
                 , [ Html.a
                         [ Event.onClick <|
                             Trans "add"
