@@ -110,6 +110,24 @@ property project prop =
             String.join " : "
                 [ prop.id.kind, prop.id.value ]
 
+        attribute : String -> Property -> Html.Html Msg
+        attribute str p =
+            Html.a
+                [ Attr.href "#"
+                , Attr.title <| "View items with the property attribute: " ++ p.id.kind
+                , p.id
+                    |> MyPropertyId
+                    |> identifierToReverse
+                    |> Maybe.map (String.split "/")
+                    |> Maybe.map (List.take 2)
+                    |> Maybe.map (String.join "/")
+                    |> OAttrReversal
+                    |> Msg.Request project
+                    |> Msg.UserClick
+                    |> Event.onClick
+                ]
+                [ Html.text str ]
+
         proppart : String -> Property -> Html.Html Msg
         proppart str p =
             Html.a
@@ -140,7 +158,7 @@ property project prop =
                 [ Html.text "×" ]
             ]
         , Html.td []
-            [ proppart prop.id.kind prop ]
+            [ attribute prop.id.kind prop ]
         , Html.td []
             [ proppart prop.id.value prop ]
         ]

@@ -1170,6 +1170,24 @@ update msg model =
                     in
                     ( model, send envelope )
 
+        Ms (Msg.Request project (OAttrReversal query)) ->
+            case query of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just query_ ->
+                    let
+                        envelope : E.Value
+                        envelope =
+                            envelopeEncoder
+                                { command = "request-attr-reversal"
+                                , project = project
+                                , address = query_
+                                , content = E.null
+                                }
+                    in
+                    ( model, send envelope )
+
         -- Open or focus the Import Options form with a filename.
         EditImporter filepath ->
             let

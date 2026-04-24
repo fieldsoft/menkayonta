@@ -218,6 +218,31 @@ const handleRequestReversal = async (queryString) => {
   }
 }
 
+const handleRequestAttrReversal = async (queryString) => {
+  try {
+    const reversals = await gvs.db.query('menkayonta/meta_reversals', {
+      include_docs: true,
+      startkey: `${queryString}/\u0000/interlinear/`,
+      endkey: `${queryString}/\ufff0/interlinear/\ufff0`,
+    })
+
+    const onlyDocs = reversals.rows.reduce((acc, row) => {
+      acc.push(row.doc)
+
+      return acc
+    }, [])
+
+    process.parentPort.postMessage({
+      command: 'received-interlinear-reversals',
+      content: onlyDocs,
+      project: gvs.identifier,
+      address: queryString,
+    })
+  } catch (e) {
+    error(e)
+  }
+}
+
 const handleRequestSequence = async (docid) => {
   try {
     const sequence = await gvs.db.query('menkayonta/sequence', {
@@ -482,6 +507,11 @@ const handleMainMessage = (m) => {
 
     case 'request-reversal': {
       handleRequestReversal(m.data.address)
+      break
+    }
+
+    case 'request-attr-reversal': {
+      handleRequestAttrReversal(m.data.address)
       break
     }
 
