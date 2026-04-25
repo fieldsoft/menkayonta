@@ -275,9 +275,101 @@ update msg model =
                         toperr
             }
 
-        breaksTokens : Int
-        breaksTokens =
-            tokens model.annotations.breaks.value
+        handleGlosses : String -> String -> Model -> Model
+        handleGlosses bval str model_ =
+            let
+                breaksTokens : Int
+                breaksTokens =
+                    tokens bval
+
+                annotations_ : Annotations
+                annotations_ =
+                    model_.annotations
+
+                ok : Model
+                ok =
+                    { model_
+                        | annotations =
+                            { annotations_
+                                | glosses =
+                                    { glosses
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+                    }
+                        |> validate
+            in
+            if String.isEmpty (String.trim str) then
+                ok
+
+            else
+                let
+                    newTokens : Int
+                    newTokens =
+                        tokens str
+                in
+                case
+                    ( newTokens == breaksTokens
+                    , breakMismatch bval str
+                    )
+                of
+                    ( True, Nothing ) ->
+                        ok
+
+                    ( False, _ ) ->
+                        let
+                            err : String
+                            err =
+                                [ "The number of tokens is not equal."
+                                , "The affix breaks line has"
+                                , String.fromInt breaksTokens ++ "."
+                                , "This line has"
+                                , String.fromInt newTokens ++ "."
+                                ]
+                                    |> String.join " "
+                        in
+                        validate
+                            { model_
+                                | annotations =
+                                    { annotations_
+                                        | glosses =
+                                            { glosses
+                                                | value = str
+                                                , valid = False
+                                                , error = err
+                                                , changed = True
+                                            }
+                                    }
+                            }
+
+                    ( True, Just mismatch ) ->
+                        let
+                            err : String
+                            err =
+                                [ "There are incorrect affix breaks."
+                                , "'" ++ mismatch.token1 ++ "' has"
+                                , String.fromInt mismatch.length1 ++ "."
+                                , "'" ++ mismatch.token2 ++ "' has"
+                                , String.fromInt mismatch.length2 ++ "."
+                                ]
+                                    |> String.join " "
+                        in
+                        validate
+                            { model_
+                                | annotations =
+                                    { annotations_
+                                        | glosses =
+                                            { glosses
+                                                | value = str
+                                                , valid = False
+                                                , error = err
+                                                , changed = True
+                                            }
+                                    }
+                            }
     in
     case msg of
         -- It is sometimes useful to have a non-operation.
@@ -332,101 +424,13 @@ update msg model =
                         |> validate
             in
             if String.isEmpty (String.trim str) then
-                ( ok, Cmd.none )
+                ( ok |> handleGlosses "" glosses.value, Cmd.none )
 
             else
-                ( ok, Cmd.none )
+                ( ok |> handleGlosses str glosses.value, Cmd.none )
 
         Glosses str ->
-            let
-                ok : Model
-                ok =
-                    { model
-                        | annotations =
-                            { annotations
-                                | glosses =
-                                    { glosses
-                                        | value = str
-                                        , valid = True
-                                        , error = ""
-                                        , changed = True
-                                    }
-                            }
-                    }
-                        |> validate
-            in
-            if String.isEmpty (String.trim str) then
-                ( ok, Cmd.none )
-
-            else
-                let
-                    newTokens : Int
-                    newTokens =
-                        tokens str
-                in
-                case
-                    ( newTokens == breaksTokens
-                    , breakMismatch breaks.value str
-                    )
-                of
-                    ( False, _ ) ->
-                        let
-                            err : String
-                            err =
-                                [ "The number of tokens is not equal."
-                                , "The affix breaks line has"
-                                , String.fromInt breaksTokens ++ "."
-                                , "This line has"
-                                , String.fromInt newTokens ++ "."
-                                ]
-                                    |> String.join " "
-                        in
-                        ( validate
-                            { model
-                                | annotations =
-                                    { annotations
-                                        | glosses =
-                                            { glosses
-                                                | value = str
-                                                , valid = False
-                                                , error = err
-                                                , changed = True
-                                            }
-                                    }
-                            }
-                        , Cmd.none
-                        )
-
-                    ( True, Just mismatch ) ->
-                        let
-                            err : String
-                            err =
-                                [ "There are incorrect affix breaks."
-                                , "'" ++ mismatch.token1 ++ "' has"
-                                , String.fromInt mismatch.length1 ++ "."
-                                , "'" ++ mismatch.token2 ++ "' has"
-                                , String.fromInt mismatch.length2 ++ "."
-                                ]
-                                    |> String.join " "
-                        in
-                        ( validate
-                            { model
-                                | annotations =
-                                    { annotations
-                                        | glosses =
-                                            { glosses
-                                                | value = str
-                                                , valid = False
-                                                , error = err
-                                                , changed = True
-                                            }
-                                    }
-                            }
-                        , Cmd.none
-                        )
-
-                    ( True, Nothing ) ->
-                        ( ok, Cmd.none )
+            ( handleGlosses breaks.value str model, Cmd.none )
 
         Phonemic str ->
             let
@@ -505,10 +509,11 @@ update msg model =
                                     |> (::) trans
                                     |> List.reverse
                         in
-                        ( validate { model
-                                       | translations = ntranslations
-                                       , counter = counter
-                                   }
+                        ( validate
+                            { model
+                                | translations = ntranslations
+                                , counter = counter
+                            }
                         , Cmd.none
                         )
 
