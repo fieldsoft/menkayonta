@@ -2093,6 +2093,9 @@ viewVista model tp vista =
         Content.SQV composite ->
             sqvContent model tp vista composite
 
+        Content.PLV composite ->
+            plvContent model tp vista composite
+
         Content.ITS ints ->
             itsContent model tp vista ints
 
@@ -2125,6 +2128,55 @@ ntvContent model tp vista note =
 
 itvContent : Model -> Tab.Path -> Vista -> M.Composite -> Html Msg
 itvContent model tp vista composite =
+    case
+        UUID.fromString vista.project
+            |> Result.toMaybe
+    of
+        Just project ->
+            let
+                cmodel : Display.Composite.Model
+                cmodel =
+                    { composite = composite
+                    , project = project
+                    }
+
+                display : Html.Html Msg
+                display =
+                    Display.Composite.view cmodel
+                        |> Html.map Ms
+
+                tagfield : Html.Html Msg
+                tagfield =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.map .meta
+                        |> Maybe.andThen .tag
+                        |> Maybe.map Display.Meta.tagField
+                        |> Maybe.map (Html.map Ms)
+                        |> Maybe.withDefault (Html.text "")
+
+                propfield : Html.Html Msg
+                propfield =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.map .meta
+                        |> Maybe.andThen .property
+                        |> Maybe.map Display.Meta.propertyField
+                        |> Maybe.map (Html.map Ms)
+                        |> Maybe.withDefault (Html.text "")
+            in
+            Html.div []
+                [ tagfield
+                , propfield
+                , display
+                ]
+
+        _ ->
+            Html.text "Invalid project or non-interlinear"
+
+
+plvContent : Model -> Tab.Path -> Vista -> M.Composite -> Html Msg
+plvContent model tp vista composite =
     case
         UUID.fromString vista.project
             |> Result.toMaybe
@@ -2227,6 +2279,9 @@ itsContent model tp vista ints =
         UUID.fromString vista.project
             |> Result.toMaybe
     of
+        Nothing ->
+            Html.text "Missing project information"
+
         Just project ->
             let
                 params : VentanaParams
@@ -2335,9 +2390,6 @@ itsContent model tp vista ints =
                     ]
                 , Display.InterlinearListing.view imodel |> Html.map Ms
                 ]
-
-        Nothing ->
-            Html.text "Missing project information"
 
 
 sqsContent : Model -> Tab.Path -> Vista -> List M.Sequence -> Html Msg
@@ -2449,129 +2501,107 @@ sqsContent model tp vista seqs =
 
 plsContent : Model -> Tab.Path -> Vista -> List M.Person -> Html Msg
 plsContent model tp vista people =
-    let
-        params : VentanaParams
-        params =
-            Dict.get tp model.tabs.ventanas
-                |> Maybe.map .params
-                |> Maybe.withDefault { defVParams | length = 20 }
+    case
+        UUID.fromString vista.project
+            |> Result.toMaybe
+    of
+        Nothing ->
+            Html.text "Missing project information"
 
-        ss : String
-        ss =
-            params.searchString
-
-        searched : List M.Person
-        searched =
+        Just project ->
             let
-                strings : M.Person -> List ( String, String )
-                strings person =
-                    Dict.foldl
-                        (\_ n acc ->
-                            ( "name", n ) :: acc
-                        )
-                        []
-                        person.names
-                        |> List.append
-                            [ ( "id", person.id ) ]
+                params : VentanaParams
+                params =
+                    Dict.get tp model.tabs.ventanas
+                        |> Maybe.map .params
+                        |> Maybe.withDefault { defVParams | length = 20 }
+
+                ss : String
+                ss =
+                    params.searchString
+
+                searched : List M.Person
+                searched =
+                    let
+                        strings : M.Person -> List ( String, String )
+                        strings person =
+                            Dict.foldl
+                                (\_ n acc ->
+                                    ( "name", n ) :: acc
+                                )
+                                []
+                                person.names
+                                |> List.append
+                                    [ ( "id", person.id ) ]
+                    in
+                    List.filter (\p -> search ss (strings p)) people
+
+                intTotal : Int
+                intTotal =
+                    List.length searched
+
+                ps : List M.Person
+                ps =
+                    List.take params.length searched
+
+                len : String
+                len =
+                    String.fromInt params.length
+
+                pmodel : Display.PersonListing.Model
+                pmodel =
+                    { people = ps
+                    , project = project
+                    }
             in
-            List.filter
-                (\p -> search ss (strings p))
-                people
-
-        intTotal : Int
-        intTotal =
-            List.length searched
-
-        ps : List M.Person
-        ps =
-            List.take params.length searched
-
-        len : String
-        len =
-            String.fromInt params.length
-
-        viewEvent : String -> Msg
-        viewEvent identifier =
-            case UUID.fromString vista.project of
-                Err _ ->
-                    Ms Msg.None
-
-                Ok uuid ->
-                    [ "person/", identifier ]
-                        |> String.concat
-                        |> OComposite
-                        |> Msg.Request uuid
-                        |> Msg.UserClick
-                        |> Ms
-
-        editEvent : M.Person -> Msg
-        editEvent person =
-            case UUID.fromString vista.project of
-                Err _ ->
-                    Ms Msg.None
-
-                Ok projectid ->
-                    person
-                        |> EPerson projectid
-                        |> Msg.Edit
-                        |> Msg.UserClick
-                        |> Ms
-
-        displayParams : Display.PersonListing.Params Msg
-        displayParams =
-            { people = ps
-            , viewEvent = viewEvent
-            , editEvent = editEvent
-            }
-    in
-    Html.div []
-        [ Html.div [ Attr.class "filters" ]
-            [ Html.label []
-                [ Html.text <|
-                    if params.length <= intTotal then
-                        let
-                            -- For displaying
-                            total : String
-                            total =
-                                intTotal |> String.fromInt
-                        in
-                        "Show (" ++ len ++ " of " ++ total ++ ")"
-
-                    else
-                        "Showing all items."
-                , Html.input
-                    ([ Attr.type_ "text"
-                     , Attr.placeholder len
-                     , Event.onInput
-                        (\s ->
-                            Tab.Change Tab.Length tp s
-                                |> Tab
-                        )
-                     ]
-                        ++ (if params.length > 0 then
-                                [ Attr.value len ]
+            Html.div []
+                [ Html.div [ Attr.class "filters" ]
+                    [ Html.label []
+                        [ Html.text <|
+                            if params.length <= intTotal then
+                                let
+                                    -- For displaying
+                                    total : String
+                                    total =
+                                        intTotal |> String.fromInt
+                                in
+                                "Show (" ++ len ++ " of " ++ total ++ ")"
 
                             else
-                                []
-                           )
-                    )
-                    []
-                , Html.input
-                    [ Attr.type_ "text"
-                    , Attr.value ss
-                    , Attr.placeholder "Search"
-                    , Attr.attribute "aria-label" "Search"
-                    , Event.onInput
-                        (\s ->
-                            Tab.Change Tab.Search tp s
-                                |> Tab
-                        )
+                                "Showing all items."
+                        , Html.input
+                            ([ Attr.type_ "text"
+                             , Attr.placeholder len
+                             , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Length tp s
+                                        |> Tab
+                                )
+                             ]
+                                ++ (if params.length > 0 then
+                                        [ Attr.value len ]
+
+                                    else
+                                        []
+                                   )
+                            )
+                            []
+                        , Html.input
+                            [ Attr.type_ "text"
+                            , Attr.value ss
+                            , Attr.placeholder "Search"
+                            , Attr.attribute "aria-label" "Search"
+                            , Event.onInput
+                                (\s ->
+                                    Tab.Change Tab.Search tp s
+                                        |> Tab
+                                )
+                            ]
+                            []
+                        ]
                     ]
-                    []
+                , Display.PersonListing.view pmodel |> Html.map Ms
                 ]
-            ]
-        , Display.PersonListing.view displayParams
-        ]
 
 
 sdvContent : Model -> Tab.Path -> Vista -> K.SeqData -> Html Msg
@@ -3376,6 +3406,44 @@ handleIInterlinearComposite model env doc int =
     handleVista vista short full model
 
 
+handleIPersonComposite : Model -> Envelope -> M.Composite -> M.Person -> ( Model, Cmd Msg )
+handleIPersonComposite model env doc person =
+    let
+        name : String
+        name =
+            person.names
+                |> Dict.toList
+                |> List.head
+                |> Maybe.map Tuple.second
+                |> Maybe.withDefault person.id
+                   
+        full : String
+        full =
+            String.join " " [ "Gloss:", name ]
+
+        short : String
+        short =
+            if String.length name > 7 then
+                String.concat
+                    [ "Gloss: "
+                    , String.left 7 name
+                    , "..."
+                    ]
+
+            else
+                full
+
+        vista : Vista
+        vista =
+            { project = UUID.toString env.project
+            , path = "person/" ++ person.id
+            , identifier = person.id
+            , content = Content.PLV doc
+            }
+    in
+    handleVista vista short full model
+
+
 handleIComposite : Model -> E.Value -> ( Model, Cmd Msg )
 handleIComposite model envelopeJson =
     case D.decodeValue envelopeDecoder envelopeJson of
@@ -3403,6 +3471,9 @@ handleIComposite model envelopeJson =
 
                         Just (M.MySequence s) ->
                             handleISequenceComposite model env doc_ s
+
+                        Just (M.MyPerson p) ->
+                            handleIPersonComposite model env doc_ p
 
                         _ ->
                             ( model, Cmd.none )

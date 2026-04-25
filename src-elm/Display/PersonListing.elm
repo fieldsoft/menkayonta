@@ -1,48 +1,58 @@
-module Display.PersonListing exposing (view, Params, viewPerson)
+module Display.PersonListing exposing (Model, view, viewPerson)
 
+import Dict
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
-import Menkayonta exposing (Person)
-import Dict
+import Menkayonta exposing (Person, DocId(..), Identifier(..), identifierToString)
+import Msg exposing (EditType(..))
+import UUID
 import Url exposing (percentDecode)
 
 
-type alias Params msg =
+type alias Msg =
+    Msg.Msg
+
+
+type alias Model =
     { people : List Person
-    , viewEvent : String -> msg
-    , editEvent : Person -> msg
+    , project : UUID.UUID
     }
 
 
-view : Params msg -> Html.Html msg
-view params =
+view : Model-> Html.Html Msg
+view model =
     Html.ul [ Attr.class "index-listing" ]
         (List.map
-            (viewItem params.viewEvent params.editEvent)
-            params.people
+            (viewItem model)
+            model.people
         )
 
 
-viewItem :
-    (String -> msg)
-    -> (Person -> msg)
-    -> Person
-    -> Html.Html msg
-viewItem viewEvent editEvent person =
+viewItem : Model -> Person -> Html.Html Msg
+viewItem model person =
     Html.li []
         [ viewPerson person
-        , Html.div [ Attr.class "perons-controls" ]
+        , Html.div [ Attr.class "person-controls" ]
             [ Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"
-                , Event.onClick (viewEvent person.id)
+                , PersonId person.id
+                    |> MyDocId
+                    |> identifierToString
+                    |> Msg.OComposite
+                    |> Msg.Request model.project
+                    |> Msg.UserClick
+                    |> Event.onClick
                 ]
                 [ Html.text "View" ]
             , Html.a
                 [ Attr.href "#"
                 , Attr.class "nav-link"
-                , Event.onClick (editEvent person)
+                , EPerson model.project person
+                    |> Msg.Edit
+                    |> Msg.UserClick
+                    |> Event.onClick
                 ]
                 [ Html.text "Edit" ]
             ]
@@ -55,21 +65,20 @@ viewPerson person =
         emailLine : Html.Html msg
         emailLine =
             Html.span [ Attr.class "person-email" ]
-                [ Html.text (percentDecode person.id
-                                 |> Maybe.withDefault person.id
-                            )
+                [ Html.text
+                    (percentDecode person.id
+                        |> Maybe.withDefault person.id
+                    )
                 ]
 
         nameLines : Html.Html msg
         nameLines =
             Html.ul []
-                ( Dict.values person.names
-                |> List.map (\n -> Html.li [] [ Html.text n ])
+                (Dict.values person.names
+                    |> List.map (\n -> Html.li [] [ Html.text n ])
                 )
     in
     Html.article []
         [ Html.header [] [ emailLine ]
         , nameLines
         ]
-
-

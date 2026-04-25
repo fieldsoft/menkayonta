@@ -2,6 +2,7 @@ module Display.Composite exposing (Model, Msg, view)
 
 import Dict
 import Display.InterlinearListing
+import Display.PersonListing
 import Display.Meta
     exposing
         ( links
@@ -20,6 +21,7 @@ import Menkayonta
         , Identifier(..)
         , Interlinear
         , Sequence
+        , Person
         , Value(..)
         , identifierToString
         )
@@ -128,6 +130,50 @@ view model =
                 , viewSequence model seq
                 ]
 
+        Just (MyPerson person) ->
+            let
+                id : Identifier
+                id =
+                    person.id
+                        |> PersonId
+                        |> MyDocId
+
+                doc : Value
+                doc =
+                    MyPerson person
+            in
+            Html.div []
+                [ Html.nav []
+                    [ Html.ul []
+                        [ Html.li []
+                            [ Html.a
+                                [ Attr.href "#"
+                                , EPerson model.project person
+                                    |> Msg.Edit
+                                    |> Msg.UserClick
+                                    |> Event.onClick
+                                ]
+                                [ Html.text "Edit" ]
+                            ]
+                        , Html.li []
+                            [ Html.a
+                                [ Attr.href "#"
+                                , Msg.ONoteFor
+                                    { id = id
+                                    , title = Menkayonta.title doc
+                                    , description = Menkayonta.description doc
+                                    }
+                                    |> Msg.Request model.project
+                                    |> Msg.UserClick
+                                    |> Event.onClick
+                                ]
+                                [ Html.text "Note" ]
+                            ]
+                        ]
+                    ]
+                , viewPerson model person
+                ]
+
         _ ->
             Html.div [] [ Html.text "doc not supported" ]
 
@@ -185,8 +231,8 @@ viewInterlinear model int =
 viewSequence : Model -> Sequence -> Html.Html Msg
 viewSequence model seq =
     let
-        intid : DocId
-        intid =
+        seqid : DocId
+        seqid =
             SequenceId seq.id
     in
     Html.div [ Attr.class "docview" ]
@@ -195,7 +241,7 @@ viewSequence model seq =
         , Html.article []
             [ Display.SequenceListing.viewSequence seq
             , Html.footer []
-                [ intid
+                [ seqid
                     |> MyDocId
                     |> identifierToString
                     |> (\x ->
@@ -208,8 +254,58 @@ viewSequence model seq =
         , Html.h2 []
             [ Html.text "Metadata" ]
         , Html.div [ Attr.class "metaview" ]
-            [ tags model.project intid model.composite.tags
-            , properties model.project intid model.composite.properties
+            [ tags model.project seqid model.composite.tags
+            , properties model.project seqid model.composite.properties
+            , if not (List.isEmpty model.composite.links) then
+                Html.article []
+                    [ Html.header []
+                        [ Html.h3 []
+                            [ Html.text "Links" ]
+                        ]
+                    , links model.composite.links
+                    ]
+
+              else
+                Html.text ""
+            , Html.article [ Attr.id "modification-view" ]
+                [ Html.header []
+                    [ Html.h3 []
+                        [ Html.text "Modifications" ]
+                    ]
+                , modifications model.composite.modifications
+                ]
+            ]
+        ]
+
+
+viewPerson : Model -> Person -> Html.Html Msg
+viewPerson model person =
+    let
+        personid : DocId
+        personid =
+            PersonId person.id
+    in
+    Html.div [ Attr.class "docview" ]
+        [ Html.h2 []
+            [ Html.text "Person" ]
+        , Html.article []
+            [ Display.PersonListing.viewPerson person
+            , Html.footer []
+                [ personid
+                    |> MyDocId
+                    |> identifierToString
+                    |> (\x ->
+                            "ID: "
+                                ++ x
+                                |> Html.text
+                       )
+                ]
+            ]
+        , Html.h2 []
+            [ Html.text "Metadata" ]
+        , Html.div [ Attr.class "metaview" ]
+            [ tags model.project personid model.composite.tags
+            , properties model.project personid model.composite.properties
             , if not (List.isEmpty model.composite.links) then
                 Html.article []
                     [ Html.header []

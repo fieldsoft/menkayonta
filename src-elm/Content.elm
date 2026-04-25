@@ -35,6 +35,7 @@ type Content
     | SQS (List Sequence)
     | ITV Composite
     | SQV Composite
+    | PLV Composite
     | SDV Keyed.SeqData
     | ITE Form.Interlinear.Model
     | SQE Form.Sequence.Model
