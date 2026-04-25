@@ -3419,13 +3419,13 @@ handleIPersonComposite model env doc person =
                    
         full : String
         full =
-            String.join " " [ "Gloss:", name ]
+            String.join " " [ "Person:", name ]
 
         short : String
         short =
             if String.length name > 7 then
                 String.concat
-                    [ "Gloss: "
+                    [ "Person: "
                     , String.left 7 name
                     , "..."
                     ]
