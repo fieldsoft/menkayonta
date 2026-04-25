@@ -51,6 +51,7 @@ type Msg
     | Breaks String
     | Glosses String
     | Phonemic String
+    | Alternate String
     | Judgment String
     | Trans String
     | TTranslation Int String
@@ -66,6 +67,7 @@ type alias Annotations =
     { breaks : StringField
     , glosses : StringField
     , phonemic : StringField
+    , alternate : StringField
     , judgment : StringField
     }
 
@@ -108,6 +110,13 @@ init int =
                 , error = ""
                 , changed = False
                 , original = int.ann.phonemic
+                }
+            , alternate =
+                { value = int.ann.alternate
+                , valid = True
+                , error = ""
+                , changed = False
+                , original = int.ann.alternate
                 }
             , judgment =
                 { value = int.ann.judgment
@@ -189,6 +198,7 @@ initData id =
         { breaks = blankString
         , glosses = blankString
         , phonemic = blankString
+        , alternate = blankString
         , judgment = blankString
         }
     , translations = []
@@ -229,6 +239,10 @@ update msg model =
         phonemic =
             annotations.phonemic
 
+        alternate : StringField
+        alternate =
+            annotations.alternate
+
         -- Return false if there are any invalid translation items.
         translationsValid : List Translation -> Bool
         translationsValid translations_ =
@@ -254,6 +268,7 @@ update msg model =
                 , d_.annotations.breaks.valid
                 , d_.annotations.glosses.valid
                 , d_.annotations.phonemic.valid
+                , d_.annotations.alternate.valid
                 , translationsValid d_.translations
                 ]
 
@@ -441,6 +456,30 @@ update msg model =
                             { annotations
                                 | phonemic =
                                     { phonemic
+                                        | value = str
+                                        , valid = True
+                                        , error = ""
+                                        , changed = True
+                                    }
+                            }
+                    }
+                        |> validate
+            in
+            if String.isEmpty (String.trim str) then
+                ( ok, Cmd.none )
+
+            else
+                ( ok, Cmd.none )
+
+        Alternate str ->
+            let
+                ok : Model
+                ok =
+                    { model
+                        | annotations =
+                            { annotations
+                                | alternate =
+                                    { alternate
                                         | value = str
                                         , valid = True
                                         , error = ""
@@ -660,6 +699,7 @@ update msg model =
                         { breaks = renew breaks.original
                         , glosses = renew glosses.original
                         , phonemic = renew phonemic.original
+                        , alternate = renew alternate.original
                         , judgment = renew judgment.original
                         }
                     , translations =
@@ -747,6 +787,24 @@ view model =
                 , valid = model.annotations.phonemic.valid
                 , help = "Optional phonemic transcription."
                 , error = model.annotations.phonemic.error
+                , disabled = False
+                , deleted = False
+                , spellcheck = False
+                , options = []
+                , id = Nothing
+                }
+            , displayField
+                { formname = "interlinear"
+                , label = "Alternate Orthography"
+                , kind = Html.textarea
+                , oninput = Alternate
+                , name = "alternate"
+                , value = model.annotations.alternate.value
+                , original = model.annotations.alternate.original
+                , changed = model.annotations.alternate.changed
+                , valid = model.annotations.alternate.valid
+                , help = "Optional alternate orthographic representation."
+                , error = model.annotations.alternate.error
                 , disabled = False
                 , deleted = False
                 , spellcheck = False

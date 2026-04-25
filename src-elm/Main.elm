@@ -1567,6 +1567,7 @@ prepInterlinearSave int project me time =
                 { breaks = int.annotations.breaks.value
                 , glosses = int.annotations.glosses.value
                 , phonemic = int.annotations.phonemic.value
+                , alternate = int.annotations.alternate.value
                 , judgment = int.annotations.judgment.value
                 }
             , translations =

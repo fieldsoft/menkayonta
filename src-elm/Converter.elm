@@ -563,6 +563,7 @@ interlinearStage curr model =
                 { breaks = curr.morpheme_break
                 , glosses = curr.morpheme_gloss
                 , phonemic = curr.phonetic_transcription
+                , alternate = ""
                 , judgment = curr.grammaticality
                 }
             , translations =

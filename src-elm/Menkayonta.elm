@@ -117,6 +117,7 @@ type alias Annotations =
     { breaks : String
     , glosses : String
     , phonemic : String
+    , alternate : String
     , judgment : String
     }
 
@@ -767,10 +768,11 @@ sequenceDecoder id =
 
 annDecoder : D.Decoder Annotations
 annDecoder =
-    D.map4 Annotations
+    D.map5 Annotations
         (D.field "breaks" D.string)
         (D.field "glosses" D.string)
         (D.field "phonemic" D.string)
+        (D.field "alternate" D.string)
         (D.field "judgment" D.string)
 
 
@@ -976,6 +978,7 @@ annEncoder ann =
         [ ( "breaks", E.string ann.breaks )
         , ( "glosses", E.string ann.glosses )
         , ( "phonemic", E.string ann.phonemic )
+        , ( "alternate", E.string ann.alternate )
         , ( "judgment", E.string ann.judgment )
         ]
 
