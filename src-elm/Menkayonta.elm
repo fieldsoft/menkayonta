@@ -49,6 +49,11 @@ import Url.Builder exposing (Root(..))
 import Url.Parser as UP exposing ((</>))
 
 
+currentInterlinearVersion : Int
+currentInterlinearVersion =
+    2
+
+
 {-| These are the basic kinds of values that are used to represent
 application data in Menkayonta.
 -}
@@ -709,12 +714,18 @@ decoder_ idstr =
 
 interlinearDecoder : UUID -> D.Decoder Interlinear
 interlinearDecoder id =
+    D.field "version" D.int
+        |> D.andThen (interlinearVersionDecoder id)
+
+
+interlinearVersionDecoder : UUID -> Int -> D.Decoder Interlinear
+interlinearVersionDecoder id version =
     D.map6 Interlinear
         (D.succeed id)
         (D.maybe <| D.field "_rev" D.string)
-        (D.field "version" D.int)
+        (D.succeed currentInterlinearVersion)
         (D.field "text" D.string)
-        (D.field "ann" annDecoder)
+        (D.field "ann" (annVersionDecoder version))
         (D.field "translations" (DE.dict2 D.int translationDecoder))
 
 
@@ -766,13 +777,28 @@ sequenceDecoder id =
         (D.field "items" (D.list itemDecoder))
 
 
-annDecoder : D.Decoder Annotations
-annDecoder =
+annVersionDecoder : Int -> D.Decoder Annotations
+annVersionDecoder version =
+    let
+        alternateDecoder : D.Decoder String
+        alternateDecoder =
+            if version == currentInterlinearVersion then
+                D.field "alternate" D.string
+
+            else if version < currentInterlinearVersion then
+                D.succeed ""
+
+            else
+                D.fail
+                    ("Invalid interlinear document version:"
+                        ++ String.fromInt version
+                    )
+    in
     D.map5 Annotations
         (D.field "breaks" D.string)
         (D.field "glosses" D.string)
         (D.field "phonemic" D.string)
-        (D.field "alternate" D.string)
+        alternateDecoder
         (D.field "judgment" D.string)
 
 
@@ -954,7 +980,7 @@ in an update.
 interlinearEncoder : Interlinear -> E.Value
 interlinearEncoder int =
     [ ( "_id", E.string (docIdToString <| InterlinearId int.id) )
-    , ( "version", E.int int.version )
+    , ( "version", E.int currentInterlinearVersion )
     , ( "text", E.string int.text )
     , ( "ann", annEncoder int.ann )
     , ( "translations", E.dict String.fromInt translationEncoder int.translations )
