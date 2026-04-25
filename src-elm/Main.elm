@@ -302,64 +302,6 @@ update msg model =
         Ms (Msg.Received rt) ->
             handleReceived model rt
 
-        Ms (Msg.Request project (ONoteFor gd)) ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-note-for"
-                        , project = project
-                        , address = M.identifierToString gd.id
-                        , content = M.genericDescEncoder gd
-                        }
-            in
-            ( model, send envelope )
-
-        Ms (Msg.Request project (ONote id)) ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-note"
-                        , project = project
-                        , address = id
-                        , content = E.null
-                        }
-            in
-            ( model, send envelope )
-
-        Ms (Msg.Request project (ODelete rev id)) ->
-            case rev of
-                Just rev_ ->
-                    let
-                        payload : E.Value
-                        payload =
-                            E.object
-                                [ ( "_id", E.string id )
-                                , ( "_rev", E.string rev_ )
-                                , ( "_deleted", E.bool True )
-                                ]
-
-                        path : String
-                        path =
-                            Tab.getFocusedVista model.tabs
-                                |> Maybe.map .path
-                                |> Maybe.withDefault ""
-
-                        envelope : E.Value
-                        envelope =
-                            envelopeEncoder
-                                { command = "delete-doc"
-                                , project = project
-                                , address = path
-                                , content = payload
-                                }
-                    in
-                    ( model, send envelope )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
         Ms (Msg.SaveTag tagfield) ->
             let
                 payload : E.Value
@@ -1075,118 +1017,8 @@ update msg model =
                         _ ->
                             ( nmodel, Cmd.map (PR id) p.cmd )
 
-        Ms (Msg.Request project OInterlinearListing) ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-interlinear-listing"
-                        , project = project
-                        , address = "interlinear"
-                        , content = E.null
-                        }
-
-                project_ : String
-                project_ =
-                    UUID.toString project
-            in
-            ( { model | loading = Set.insert project_ model.loading }
-            , send envelope
-            )
-
-        Ms (Msg.Request project OSequenceListing) ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-sequence-listing"
-                        , project = project
-                        , address = "sequence"
-                        , content = E.null
-                        }
-
-                project_ : String
-                project_ =
-                    UUID.toString project
-            in
-            ( { model | loading = Set.insert project_ model.loading }
-            , send envelope
-            )
-
-        Ms (Msg.Request project (OComposite id)) ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-composite"
-                        , project = project
-                        , address = id
-                        , content = E.null
-                        }
-            in
-            ( model, send envelope )
-
-        Ms (Msg.Request project (OSequence id)) ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-sequence"
-                        , project = project
-                        , address = id
-                        , content = E.null
-                        }
-            in
-            ( model, send envelope )
-
-        Ms (Msg.Request project OPersonListing) ->
-            let
-                envelope : E.Value
-                envelope =
-                    envelopeEncoder
-                        { command = "request-person-listing"
-                        , project = project
-                        , address = "person"
-                        , content = E.null
-                        }
-            in
-            ( model, send envelope )
-
-        Ms (Msg.Request project (OReversal query)) ->
-            case query of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just query_ ->
-                    let
-                        envelope : E.Value
-                        envelope =
-                            envelopeEncoder
-                                { command = "request-reversal"
-                                , project = project
-                                , address = query_
-                                , content = E.null
-                                }
-                    in
-                    ( model, send envelope )
-
-        Ms (Msg.Request project (OAttrReversal query)) ->
-            case query of
-                Nothing ->
-                    ( model, Cmd.none )
-
-                Just query_ ->
-                    let
-                        envelope : E.Value
-                        envelope =
-                            envelopeEncoder
-                                { command = "request-attr-reversal"
-                                , project = project
-                                , address = query_
-                                , content = E.null
-                                }
-                    in
-                    ( model, send envelope )
+        Ms (Msg.Request project rt) ->
+            handleRequest model project rt
 
         -- Open or focus the Import Options form with a filename.
         EditImporter filepath ->
@@ -1500,41 +1332,84 @@ handleEditType model et =
             handleNewSequence model project
 
 
+handleRequest : Model -> UUID.UUID -> RequestType -> ( Model, Cmd Msg )
+handleRequest model project rt =
+    case rt of
+        OReversal (Just str) ->
+            handleOReversal model project str
+
+        OReversal Nothing ->
+            ( model, Cmd.none )
+
+        OAttrReversal (Just str) ->
+            handleOAttrReversal model project str
+
+        OAttrReversal Nothing ->
+            ( model, Cmd.none )
+
+        OInterlinearListing ->
+            handleOInterlinearListing model project
+
+        OSequenceListing ->
+            handleOSequenceListing model project
+
+        OPersonListing ->
+            handleOPersonListing model project
+
+        OSequence str ->
+            handleOSequence model project str
+
+        OComposite str ->
+            handleOComposite model project str
+
+        ODelete (Just rev) str ->
+            handleODelete model project rev str
+
+        ODelete Nothing _ ->
+            ( model, Cmd.none )
+
+        ONoteFor desc ->
+            handleONoteFor model project desc
+
+        ONote str ->
+            handleONote model project str
+
+
 handleReceived : Model -> ReceiveType -> ( Model, Cmd Msg )
 handleReceived model rt =
     case rt of
         IReload envelopeJson ->
-            handleReload model envelopeJson
+            handleIReload model envelopeJson
 
         INoteFor envelopeJson ->
-            handleNoteFor model envelopeJson
+            handleINoteFor model envelopeJson
 
         INote envelopeJson ->
-            handleNote model envelopeJson
+            handleINote model envelopeJson
 
         IViewArea jsonValue ->
-            handleViewArea model jsonValue
+            handleIViewArea model jsonValue
 
         IGlobalConfig gcJson ->
-            handleReceivedGlobalConfig model gcJson
+            handleIGlobalConfig model gcJson
 
         IInterlinearListing envelopeJson ->
-            handleInterlinearListing model envelopeJson
+            handleIInterlinearListing model envelopeJson
 
         ISequenceListing envelopeJson ->
-            handleSequenceListing model envelopeJson
+            handleISequenceListing model envelopeJson
 
         ISequence envelopeJson ->
-            handleSequence model envelopeJson
+            handleISequence model envelopeJson
 
         IPersonListing envelopeJson ->
-            handlePersonListing model envelopeJson
+            handleIPersonListing model envelopeJson
 
         IReversal envelopeJson ->
-            handleReversal model envelopeJson
+            handleIReversal model envelopeJson
 
         IComposite envelopeJson ->
-            handleComposite model envelopeJson
+            handleIComposite model envelopeJson
 
 
 subUpdate : (a -> b -> ( b, Cmd a )) -> a -> b -> { model : b, cmd : Cmd a }
@@ -3265,8 +3140,184 @@ handleEditInterlinear model project int =
             )
 
 
-handleSequenceComposite : Model -> Envelope -> M.Composite -> M.Sequence -> ( Model, Cmd Msg )
-handleSequenceComposite model env doc seq =
+handleOReversal : Model -> UUID.UUID -> String -> ( Model, Cmd Msg )
+handleOReversal model project query =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-reversal"
+                , project = project
+                , address = query
+                , content = E.null
+                }
+    in
+    ( model, send envelope )
+
+
+handleOAttrReversal : Model -> UUID.UUID -> String -> ( Model, Cmd Msg )
+handleOAttrReversal model project query =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-attr-reversal"
+                , project = project
+                , address = query
+                , content = E.null
+                }
+    in
+    ( model, send envelope )
+
+
+handleOInterlinearListing : Model -> UUID.UUID -> ( Model, Cmd Msg )
+handleOInterlinearListing model project =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-interlinear-listing"
+                , project = project
+                , address = "interlinear"
+                , content = E.null
+                }
+
+        project_ : String
+        project_ =
+            UUID.toString project
+    in
+    ( { model | loading = Set.insert project_ model.loading }
+    , send envelope
+    )
+
+
+handleOSequenceListing : Model -> UUID.UUID -> ( Model, Cmd Msg )
+handleOSequenceListing model project =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-sequence-listing"
+                , project = project
+                , address = "sequence"
+                , content = E.null
+                }
+
+        project_ : String
+        project_ =
+            UUID.toString project
+    in
+    ( { model | loading = Set.insert project_ model.loading }
+    , send envelope
+    )
+
+
+handleOPersonListing : Model -> UUID.UUID -> ( Model, Cmd Msg )
+handleOPersonListing model project =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-person-listing"
+                , project = project
+                , address = "person"
+                , content = E.null
+                }
+    in
+    ( model, send envelope )
+
+
+handleOComposite : Model -> UUID.UUID -> String -> ( Model, Cmd Msg )
+handleOComposite model project id =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-composite"
+                , project = project
+                , address = id
+                , content = E.null
+                }
+    in
+    ( model, send envelope )
+
+
+handleOSequence : Model -> UUID.UUID -> String -> ( Model, Cmd Msg )
+handleOSequence model project id =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-sequence"
+                , project = project
+                , address = id
+                , content = E.null
+                }
+    in
+    ( model, send envelope )
+
+
+handleODelete : Model -> UUID.UUID -> String -> String -> ( Model, Cmd Msg )
+handleODelete model project rev id =
+    let
+        payload : E.Value
+        payload =
+            E.object
+                [ ( "_id", E.string id )
+                , ( "_rev", E.string rev )
+                , ( "_deleted", E.bool True )
+                ]
+
+        path : String
+        path =
+            Tab.getFocusedVista model.tabs
+                |> Maybe.map .path
+                |> Maybe.withDefault ""
+
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "delete-doc"
+                , project = project
+                , address = path
+                , content = payload
+                }
+    in
+    ( model, send envelope )
+
+
+handleONoteFor : Model -> UUID.UUID -> M.GenericDesc -> ( Model, Cmd Msg )
+handleONoteFor model project gd =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-note-for"
+                , project = project
+                , address = M.identifierToString gd.id
+                , content = M.genericDescEncoder gd
+                }
+    in
+    ( model, send envelope )
+
+
+handleONote : Model -> UUID.UUID -> String -> ( Model, Cmd Msg )
+handleONote model project id =
+    let
+        envelope : E.Value
+        envelope =
+            envelopeEncoder
+                { command = "request-note"
+                , project = project
+                , address = id
+                , content = E.null
+                }
+    in
+    ( model, send envelope )
+
+
+handleISequenceComposite : Model -> Envelope -> M.Composite -> M.Sequence -> ( Model, Cmd Msg )
+handleISequenceComposite model env doc seq =
     let
         full : String
         full =
@@ -3295,8 +3346,8 @@ handleSequenceComposite model env doc seq =
     handleVista vista short full model
 
 
-handleInterlinearComposite : Model -> Envelope -> M.Composite -> M.Interlinear -> ( Model, Cmd Msg )
-handleInterlinearComposite model env doc int =
+handleIInterlinearComposite : Model -> Envelope -> M.Composite -> M.Interlinear -> ( Model, Cmd Msg )
+handleIInterlinearComposite model env doc int =
     let
         full : String
         full =
@@ -3325,8 +3376,8 @@ handleInterlinearComposite model env doc int =
     handleVista vista short full model
 
 
-handleComposite : Model -> E.Value -> ( Model, Cmd Msg )
-handleComposite model envelopeJson =
+handleIComposite : Model -> E.Value -> ( Model, Cmd Msg )
+handleIComposite model envelopeJson =
     case D.decodeValue envelopeDecoder envelopeJson of
         Err e ->
             ( { model | error = D.errorToString e }
@@ -3348,27 +3399,27 @@ handleComposite model envelopeJson =
                 Ok doc_ ->
                     case doc_.doc of
                         Just (M.MyInterlinear i) ->
-                            handleInterlinearComposite model env doc_ i
+                            handleIInterlinearComposite model env doc_ i
 
                         Just (M.MySequence s) ->
-                            handleSequenceComposite model env doc_ s
+                            handleISequenceComposite model env doc_ s
 
                         _ ->
                             ( model, Cmd.none )
 
 
-handleReversal : Model -> E.Value -> ( Model, Cmd Msg )
-handleReversal model envelopeJson =
+handleIReversal : Model -> E.Value -> ( Model, Cmd Msg )
+handleIReversal model envelopeJson =
     case openEnvelope model envelopeJson M.listDecoder of
         Err m ->
             ( m, Cmd.none )
 
         Ok ( env, vals ) ->
-            handleReversal_ model env vals
+            handleIReversal_ model env vals
 
 
-handleReversal_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
-handleReversal_ model env vals =
+handleIReversal_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handleIReversal_ model env vals =
     let
         filterInter : M.Value -> List M.Interlinear -> List M.Interlinear
         filterInter val ints =
@@ -3441,18 +3492,18 @@ handleReversal_ model env vals =
     handleVista vista (short shortString) full model
 
 
-handlePersonListing : Model -> E.Value -> ( Model, Cmd Msg )
-handlePersonListing model envelopeJson =
+handleIPersonListing : Model -> E.Value -> ( Model, Cmd Msg )
+handleIPersonListing model envelopeJson =
     case openEnvelope model envelopeJson M.listDecoder of
         Err m ->
             ( m, Cmd.none )
 
         Ok ( env, vals ) ->
-            handlePersonListing_ model env vals
+            handleIPersonListing_ model env vals
 
 
-handlePersonListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
-handlePersonListing_ model env vals =
+handleIPersonListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handleIPersonListing_ model env vals =
     let
         filterPerson : M.Value -> List M.Person -> List M.Person
         filterPerson val people =
@@ -3478,18 +3529,18 @@ handlePersonListing_ model env vals =
     handleVista vista "People" "People" model
 
 
-handleSequence : Model -> E.Value -> ( Model, Cmd Msg )
-handleSequence model envelopeJson =
+handleISequence : Model -> E.Value -> ( Model, Cmd Msg )
+handleISequence model envelopeJson =
     case openEnvelope model envelopeJson (D.list K.valueDecoder) of
         Err m ->
             ( m, Cmd.none )
 
         Ok ( env, kvals ) ->
-            handleSequence_ model env kvals
+            handleISequence_ model env kvals
 
 
-handleSequence_ : Model -> Envelope -> List K.Value -> ( Model, Cmd Msg )
-handleSequence_ model env kvals =
+handleISequence_ : Model -> Envelope -> List K.Value -> ( Model, Cmd Msg )
+handleISequence_ model env kvals =
     case K.valuesToSeqData kvals of
         Nothing ->
             ( { model | error = "Keyed values did not resolve to valid SeqData" }
@@ -3513,18 +3564,18 @@ handleSequence_ model env kvals =
             handleVista vista "Seq. Data" "Seq. Data" model
 
 
-handleSequenceListing : Model -> E.Value -> ( Model, Cmd Msg )
-handleSequenceListing model envelopeJson =
+handleISequenceListing : Model -> E.Value -> ( Model, Cmd Msg )
+handleISequenceListing model envelopeJson =
     case openEnvelope model envelopeJson M.listDecoder of
         Err m ->
             ( m, Cmd.none )
 
         Ok ( env, vals ) ->
-            handleSequenceListing_ model env vals
+            handleISequenceListing_ model env vals
 
 
-handleSequenceListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
-handleSequenceListing_ model env vals =
+handleISequenceListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handleISequenceListing_ model env vals =
     let
         filterSeq : M.Value -> List M.Sequence -> List M.Sequence
         filterSeq val seqs =
@@ -3550,18 +3601,18 @@ handleSequenceListing_ model env vals =
     handleVista vista "Sequences" "Sequences" model
 
 
-handleInterlinearListing : Model -> E.Value -> ( Model, Cmd Msg )
-handleInterlinearListing model envelopeJson =
+handleIInterlinearListing : Model -> E.Value -> ( Model, Cmd Msg )
+handleIInterlinearListing model envelopeJson =
     case openEnvelope model envelopeJson M.listDecoder of
         Err m ->
             ( m, Cmd.none )
 
         Ok ( env, vals ) ->
-            handleInterlinearListing_ model env vals
+            handleIInterlinearListing_ model env vals
 
 
-handleInterlinearListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
-handleInterlinearListing_ model env vals =
+handleIInterlinearListing_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
+handleIInterlinearListing_ model env vals =
     let
         filterInter : M.Value -> List M.Interlinear -> List M.Interlinear
         filterInter val ints =
@@ -3592,8 +3643,8 @@ handleInterlinearListing_ model env vals =
     handleVista vista "Glosses" "Glosses" model
 
 
-handleViewArea : Model -> E.Value -> ( Model, Cmd Msg )
-handleViewArea model jsonValue =
+handleIViewArea : Model -> E.Value -> ( Model, Cmd Msg )
+handleIViewArea model jsonValue =
     case D.decodeValue dimensionsDecoder jsonValue of
         Err e ->
             ( { model | error = D.errorToString e }
@@ -3606,8 +3657,8 @@ handleViewArea model jsonValue =
             )
 
 
-handleReceivedGlobalConfig : Model -> E.Value -> ( Model, Cmd Msg )
-handleReceivedGlobalConfig model gcJson =
+handleIGlobalConfig : Model -> E.Value -> ( Model, Cmd Msg )
+handleIGlobalConfig model gcJson =
     case D.decodeValue Config.globalConfigDecoder gcJson of
         Err err ->
             ( { model | error = D.errorToString err }
@@ -3651,21 +3702,21 @@ handleReceivedGlobalConfig model gcJson =
             ( newmodel, command )
 
 
-handleNote : Model -> E.Value -> ( Model, Cmd Msg )
-handleNote model envelopeJson =
+handleINote : Model -> E.Value -> ( Model, Cmd Msg )
+handleINote model envelopeJson =
     case openEnvelope model envelopeJson M.decoder of
         Err m ->
             ( m, Cmd.none )
 
         Ok ( env, M.MyNote note ) ->
-            handleNote_ model env note
+            handleINote_ model env note
 
         _ ->
             ( model, Cmd.none )
 
 
-handleNote_ : Model -> Envelope -> M.Note -> ( Model, Cmd Msg )
-handleNote_ model env note =
+handleINote_ : Model -> Envelope -> M.Note -> ( Model, Cmd Msg )
+handleINote_ model env note =
     let
         vid : String
         vid =
@@ -3707,8 +3758,8 @@ handleNote_ model env note =
                     ( model, Cmd.none )
 
 
-handleNoteFor : Model -> E.Value -> ( Model, Cmd Msg )
-handleNoteFor model envelopeJson =
+handleINoteFor : Model -> E.Value -> ( Model, Cmd Msg )
+handleINoteFor model envelopeJson =
     case D.decodeValue envelopeDecoder envelopeJson of
         Err e ->
             ( { model | error = D.errorToString e }
@@ -3743,8 +3794,8 @@ handleNoteFor model envelopeJson =
                     handleReceivedNote env.project model c.desc c.note
 
 
-handleReload : Model -> E.Value -> ( Model, Cmd Msg )
-handleReload model envelopeJson =
+handleIReload : Model -> E.Value -> ( Model, Cmd Msg )
+handleIReload model envelopeJson =
     case D.decodeValue envelopeDecoder envelopeJson of
         Err e ->
             ( { model | error = D.errorToString e }
