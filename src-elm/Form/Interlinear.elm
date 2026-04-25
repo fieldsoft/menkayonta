@@ -275,9 +275,9 @@ update msg model =
                         toperr
             }
 
-        textTokens : Int
-        textTokens =
-            tokens model.text.value
+        breaksTokens : Int
+        breaksTokens =
+            tokens model.annotations.breaks.value
     in
     case msg of
         -- It is sometimes useful to have a non-operation.
@@ -335,41 +335,7 @@ update msg model =
                 ( ok, Cmd.none )
 
             else
-                let
-                    newTokens : Int
-                    newTokens =
-                        tokens str
-                in
-                if newTokens == textTokens then
-                    ( ok, Cmd.none )
-
-                else
-                    let
-                        err : String
-                        err =
-                            [ "The number of tokens is not equal."
-                            , "The text has"
-                            , String.fromInt textTokens ++ "."
-                            , "This line has"
-                            , String.fromInt newTokens ++ "."
-                            ]
-                                |> String.join " "
-                    in
-                    ( validate
-                        { model
-                            | annotations =
-                                { annotations
-                                    | breaks =
-                                        { breaks
-                                            | value = str
-                                            , valid = False
-                                            , error = err
-                                            , changed = True
-                                        }
-                                }
-                        }
-                    , Cmd.none
-                    )
+                ( ok, Cmd.none )
 
         Glosses str ->
             let
@@ -399,7 +365,7 @@ update msg model =
                         tokens str
                 in
                 case
-                    ( newTokens == textTokens
+                    ( newTokens == breaksTokens
                     , breakMismatch breaks.value str
                     )
                 of
@@ -408,8 +374,8 @@ update msg model =
                             err : String
                             err =
                                 [ "The number of tokens is not equal."
-                                , "The text has"
-                                , String.fromInt textTokens ++ "."
+                                , "The affix breaks line has"
+                                , String.fromInt breaksTokens ++ "."
                                 , "This line has"
                                 , String.fromInt newTokens ++ "."
                                 ]
@@ -484,41 +450,7 @@ update msg model =
                 ( ok, Cmd.none )
 
             else
-                let
-                    newTokens : Int
-                    newTokens =
-                        tokens str
-                in
-                if newTokens == textTokens then
-                    ( ok, Cmd.none )
-
-                else
-                    let
-                        err : String
-                        err =
-                            [ "The number of tokens is not equal."
-                            , "The text has"
-                            , String.fromInt textTokens ++ "."
-                            , "This line has"
-                            , String.fromInt newTokens ++ "."
-                            ]
-                                |> String.join " "
-                    in
-                    ( validate
-                        { model
-                            | annotations =
-                                { annotations
-                                    | phonemic =
-                                        { phonemic
-                                            | value = str
-                                            , valid = False
-                                            , error = err
-                                            , changed = True
-                                        }
-                                }
-                        }
-                    , Cmd.none
-                    )
+                ( ok, Cmd.none )
 
         Judgment str ->
             ( validate
