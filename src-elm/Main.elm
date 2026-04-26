@@ -1341,12 +1341,6 @@ handleRequest model project rt =
         OReversal Nothing ->
             ( model, Cmd.none )
 
-        OAttrReversal (Just str) ->
-            handleOAttrReversal model project str
-
-        OAttrReversal Nothing ->
-            ( model, Cmd.none )
-
         OInterlinearListing ->
             handleOInterlinearListing model project
 
@@ -2105,6 +2099,9 @@ viewVista model tp vista =
         Content.PLS people ->
             plsContent model tp vista people
 
+        Content.PGS pages ->
+            pgsContent model tp vista pages
+
         Content.SDV seqData ->
             sdvContent model tp vista seqData
 
@@ -2392,6 +2389,10 @@ itsContent model tp vista ints =
                 ]
 
 
+pgsContent : Model -> Tab.Path -> Vista -> List M.Page -> Html Msg
+pgsContent _ _ _ _ =
+    Html.text "Not implemented"
+        
 sqsContent : Model -> Tab.Path -> Vista -> List M.Sequence -> Html Msg
 sqsContent model tp vista seqs =
     case
@@ -3185,21 +3186,6 @@ handleOReversal model project query =
     ( model, send envelope )
 
 
-handleOAttrReversal : Model -> UUID.UUID -> String -> ( Model, Cmd Msg )
-handleOAttrReversal model project query =
-    let
-        envelope : E.Value
-        envelope =
-            envelopeEncoder
-                { command = "request-attr-reversal"
-                , project = project
-                , address = query
-                , content = E.null
-                }
-    in
-    ( model, send envelope )
-
-
 handleOInterlinearListing : Model -> UUID.UUID -> ( Model, Cmd Msg )
 handleOInterlinearListing model project =
     let
@@ -3416,7 +3402,7 @@ handleIPersonComposite model env doc person =
                 |> List.head
                 |> Maybe.map Tuple.second
                 |> Maybe.withDefault person.id
-                   
+
         full : String
         full =
             String.join " " [ "Person:", name ]
@@ -3491,61 +3477,185 @@ handleIReversal model envelopeJson =
 
 handleIReversal_ : Model -> Envelope -> List M.Value -> ( Model, Cmd Msg )
 handleIReversal_ model env vals =
+    case M.reversalToIdentifier env.address of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just (M.MyDocId _) ->
+            ( model, Cmd.none )
+
+        Just (M.MyUtilityId _) ->
+            ( model, Cmd.none )
+
+        Just (M.MyNoteId _) ->
+            ( model, Cmd.none )
+
+        Just (M.MyTagId tagid) ->
+            handleReversalForDoctype model env vals tagid.docid tagid.kind
+
+        Just (M.MyPropertyId propid) ->
+            let
+                title : String
+                title =
+                    propid.kind ++ ":" ++ propid.value
+            in
+            handleReversalForDoctype model env vals propid.docid title
+
+        Just (M.MyModificationId modid) ->
+            handleReversalForDoctype model env vals modid.docid modid.kind
+
+        Just (M.MyLinkId linkid) ->
+            handleReversalForDoctype model env vals linkid.fromid linkid.kind
+
+
+handleReversalForDoctype : Model -> Envelope -> List M.Value -> M.DocId -> String -> ( Model, Cmd Msg )
+handleReversalForDoctype model env vals docid title =
     let
-        filterInter : M.Value -> List M.Interlinear -> List M.Interlinear
-        filterInter val ints =
-            case val of
-                M.MyInterlinear int ->
-                    int :: ints
+        ( short, full, content ) =
+            case docid of
+                M.PersonId _ ->
+                    let
+                        filter : M.Value -> List M.Person -> List M.Person
+                        filter val people =
+                            case val of
+                                M.MyPerson person ->
+                                    person :: people
 
-                _ ->
-                    ints
+                                _ ->
+                                    people
 
-        content : Content
-        content =
-            ITS <| List.foldl filterInter [] vals
+                        c : Content
+                        c =
+                            PLS <| List.foldl filter [] vals
 
-        full : String
-        full =
-            env.address
-                |> Url.percentDecode
-                |> Maybe.withDefault env.address
+                        f : String
+                        f =
+                            String.concat
+                                [ "People: "
+                                , title
+                                ]
 
-        kindOrValue : Maybe String
-        kindOrValue =
-            case String.split "/" env.address of
-                [ "tag", x ] ->
-                    Just x
+                        s : String
+                        s =
+                            if String.length title > 7 then
+                                String.concat
+                                    [ "People: "
+                                    , String.left 7 title
+                                    , "..."
+                                    ]
 
-                [ "description", x ] ->
-                    Just x
+                            else
+                                f
+                    in
+                    ( s, f, c )
 
-                [ "property", _, y ] ->
-                    Just y
+                M.InterlinearId _ ->
+                    let
+                        filter : M.Value -> List M.Interlinear -> List M.Interlinear
+                        filter val ints =
+                            case val of
+                                M.MyInterlinear int ->
+                                    int :: ints
 
-                [ "modification", x, _ ] ->
-                    Just x
+                                _ ->
+                                    ints
 
-                _ ->
-                    Nothing
+                        c : Content
+                        c =
+                            ITS <| List.foldl filter [] vals
 
-        shortString : String
-        shortString =
-            kindOrValue
-                |> Maybe.andThen Url.percentDecode
-                |> Maybe.withDefault env.address
+                        f : String
+                        f =
+                            String.concat
+                                [ "Glosses: "
+                                , title
+                                ]
 
-        short : String -> String
-        short str =
-            if String.length str > 7 then
-                String.concat
-                    [ "Glosses: "
-                    , String.left 7 str
-                    , "..."
-                    ]
+                        s : String
+                        s =
+                            if String.length title > 7 then
+                                String.concat
+                                    [ "Glosses: "
+                                    , String.left 7 title
+                                    , "..."
+                                    ]
 
-            else
-                str
+                            else
+                                f
+                    in
+                    ( s, f, c )
+
+                M.SequenceId _ ->
+                    let
+                        filter : M.Value -> List M.Sequence -> List M.Sequence
+                        filter val seqs =
+                            case val of
+                                M.MySequence seq ->
+                                    seq :: seqs
+
+                                _ ->
+                                    seqs
+
+                        c : Content
+                        c =
+                            SQS <| List.foldl filter [] vals
+
+                        f : String
+                        f =
+                            String.concat
+                                [ "Sequences: "
+                                , title
+                                ]
+
+                        s : String
+                        s =
+                            if String.length title > 7 then
+                                String.concat
+                                    [ "Sequences: "
+                                    , String.left 7 title
+                                    , "..."
+                                    ]
+
+                            else
+                                f
+                    in
+                    ( s, f, c )
+
+                M.PageId _ ->
+                    let
+                        filter : M.Value -> List M.Page -> List M.Page
+                        filter val pages =
+                            case val of
+                                M.MyPage page ->
+                                    page :: pages
+
+                                _ ->
+                                    pages
+
+                        c : Content
+                        c =
+                            PGS <| List.foldl filter [] vals
+
+                        f : String
+                        f =
+                            String.concat
+                                [ "Pages: "
+                                , title
+                                ]
+
+                        s : String
+                        s =
+                            if String.length title > 7 then
+                                String.concat
+                                    [ "Pages: "
+                                    , String.left 7 title
+                                    , "..."
+                                    ]
+
+                            else
+                                f
+                    in
+                    ( s, f, c )
 
         vista : Vista
         vista =
@@ -3560,7 +3670,7 @@ handleIReversal_ model env vals =
             , content = content
             }
     in
-    handleVista vista (short shortString) full model
+    handleVista vista short full model
 
 
 handleIPersonListing : Model -> E.Value -> ( Model, Cmd Msg )
@@ -3915,12 +4025,12 @@ handleIReload model envelopeJson =
                     , req <| ONote env.address
                     )
 
-                "tag" :: _ :: [] ->
+                "tag" :: _ :: _ :: [] ->
                     ( model
                     , req <| OReversal (Just env.address)
                     )
 
-                "property" :: _ :: _ :: [] ->
+                "property" :: _ :: _ :: _ :: [] ->
                     ( model
                     , req <| OReversal (Just env.address)
                     )

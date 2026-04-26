@@ -13,6 +13,7 @@ import Menkayonta
         , Interlinear
         , Person
         , Sequence
+        , Page
         )
 
 
@@ -33,6 +34,7 @@ file import form; and 'PL', a person object.
 type Content
     = ITS (List Interlinear)
     | SQS (List Sequence)
+    | PGS (List Page)
     | ITV Composite
     | SQV Composite
     | PLV Composite

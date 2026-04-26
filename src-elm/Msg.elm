@@ -56,7 +56,6 @@ type ReceiveType
 
 type RequestType
     = OReversal (Maybe String)
-    | OAttrReversal (Maybe String)
     | OInterlinearListing
     | OSequenceListing
     | OSequence String

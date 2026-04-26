@@ -27,12 +27,14 @@ module Menkayonta exposing
     , compositeBuilder
     , decoder
     , description
+    , docIdToDoctypeString
     , encoder
     , genericDescDecoder
     , genericDescEncoder
     , identifierToReverse
     , identifierToString
     , listDecoder
+    , reversalToIdentifier
     , stringToIdentifier
     , title
     )
@@ -42,6 +44,7 @@ import Email
 import Json.Decode as D
 import Json.Decode.Extra as DE
 import Json.Encode as E
+import Random
 import Time
 import UUID exposing (UUID)
 import Url
@@ -264,10 +267,118 @@ type alias Utility =
     }
 
 
+dummyUUID : UUID.UUID
+dummyUUID =
+    Random.initialSeed 0
+        |> Random.step UUID.generator
+        |> Tuple.first
+
+
+dummyEmail : String
+dummyEmail =
+    String.join "@" [ UUID.toString dummyUUID, "example.com" ]
+
+
+reversalToIdentifier : String -> Maybe Identifier
+reversalToIdentifier s =
+    Url.fromString ("http://example.com/" ++ s)
+        |> Maybe.andThen (UP.parse reversalParser)
+
+
 stringToIdentifier : String -> Maybe Identifier
 stringToIdentifier s =
     Url.fromString ("http://example.com/" ++ s)
         |> Maybe.andThen (UP.parse idParser)
+
+
+reversalParser : UP.Parser (Identifier -> a) a
+reversalParser =
+    let
+        docId : UP.Parser (DocId -> b) b
+        docId =
+            UP.custom "UUID"
+                (\s ->
+                    case s of
+                        "interlinear" ->
+                            Just (InterlinearId dummyUUID)
+
+                        "sequence" ->
+                            Just (SequenceId dummyUUID)
+
+                        "page" ->
+                            Just (PageId dummyUUID)
+
+                        "person" ->
+                            Just (PersonId dummyEmail)
+
+                        _ ->
+                            Nothing
+                )
+
+        urlDecode : String -> String
+        urlDecode s =
+            Url.percentDecode s
+                |> Maybe.withDefault s
+
+        tagId : String -> DocId -> Identifier
+        tagId kind docid =
+            { kind = urlDecode kind
+            , docid = docid
+            , fragment = Nothing
+            }
+                |> MyTagId
+
+        propertyId : String -> String -> DocId -> Identifier
+        propertyId kind value docid =
+            { kind = urlDecode kind
+            , value = urlDecode value
+            , docid = docid
+            , fragment = Nothing
+            }
+                |> MyPropertyId
+
+        modificationId : String -> DocId -> Identifier
+        modificationId kind docid =
+            { kind = urlDecode kind
+            , docid = docid
+            , time = Time.millisToPosix 0
+            , person = PersonId dummyEmail
+            , fragment = Nothing
+            }
+                |> MyModificationId
+
+        linkId : String -> DocId -> Identifier
+        linkId kind docid =
+            { kind = urlDecode kind
+            , fromid = docid
+            , toid = docid
+            , fragment = Nothing
+            }
+                |> MyLinkId
+    in
+    UP.oneOf
+        [ UP.map tagId
+            (UP.s "tag"
+                </> UP.string
+                </> docId
+            )
+        , UP.map propertyId
+            (UP.s "property"
+                </> UP.string
+                </> UP.string
+                </> docId
+            )
+        , UP.map modificationId
+            (UP.s "modification"
+                </> UP.string
+                </> docId
+            )
+        , UP.map linkId
+            (UP.s "link"
+                </> UP.string
+                </> docId
+            )
+        ]
 
 
 idParser : UP.Parser (Identifier -> a) a
@@ -469,6 +580,22 @@ docIdToString docid =
     Url.Builder.relative (docIdToList docid) []
 
 
+docIdToDoctypeString : DocId -> String
+docIdToDoctypeString docid =
+    case docid of
+        PersonId id ->
+            "person"
+
+        InterlinearId _ ->
+            "interlinear"
+
+        SequenceId _ ->
+            "sequence"
+
+        PageId _ ->
+            "page"
+
+
 {-| Unlike docIdToString, this returns only the string representation
 of the id part, rather than a URL path-like object.
 -}
@@ -588,16 +715,24 @@ identifierToReverse ident =
         MyLinkId ident_ ->
             Just <| linkIdToReverse ident_
 
-        MyNoteId _ ->
-            Just <| noteIdToReverse
+        MyNoteId ident_ ->
+            Just <| noteIdToReverse ident_
 
         MyUtilityId _ ->
             Nothing
 
 
-noteIdToReverse : String
-noteIdToReverse =
-    Url.Builder.custom Relative [ "note" ] [] Nothing
+noteIdToReverse : DocId -> String
+noteIdToReverse noteid =
+    let
+        path : List String
+        path =
+            [ "note"
+            , docIdToDoctypeString noteid
+            ]
+                |> List.map Url.percentEncode
+    in
+    Url.Builder.custom Relative path [] Nothing
 
 
 linkIdToReverse : LinkId -> String
@@ -607,6 +742,7 @@ linkIdToReverse linkid =
         path =
             [ "link"
             , linkid.kind
+            , docIdToDoctypeString linkid.fromid
             ]
                 |> List.map Url.percentEncode
     in
@@ -620,6 +756,7 @@ modificationIdToReverse modid =
         path =
             [ "modification"
             , modid.kind
+            , docIdToDoctypeString modid.docid
             ]
                 |> List.map Url.percentEncode
     in
@@ -633,6 +770,7 @@ tagIdToReverse tagid =
         path =
             [ "tag"
             , tagid.kind
+            , docIdToDoctypeString tagid.docid
             ]
                 |> List.map Url.percentEncode
     in
@@ -647,6 +785,7 @@ propertyIdToReverse propertyid =
             [ "property"
             , propertyid.kind
             , propertyid.value
+            , docIdToDoctypeString propertyid.docid
             ]
                 |> List.map Url.percentEncode
     in

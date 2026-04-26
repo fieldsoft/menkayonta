@@ -194,37 +194,26 @@ const handleDelete = async (doc, address) => {
 }
 
 const handleRequestReversal = async (queryString) => {
-  try {
-    const reversals = await gvs.db.query('menkayonta/meta_reversals', {
+  const qparts = queryString.split('/')
+  const doctype = qparts.at(-1)
+  let options = {}
+
+  if (qparts[0] == 'property' && qparts[1] == '*') {
+    options = {
       include_docs: true,
-      startkey: `${queryString}/interlinear/`,
-      endkey: `${queryString}/interlinear/\ufff0`,
-    })
-
-    const onlyDocs = reversals.rows.reduce((acc, row) => {
-      acc.push(row.doc)
-
-      return acc
-    }, [])
-
-    process.parentPort.postMessage({
-      command: 'received-interlinear-reversals',
-      content: onlyDocs,
-      project: gvs.identifier,
-      address: queryString,
-    })
-  } catch (e) {
-    error(e)
+      startkey: `${queryString}/\u0000/${doctype}/`,
+      endkey: `${queryString}/\ufff0/${doctype}/\ufff0`,
+    }
+  } else {
+    options = {
+      include_docs: true,
+      startkey: `${queryString}/${doctype}/`,
+      endkey: `${queryString}/${doctype}/\ufff0`,
+    }
   }
-}
 
-const handleRequestAttrReversal = async (queryString) => {
   try {
-    const reversals = await gvs.db.query('menkayonta/meta_reversals', {
-      include_docs: true,
-      startkey: `${queryString}/\u0000/interlinear/`,
-      endkey: `${queryString}/\ufff0/interlinear/\ufff0`,
-    })
+    const reversals = await gvs.db.query('menkayonta/meta_reversals', options)
 
     const onlyDocs = reversals.rows.reduce((acc, row) => {
       acc.push(row.doc)
@@ -233,10 +222,10 @@ const handleRequestAttrReversal = async (queryString) => {
     }, [])
 
     process.parentPort.postMessage({
-      command: 'received-interlinear-reversals',
+      command: 'received-reversals',
       content: onlyDocs,
       project: gvs.identifier,
-      address: queryString,
+      address: `${queryString}/${doctype}`,
     })
   } catch (e) {
     error(e)
@@ -506,12 +495,7 @@ const handleMainMessage = (m) => {
     }
 
     case 'request-reversal': {
-      handleRequestReversal(m.data.address)
-      break
-    }
-
-    case 'request-attr-reversal': {
-      handleRequestAttrReversal(m.data.address)
+      handleRequestReversal(m.data.address, m.data.content)
       break
     }
 

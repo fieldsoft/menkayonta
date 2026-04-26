@@ -12,6 +12,7 @@ import DateFormat as DF
 import Html
 import Html.Attributes as Attr
 import Html.Events as Event
+import List.Extra as LE
 import Menkayonta
     exposing
         ( DocId
@@ -20,6 +21,7 @@ import Menkayonta
         , Modification
         , Property
         , Tag
+        , docIdToDoctypeString
         , identifierToReverse
         , identifierToString
         )
@@ -97,13 +99,13 @@ properties project docid props =
                                 [ Html.text "Value" ]
                             ]
                         ]
-                    , Html.tbody [] <| List.map (property project) props
+                    , Html.tbody [] <| List.map (property project docid) props
                     ]
                 ]
 
 
-property : UUID.UUID -> Property -> Html.Html Msg
-property project prop =
+property : UUID.UUID -> DocId -> Property -> Html.Html Msg
+property project docid prop =
     let
         propstring : String
         propstring =
@@ -119,9 +121,9 @@ property project prop =
                     |> MyPropertyId
                     |> identifierToReverse
                     |> Maybe.map (String.split "/")
-                    |> Maybe.map (List.take 2)
+                    |> Maybe.map (LE.setAt 3 "*")
                     |> Maybe.map (String.join "/")
-                    |> OAttrReversal
+                    |> OReversal
                     |> Msg.Request project
                     |> Msg.UserClick
                     |> Event.onClick
@@ -392,19 +394,19 @@ tags project docid ts =
         [] ->
             Html.article []
                 [ Html.a
-                      [ Attr.href "#"
-                      , Attr.title "Add a new tag"
-                      , Attr.attribute "role" "button"
-                      , Attr.class "secondary"
-                      , Event.onClick <|
-                          Msg.ChangeTag <|
-                              Just
-                              { kind = openval
-                              , docids = [ docid ]
-                              , project = project
-                              }
-                      ]
-                      [ Html.text "Add Tag" ]
+                    [ Attr.href "#"
+                    , Attr.title "Add a new tag"
+                    , Attr.attribute "role" "button"
+                    , Attr.class "secondary"
+                    , Event.onClick <|
+                        Msg.ChangeTag <|
+                            Just
+                                { kind = openval
+                                , docids = [ docid ]
+                                , project = project
+                                }
+                    ]
+                    [ Html.text "Add Tag" ]
                 ]
 
         _ :: _ ->
@@ -429,12 +431,12 @@ tags project docid ts =
                         ]
                     ]
                 , Html.div [] <|
-                    List.map (tag project) ts
+                    List.map (tag project docid) ts
                 ]
 
 
-tag : UUID.UUID -> Tag -> Html.Html Msg
-tag project t =
+tag : UUID.UUID -> DocId -> Tag -> Html.Html Msg
+tag project docid t =
     Html.span
         [ Attr.class "tag" ]
         [ Html.a
