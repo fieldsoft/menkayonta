@@ -63,8 +63,8 @@ window.electronAPI.onReceivedSequence((data) => {
   app.ports.receivedSequence.send(data)
 })
 
-window.electronAPI.onReceivedInterlinearReversals((data) => {
-  app.ports.receivedInterlinearReversals.send(data)
+window.electronAPI.onReceivedReversals((data) => {
+  app.ports.receivedReversals.send(data)
 })
 
 window.electronAPI.onReceivedDoc((data) => {

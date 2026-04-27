@@ -1719,7 +1719,7 @@ subscriptions _ =
         , receivedSequenceListing <| rcvd ISequenceListing
         , receivedSequence <| rcvd ISequence
         , receivedPersonListing <| rcvd IPersonListing
-        , receivedInterlinearReversals <| rcvd IReversal
+        , receivedReversals <| rcvd IReversal
         , receivedComposite <| rcvd IComposite
         , receivedViewArea <| rcvd IViewArea
         , receivedReloadRequest <| rcvd IReload
@@ -4200,7 +4200,7 @@ port receivedPersonListing : (E.Value -> msg) -> Sub msg
 port receivedReloadRequest : (E.Value -> msg) -> Sub msg
 
 
-port receivedInterlinearReversals : (E.Value -> msg) -> Sub msg
+port receivedReversals : (E.Value -> msg) -> Sub msg
 
 
 port receivedComposite : (E.Value -> msg) -> Sub msg

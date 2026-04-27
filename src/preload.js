@@ -36,10 +36,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ),
   onReceivedSequence: (callback) =>
     ipcRenderer.on('received-sequence-items', (_event, data) => callback(data)),
-  onReceivedInterlinearReversals: (callback) =>
-    ipcRenderer.on('received-interlinear-reversals', (_event, data) =>
-      callback(data),
-    ),
+  onReceivedReversals: (callback) =>
+    ipcRenderer.on('received-reversals', (_event, data) => callback(data)),
   onReceivedPersonListing: (callback) =>
     ipcRenderer.on('received-person-listing', (_event, data) => callback(data)),
   onReceivedComposite: (callback) =>

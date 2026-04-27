@@ -121,7 +121,7 @@ property project docid prop =
                     |> MyPropertyId
                     |> identifierToReverse
                     |> Maybe.map (String.split "/")
-                    |> Maybe.map (LE.setAt 3 "*")
+                    |> Maybe.map (LE.setAt 2 "*")
                     |> Maybe.map (String.join "/")
                     |> OReversal
                     |> Msg.Request project

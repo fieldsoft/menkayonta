@@ -198,17 +198,17 @@ const handleRequestReversal = async (queryString) => {
   const doctype = qparts.at(-1)
   let options = {}
 
-  if (qparts[0] == 'property' && qparts[1] == '*') {
+  if (qparts[0] == 'property' && qparts[2] == '*') {
     options = {
       include_docs: true,
-      startkey: `${queryString}/\u0000/${doctype}/`,
-      endkey: `${queryString}/\ufff0/${doctype}/\ufff0`,
+      startkey: `${qparts[0]}/${qparts[1]}/\u0000/${doctype}/`,
+      endkey: `${qparts[0]}/${qparts[1]}/\ufff0/${doctype}/\ufff0`,
     }
   } else {
     options = {
       include_docs: true,
-      startkey: `${queryString}/${doctype}/`,
-      endkey: `${queryString}/${doctype}/\ufff0`,
+      startkey: `${queryString}/`,
+      endkey: `${queryString}/\ufff0`,
     }
   }
 
@@ -225,7 +225,7 @@ const handleRequestReversal = async (queryString) => {
       command: 'received-reversals',
       content: onlyDocs,
       project: gvs.identifier,
-      address: `${queryString}/${doctype}`,
+      address: queryString,
     })
   } catch (e) {
     error(e)
@@ -495,7 +495,7 @@ const handleMainMessage = (m) => {
     }
 
     case 'request-reversal': {
-      handleRequestReversal(m.data.address, m.data.content)
+      handleRequestReversal(m.data.address)
       break
     }
 
