@@ -1961,13 +1961,13 @@ viewLoadingProject model p =
                             case k of
                                 "view_indexing" ->
                                     if v > 0 then
-                                        Html.text " I "
+                                        Html.text " (indexing) "
 
                                     else
                                         Html.text ""
 
                                 "replication" ->
-                                    Html.text " R "
+                                    Html.text " (syncing) "
 
                                 _ ->
                                     Html.text ""
