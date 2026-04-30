@@ -1,4 +1,4 @@
-module Display.SequenceListing exposing (Model, Msg, view, viewSequence)
+module Display.SequenceListing exposing (Model, view, viewSequence)
 
 import Dict
 import Html
